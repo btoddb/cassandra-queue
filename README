@@ -1,0 +1,3 @@
+A simple FIFO queue using Cassandra Database and the Pelops client library.
+
+Requires Cassandr version 0.7 and a version of Pelops that works with 0.7
