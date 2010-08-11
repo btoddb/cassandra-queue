@@ -1,6 +1,9 @@
 package com.real.cassandra.queue;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,19 +14,11 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.wyki.cassandra.pelops.GeneralPolicy;
 import org.wyki.cassandra.pelops.Pelops;
 import org.wyki.cassandra.pelops.ThriftPoolComplex.Policy;
 
-import com.real.cassandra.queue.raw.QueueRepository;
-
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(locations = {
-    "classpath:spring-config-properties.xml" })
-public class CassQueueMgrTest {
+public class CassQueueTest {
     private static final String POOL_NAME = "queueTest";
     private static final String QUEUE_NAME = "test";
     private static final int QUEUE_WIDTH = 4;

@@ -15,7 +15,6 @@ import org.wyki.cassandra.pelops.Pelops;
 import org.wyki.cassandra.pelops.Selector;
 import org.wyki.cassandra.pelops.UuidHelper;
 
-import com.real.cassandra.queue.raw.QueueRepository;
 
 public class CassQueue {
     // private static final Bytes EMPTY_STRING_BYTES = Bytes.fromUTF8("");

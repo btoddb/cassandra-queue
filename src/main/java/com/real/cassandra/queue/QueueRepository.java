@@ -1,4 +1,4 @@
-package com.real.cassandra.queue.raw;
+package com.real.cassandra.queue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +15,6 @@ import org.wyki.cassandra.pelops.Mutator;
 import org.wyki.cassandra.pelops.Pelops;
 import org.wyki.cassandra.pelops.Selector;
 
-import com.real.cassandra.queue.CassQueue;
 
 public class QueueRepository {
     public static final String KEYSPACE_NAME = "Queues";
