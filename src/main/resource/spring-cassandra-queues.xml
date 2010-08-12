@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans
+	xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:util="http://www.springframework.org/schema/util"
+
+	xsi:schemaLocation="
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd
+		http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-3.0.xsd
+		"
+	> <!-- beans -->
+
+	<!--
+		scan for @Components (ie  @service, @repository, etc)
+
+		without this, cannot register beans using annotations that XML configuration can reference
+	-->
+	<context:component-scan base-package="com.real.cassandra.queue" />
+
+    <util:constant id="queuesKeyspaceName" static-field="com.real.cassandra.queue.QueueRepository.KEYSPACE_NAME" />
+    <util:constant id="CONSISTENCY_ONE" static-field="org.apache.cassandra.thrift.ConsistencyLevel.ONE"/>
+    <util:list id="bootstrapHosts">
+        <value>localhost</value>
+    </util:list>
+    
+    <bean id="queueRepository" class="com.real.cassandra.queue.QueueRepository" init-method="init">
+        <constructor-arg name="pool" ref="connPool" />
+        <constructor-arg name="consistencyLevel" ref="CONSISTENCY_ONE" />
+    </bean>
+    
+    <bean id="testQueue" class="com.real.cassandra.queue.QueueFactoryBean">
+        <property name="queueRepository" ref="queueRepository" />
+        <property name="numPipes" value="4" />
+        <property name="qName" value="test" />
+    </bean>
+
+
+
+    <bean id="connPoolPolicy" class="org.wyki.cassandra.pelops.ThriftPoolComplex.Policy">
+        <property name="targetConnectionsPerNode" value="2" />
+        <property name="maxConnectionsPerNode" value="2" />
+        <property name="minCachedConnectionsPerNode" value="2" />
+        <property name="framedTransportRequired" value="true" />
+
+<!--        <property name="minGetConnectionRetryDelay" value="2" />-->
+<!--        <property name="maxGetConnectionRetryDelay" value="500" />-->
+<!--        <property name="maxGetConnectionRetryWait" value="1000" />-->
+
+<!--        <property name="defaultTargetRefillCheckPause" value="1000" /> -->
+        
+        <property name="killNodeConnsOnException" value="false" />
+    </bean>
+
+    <bean id="generalPolicy" class="org.wyki.cassandra.pelops.GeneralPolicy">
+        <property name="maxOpRetries" value="10" />
+    </bean>    
+    
+    <bean id="connPool" class="com.real.cassandra.queue.PelopsPool" init-method="initPool">
+        <property name="poolName" value="myPool" />
+        <property name="keyspaceName" ref="queuesKeyspaceName" />
+
+        <property name="policy" ref="connPoolPolicy" />
+        <property name="generalPolicy" ref="generalPolicy" />
+        <property name="hostNameList" ref="bootstrapHosts" />
+        
+        <property name="nodeDiscovery" value="false" />
+    </bean>
+    
+</beans>
+

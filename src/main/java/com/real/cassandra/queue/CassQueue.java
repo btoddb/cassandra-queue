@@ -7,35 +7,27 @@ import java.util.Map.Entry;
 import java.util.UUID;
 
 import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.SlicePredicate;
 import org.wyki.cassandra.pelops.Bytes;
-import org.wyki.cassandra.pelops.Mutator;
-import org.wyki.cassandra.pelops.Pelops;
-import org.wyki.cassandra.pelops.Selector;
 import org.wyki.cassandra.pelops.UuidHelper;
-
 
 public class CassQueue {
     // private static final Bytes EMPTY_STRING_BYTES = Bytes.fromUTF8("");
 
-    private String poolName;
-    private ConsistencyLevel consistencyLevel;
+    private QueueRepository queueRepository;
     private String name;
-    private int width;
-    private int index = 0;
+    private int numPipes;
+    private int curPipe = 0;
     private Object indexMonitor = new Object();
     private List<Bytes> queueKeyList;
 
-    public CassQueue(String poolName, ConsistencyLevel consistencyLevel, String name, int width) {
-        this.poolName = poolName;
-        this.consistencyLevel = consistencyLevel;
+    public CassQueue(QueueRepository queueRepository, String name, int numPipes) {
+        this.queueRepository = queueRepository;
 
         this.name = name;
-        this.width = width;
+        this.numPipes = numPipes;
 
-        queueKeyList = new ArrayList<Bytes>(width);
-        for (int i = 0; i < width; i++) {
+        queueKeyList = new ArrayList<Bytes>(numPipes);
+        for (int i = 0; i < numPipes; i++) {
             queueKeyList.add(Bytes.fromUTF8(QueueRepository.formatKey(name, i)));
         }
     }
@@ -44,29 +36,21 @@ public class CassQueue {
         return name;
     }
 
-    public int getWidth() {
-        return width;
+    public int getNumPipes() {
+        return numPipes;
     }
 
     public void push(String value) throws Exception {
-        Mutator m = Pelops.createMutator(poolName, QueueRepository.KEYSPACE_NAME);
         UUID timeUuid = UuidHelper.newTimeUuid();
-        Column col = m.newColumn(Bytes.fromUuid(timeUuid), Bytes.fromUTF8(value));
-
-        String rowKey = QueueRepository.formatKey(name, getIndexAndInc());
-        m.writeColumn(rowKey, QueueRepository.WAITING_COL_FAM, col);
-        m.execute(consistencyLevel);
+        queueRepository.insert(QueueRepository.WAITING_COL_FAM, getName(), getIndexAndInc(), Bytes.fromUuid(timeUuid),
+                Bytes.fromUTF8(value));
     }
 
     public Event pop() throws Exception {
 
         // enter ZK lock region
 
-        // get the oldest from each queue row
-        SlicePredicate pred = Selector.newColumnsPredicateAll(false, 1);
-        Selector s = Pelops.createSelector(poolName, QueueRepository.KEYSPACE_NAME);
-        Map<Bytes, List<Column>> colList =
-                s.getColumnsFromRows(queueKeyList, QueueRepository.WAITING_COL_FAM, pred, consistencyLevel);
+        Map<Bytes, List<Column>> colList = queueRepository.getOldestFromAllPipes(queueKeyList);
 
         // determine which result is the oldest across the queue rows
         Bytes rowKey = null;
@@ -91,7 +75,8 @@ public class CassQueue {
             return null;
         }
 
-        moveFromWaitingToDelivered(rowKey, Bytes.fromUuid(oldestColName), Bytes.fromBytes(oldestColValue));
+        queueRepository.moveFromWaitingToDelivered(rowKey, Bytes.fromUuid(oldestColName),
+                Bytes.fromBytes(oldestColValue));
 
         // release ZK lock region
 
@@ -99,47 +84,39 @@ public class CassQueue {
     }
 
     public void commit(Event evt) throws Exception {
-        removeFromDelivered(Bytes.fromUTF8(evt.getKey()), Bytes.fromUuid(evt.getMsgId()));
+        queueRepository.removeFromDelivered(Bytes.fromUTF8(evt.getKey()), Bytes.fromUuid(evt.getMsgId()));
     }
 
     public void rollback(Event evt) throws Exception {
-        moveFromDeliveredToWaiting(Bytes.fromUTF8(evt.getKey()), Bytes.fromUuid(evt.getMsgId()),
+        queueRepository.moveFromDeliveredToWaiting(Bytes.fromUTF8(evt.getKey()), Bytes.fromUuid(evt.getMsgId()),
                 Bytes.fromUTF8(evt.getValue()));
     }
 
-    private void removeFromDelivered(Bytes key, Bytes colName) throws Exception {
-        Mutator m = Pelops.createMutator(poolName, QueueRepository.KEYSPACE_NAME);
-        m.deleteColumn(new String(key.getBytes()), QueueRepository.DELIVERED_COL_FAM, colName);
-        m.execute(consistencyLevel);
-    }
+    public void truncate() throws Exception {
+        // enter ZK lock region
 
-    private void moveFromWaitingToDelivered(Bytes key, Bytes colName, Bytes colValue) throws Exception {
-        Mutator m = Pelops.createMutator(poolName, QueueRepository.KEYSPACE_NAME);
-        Column col = m.newColumn(colName, colValue);
-        m.writeColumn(key, QueueRepository.DELIVERED_COL_FAM, col);
-        m.deleteColumn(new String(key.getBytes()), QueueRepository.WAITING_COL_FAM, colName);
-        m.execute(consistencyLevel);
-    }
+        synchronized (indexMonitor) {
+            queueRepository.truncateQueue(this);
+            curPipe = 0;
+        }
 
-    private void moveFromDeliveredToWaiting(Bytes key, Bytes colName, Bytes colValue) throws Exception {
-
-        // possibly inside ZK lock
-
-        Mutator m = Pelops.createMutator(poolName, QueueRepository.KEYSPACE_NAME);
-        Column col = m.newColumn(colName, colValue);
-        m.writeColumn(key, QueueRepository.WAITING_COL_FAM, col);
-        m.deleteColumn(new String(key.getBytes()), QueueRepository.DELIVERED_COL_FAM, colName);
-        m.execute(consistencyLevel);
-
-        // release ZK lock
-
+        // release ZK lock region
     }
 
     private int getIndexAndInc() {
         synchronized (indexMonitor) {
-            int ret = index;
-            index = (index + 1) % width;
+            int ret = curPipe;
+            curPipe = (curPipe + 1) % numPipes;
             return ret;
         }
     }
+
+    public List<Column> getWaitingEvents(int index, int maxNumEvents) throws Exception {
+        return queueRepository.getWaitingEvents(getName(), index, maxNumEvents);
+    }
+
+    public List<Column> getDeliveredEvents(int index, int maxNumEvents) throws Exception {
+        return queueRepository.getDeliveredEvents(getName(), index, maxNumEvents);
+    }
+
 }

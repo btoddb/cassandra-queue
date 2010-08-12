@@ -8,22 +8,28 @@ import static org.junit.Assert.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.Resource;
+
 import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
-import org.wyki.cassandra.pelops.GeneralPolicy;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.wyki.cassandra.pelops.Pelops;
-import org.wyki.cassandra.pelops.ThriftPoolComplex.Policy;
 
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(locations = {
+    "classpath:spring-cassandra-queues.xml"
+
+})
 public class CassQueueTest {
-    private static final String POOL_NAME = "queueTest";
-    private static final String QUEUE_NAME = "test";
-    private static final int QUEUE_WIDTH = 4;
+    @Autowired
+    private QueueRepository qRep;
 
-    private QueueRepository qMgr;
+    @Resource(name = "testQueue")
     private CassQueue cq;
 
     @Test
@@ -134,10 +140,27 @@ public class CassQueueTest {
         verifyWaitingQueue(0);
     }
 
+    @Test
+    public void testTruncate() throws Exception {
+        int numEvents = 20;
+        for (int i = 0; i < numEvents; i++) {
+            cq.push("xxx_" + i);
+        }
+
+        for (int i = 0; i < numEvents / 2; i++) {
+            cq.pop();
+        }
+
+        cq.truncate();
+
+        verifyWaitingQueue(0);
+        verifyDeliveredQueue(0);
+    }
+
     // -----------------------
 
     private void verifyExistsInDeliveredQueue(int index, int numEvents, boolean wantExists) throws Exception {
-        List<Column> colList = qMgr.getDeliveredEvents(QUEUE_NAME, index % QUEUE_WIDTH, numEvents + 1);
+        List<Column> colList = cq.getDeliveredEvents(index % cq.getNumPipes(), numEvents + 1);
         if (wantExists) {
             boolean found = false;
             for (Column col : colList) {
@@ -157,7 +180,7 @@ public class CassQueueTest {
     }
 
     private void verifyExistsInWaitingQueue(int index, int numEvents, boolean wantExists) throws Exception {
-        List<Column> colList = qMgr.getWaitingEvents(QUEUE_NAME, index % QUEUE_WIDTH, numEvents + 1);
+        List<Column> colList = cq.getWaitingEvents(index % cq.getNumPipes(), numEvents + 1);
         if (wantExists) {
             boolean found = false;
             for (Column col : colList) {
@@ -177,55 +200,39 @@ public class CassQueueTest {
     }
 
     private void verifyDeliveredQueue(int numEvents) throws Exception {
-        int min = numEvents / QUEUE_WIDTH;
-        int mod = numEvents % QUEUE_WIDTH;
+        int min = numEvents / cq.getNumPipes();
+        int mod = numEvents % cq.getNumPipes();
 
-        for (int i = 0; i < QUEUE_WIDTH; i++) {
-            List<Column> colList = qMgr.getDeliveredEvents(QUEUE_NAME, i, numEvents + 1);
+        for (int i = 0; i < cq.getNumPipes(); i++) {
+            List<Column> colList = cq.getDeliveredEvents(i, numEvents + 1);
             assertEquals("count on queue index " + i + " is incorrect", i < mod ? min + 1 : min, colList.size());
 
             for (int j = 0; j < colList.size(); j++) {
                 String value = new String(colList.get(j).getValue());
-                assertEquals("xxx_" + (i + (j * QUEUE_WIDTH)), value);
+                assertEquals("xxx_" + (i + (j * cq.getNumPipes())), value);
             }
         }
     }
 
     private void verifyWaitingQueue(int numEvents) throws Exception {
-        int min = numEvents / QUEUE_WIDTH;
-        int mod = numEvents % QUEUE_WIDTH;
+        int min = numEvents / cq.getNumPipes();
+        int mod = numEvents % cq.getNumPipes();
 
-        for (int i = 0; i < QUEUE_WIDTH; i++) {
-            List<Column> colList = qMgr.getWaitingEvents(QUEUE_NAME, i, numEvents + 1);
+        for (int i = 0; i < cq.getNumPipes(); i++) {
+            List<Column> colList = cq.getWaitingEvents(i, numEvents + 1);
             assertEquals("count on queue index " + i + " is incorrect", i < mod ? min + 1 : min, colList.size());
 
             for (int j = 0; j < colList.size(); j++) {
                 String value = new String(colList.get(j).getValue());
-                assertEquals("xxx_" + (i + (j * QUEUE_WIDTH)), value);
+                assertEquals("xxx_" + (i + (j * cq.getNumPipes())), value);
             }
         }
     }
 
     @Before
     public void setupQueueMgrAndPool() throws Exception {
-        qMgr = new QueueRepository(POOL_NAME, ConsistencyLevel.ONE);
-        qMgr.initCassandra(true);
-        cq = qMgr.createQueue(QUEUE_NAME, QUEUE_WIDTH);
-    }
-
-    @BeforeClass
-    public static void createPelopsPool() {
-        GeneralPolicy generalPolicy = new GeneralPolicy();
-        generalPolicy.setMaxOpRetries(10);
-        Policy poolPolicy = new Policy();
-        poolPolicy.setFramedTransportRequired(true);
-        poolPolicy.setKillNodeConnsOnException(false);
-        poolPolicy.setMaxConnectionsPerNode(2);
-        poolPolicy.setMinCachedConnectionsPerNode(2);
-        poolPolicy.setTargetConnectionsPerNode(2);
-
-        Pelops.addPool(POOL_NAME, new String[] {
-            "localhost" }, 9160, 5000, false, QueueRepository.KEYSPACE_NAME, generalPolicy, poolPolicy);
+        qRep.initCassandra(true);
+        cq.truncate();
     }
 
     @AfterClass
