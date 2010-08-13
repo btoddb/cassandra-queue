@@ -11,7 +11,7 @@
 
 	<int:channel id="testChannel" />
 
-    <bean id="cassQueueChannelAdapter" class="com.real.cassandra.queue.CassandraQueueChannelAdapter">
+    <bean id="cassQueueChannelAdapter" class="com.real.cassandra.queue.spring.CassandraQueueChannelAdapter">
         <constructor-arg name="cq" ref="testQueue" />
     </bean>
     

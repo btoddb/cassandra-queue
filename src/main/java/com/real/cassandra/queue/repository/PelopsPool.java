@@ -1,4 +1,4 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.repository;
 
 import java.security.InvalidParameterException;
 import java.util.List;

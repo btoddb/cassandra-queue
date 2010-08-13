@@ -2,14 +2,19 @@ package com.real.cassandra.queue;
 
 import java.util.UUID;
 
-public class Event {
+/**
+ * Model object for a message in the Cassandra queue
+ * 
+ * @author
+ */
+public class CassQMsg {
 
-    private String key;
+    private String queuePipeKey;
     private UUID msgId;
     private String value;
 
-    public Event(String key, UUID msgId, String value) {
-        this.key = key;
+    public CassQMsg(String key, UUID msgId, String value) {
+        this.queuePipeKey = key;
         this.msgId = msgId;
         this.value = value;
     }
@@ -22,15 +27,15 @@ public class Event {
         return value;
     }
 
-    public String getKey() {
-        return key;
+    public String getQueuePipeKey() {
+        return queuePipeKey;
     }
 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("Event [key=");
-        builder.append(key);
+        builder.append("CassQMsg [queuePipeKey=");
+        builder.append(queuePipeKey);
         builder.append(", msgId=");
         builder.append(msgId);
         builder.append(", value=");
@@ -55,7 +60,7 @@ public class Event {
             return false;
         if (getClass() != obj.getClass())
             return false;
-        Event other = (Event) obj;
+        CassQMsg other = (CassQMsg) obj;
         if (msgId == null) {
             if (other.msgId != null)
                 return false;

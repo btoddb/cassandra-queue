@@ -1,6 +1,9 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.spring;
 
 import org.springframework.beans.factory.FactoryBean;
+
+import com.real.cassandra.queue.CassQueue;
+import com.real.cassandra.queue.repository.QueueRepository;
 
 /**
  * Spring factory bean used to create {@link CassQueue} type queues.

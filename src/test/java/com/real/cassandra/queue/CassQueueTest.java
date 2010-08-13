@@ -20,6 +20,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.wyki.cassandra.pelops.Pelops;
 
+import com.real.cassandra.queue.repository.QueueRepository;
+
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations = {
         "classpath:spring-cassandra-queues.xml", "classpath:spring-config-properties.xml"
@@ -50,8 +52,8 @@ public class CassQueueTest {
             cq.push("xxx_" + i);
         }
 
-        ArrayList<Event> popList = new ArrayList<Event>(numEvents);
-        Event evt;
+        ArrayList<CassQMsg> popList = new ArrayList<CassQMsg>(numEvents);
+        CassQMsg evt;
         while (null != (evt = cq.pop())) {
             popList.add(evt);
         }
@@ -72,8 +74,8 @@ public class CassQueueTest {
             cq.push("xxx_" + i);
         }
 
-        ArrayList<Event> popList = new ArrayList<Event>(numEvents);
-        Event evt;
+        ArrayList<CassQMsg> popList = new ArrayList<CassQMsg>(numEvents);
+        CassQMsg evt;
         while (null != (evt = cq.pop())) {
             popList.add(evt);
         }
@@ -96,8 +98,8 @@ public class CassQueueTest {
             cq.push("xxx_" + i);
         }
 
-        ArrayList<Event> popList = new ArrayList<Event>(numEvents);
-        Event evt;
+        ArrayList<CassQMsg> popList = new ArrayList<CassQMsg>(numEvents);
+        CassQMsg evt;
         while (null != (evt = cq.pop())) {
             popList.add(evt);
         }
@@ -118,9 +120,9 @@ public class CassQueueTest {
         cq.push("yyy");
         cq.push("zzz");
 
-        Event evtToRollback = cq.pop();
+        CassQMsg evtToRollback = cq.pop();
 
-        Event evt = cq.pop();
+        CassQMsg evt = cq.pop();
         assertEquals("should have popped next event", "yyy", evt.getValue());
         cq.commit(evt);
 
@@ -160,7 +162,7 @@ public class CassQueueTest {
     // -----------------------
 
     private void verifyExistsInDeliveredQueue(int index, int numEvents, boolean wantExists) throws Exception {
-        List<Column> colList = cq.getDeliveredEvents(index % cq.getNumPipes(), numEvents + 1);
+        List<Column> colList = cq.getDeliveredMessages(index % cq.getNumPipes(), numEvents + 1);
         if (wantExists) {
             boolean found = false;
             for (Column col : colList) {
@@ -180,7 +182,7 @@ public class CassQueueTest {
     }
 
     private void verifyExistsInWaitingQueue(int index, int numEvents, boolean wantExists) throws Exception {
-        List<Column> colList = cq.getWaitingEvents(index % cq.getNumPipes(), numEvents + 1);
+        List<Column> colList = cq.getWaitingMessages(index % cq.getNumPipes(), numEvents + 1);
         if (wantExists) {
             boolean found = false;
             for (Column col : colList) {
@@ -204,7 +206,7 @@ public class CassQueueTest {
         int mod = numEvents % cq.getNumPipes();
 
         for (int i = 0; i < cq.getNumPipes(); i++) {
-            List<Column> colList = cq.getDeliveredEvents(i, numEvents + 1);
+            List<Column> colList = cq.getDeliveredMessages(i, numEvents + 1);
             assertEquals("count on queue index " + i + " is incorrect", i < mod ? min + 1 : min, colList.size());
 
             for (int j = 0; j < colList.size(); j++) {
@@ -219,7 +221,7 @@ public class CassQueueTest {
         int mod = numEvents % cq.getNumPipes();
 
         for (int i = 0; i < cq.getNumPipes(); i++) {
-            List<Column> colList = cq.getWaitingEvents(i, numEvents + 1);
+            List<Column> colList = cq.getWaitingMessages(i, numEvents + 1);
             assertEquals("count on queue index " + i + " is incorrect", i < mod ? min + 1 : min, colList.size());
 
             for (int j = 0; j < colList.size(); j++) {

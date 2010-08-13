@@ -1,4 +1,4 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.repository;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +16,8 @@ import org.wyki.cassandra.pelops.Management;
 import org.wyki.cassandra.pelops.Mutator;
 import org.wyki.cassandra.pelops.Pelops;
 import org.wyki.cassandra.pelops.Selector;
+
+import com.real.cassandra.queue.CassQueue;
 
 /**
  * Responsible for the raw I/O for Cassandra queues. Uses Pelops library for
@@ -139,13 +141,13 @@ public class QueueRepository {
         createKeyspace();
     }
 
-    public List<Column> getWaitingEvents(String name, int index, int maxColumns) throws Exception {
+    public List<Column> getWaitingMessages(String name, int index, int maxColumns) throws Exception {
         Selector s = Pelops.createSelector(pool.getPoolName(), KEYSPACE_NAME);
         SlicePredicate pred = Selector.newColumnsPredicateAll(false, maxColumns);
         return s.getColumnsFromRow(formatKey(name, index), WAITING_COL_FAM, pred, consistencyLevel);
     }
 
-    public List<Column> getDeliveredEvents(String name, int index, int maxColumns) throws Exception {
+    public List<Column> getDeliveredMessages(String name, int index, int maxColumns) throws Exception {
         Selector s = Pelops.createSelector(pool.getPoolName(), KEYSPACE_NAME);
         SlicePredicate pred = Selector.newColumnsPredicateAll(false, maxColumns);
         return s.getColumnsFromRow(formatKey(name, index), DELIVERED_COL_FAM, pred, consistencyLevel);

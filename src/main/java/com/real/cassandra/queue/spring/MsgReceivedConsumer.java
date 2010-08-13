@@ -1,4 +1,4 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.spring;
 
 import java.util.LinkedList;
 import java.util.Queue;
@@ -7,13 +7,15 @@ import org.springframework.integration.Message;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.stereotype.Service;
 
+import com.real.cassandra.queue.CassQMsg;
+
 @Service("msgReceivedConsumer")
 public class MsgReceivedConsumer {
-    private Queue<Event> msgQueue = new LinkedList<Event>();
+    private Queue<CassQMsg> msgQueue = new LinkedList<CassQMsg>();
 
     @ServiceActivator
-    public void execute(Message<Event> msg) {
-        Event evt = msg.getPayload();
+    public void execute(Message<CassQMsg> msg) {
+        CassQMsg evt = msg.getPayload();
         msgQueue.offer(evt);
     }
 
@@ -21,7 +23,7 @@ public class MsgReceivedConsumer {
         msgQueue.clear();
     }
 
-    public Queue<Event> getMsgQueue() {
+    public Queue<CassQMsg> getMsgQueue() {
         return msgQueue;
     }
 }

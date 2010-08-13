@@ -18,6 +18,15 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.wyki.cassandra.pelops.Pelops;
 
+import com.real.cassandra.queue.repository.QueueRepository;
+import com.real.cassandra.queue.spring.CassandraQueueChannelAdapter;
+import com.real.cassandra.queue.spring.MsgReceivedConsumer;
+
+/**
+ * Test the spring channel adapter, {@link CassandraQueueChannelAdapter}.
+ * 
+ * @author Todd Burruss
+ */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations = {
         "classpath:spring-cassandra-channels.xml", "classpath:spring-cassandra-queues.xml",
@@ -27,9 +36,6 @@ import org.wyki.cassandra.pelops.Pelops;
 public class CassandraQueueChannelAdapterTest {
     @Autowired
     private QueueRepository qRep;
-
-    // @Autowired
-    // private CassandraQueueChannelAdapter chAdap;
 
     @Resource(name = "testQueue")
     private CassQueue cq;
@@ -73,7 +79,6 @@ public class CassandraQueueChannelAdapterTest {
     // -----------------------
 
     private void verifyAllPopped(int numEvents) throws Exception {
-
         int lastNum = -1;
         for (;;) {
             int curNum = msgReceivedConsumer.getMsgQueue().size();
@@ -86,7 +91,7 @@ public class CassandraQueueChannelAdapterTest {
             Thread.sleep(200);
         }
 
-        Queue<Event> msgQ = msgReceivedConsumer.getMsgQueue();
+        Queue<CassQMsg> msgQ = msgReceivedConsumer.getMsgQueue();
         System.out.println("msgQ = " + testUtils.outputEventsAsCommaDelim(msgQ));
         assertEquals("Events didn't get on channel properly: " + testUtils.outputEventsAsCommaDelim(msgQ), numEvents,
                 msgQ.size());

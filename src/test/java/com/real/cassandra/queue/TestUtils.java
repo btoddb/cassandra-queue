@@ -16,7 +16,7 @@ public class TestUtils {
         this.cq = cq;
     }
 
-    public String outputEventsAsCommaDelim(Collection<Event> collection) {
+    public String outputEventsAsCommaDelim(Collection<CassQMsg> collection) {
         if (null == collection) {
             return null;
         }
@@ -26,7 +26,7 @@ public class TestUtils {
         }
 
         StringBuilder sb = null;
-        for (Event evt : collection) {
+        for (CassQMsg evt : collection) {
             if (null != sb) {
                 sb.append(", ");
             }
@@ -65,7 +65,7 @@ public class TestUtils {
     }
 
     public void verifyExistsInDeliveredQueue(int index, int numEvents, boolean wantExists) throws Exception {
-        List<Column> colList = cq.getDeliveredEvents(index % cq.getNumPipes(), numEvents + 1);
+        List<Column> colList = cq.getDeliveredMessages(index % cq.getNumPipes(), numEvents + 1);
         if (wantExists) {
             boolean found = false;
             for (Column col : colList) {
@@ -85,7 +85,7 @@ public class TestUtils {
     }
 
     public void verifyExistsInWaitingQueue(int index, int numEvents, boolean wantExists) throws Exception {
-        List<Column> colList = cq.getWaitingEvents(index % cq.getNumPipes(), numEvents + 1);
+        List<Column> colList = cq.getWaitingMessages(index % cq.getNumPipes(), numEvents + 1);
         if (wantExists) {
             boolean found = false;
             for (Column col : colList) {
@@ -109,7 +109,7 @@ public class TestUtils {
         int mod = numEvents % cq.getNumPipes();
 
         for (int i = 0; i < cq.getNumPipes(); i++) {
-            List<Column> colList = cq.getDeliveredEvents(i, numEvents + 1);
+            List<Column> colList = cq.getDeliveredMessages(i, numEvents + 1);
             assertEquals("count on queue index " + i + " is incorrect", i < mod ? min + 1 : min, colList.size());
 
             for (int j = 0; j < colList.size(); j++) {
@@ -124,7 +124,7 @@ public class TestUtils {
         int mod = numEvents % cq.getNumPipes();
 
         for (int i = 0; i < cq.getNumPipes(); i++) {
-            List<Column> colList = cq.getWaitingEvents(i, numEvents + 1);
+            List<Column> colList = cq.getWaitingMessages(i, numEvents + 1);
             assertEquals("count on queue index " + i + " is incorrect: events = " + outputColumnsAsCommaDelim(colList),
                     i < mod ? min + 1 : min, colList.size());
 
