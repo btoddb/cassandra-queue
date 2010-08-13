@@ -17,6 +17,10 @@ public class MsgReceivedConsumer {
         msgQueue.offer(evt);
     }
 
+    public void clear() {
+        msgQueue.clear();
+    }
+
     public Queue<Event> getMsgQueue() {
         return msgQueue;
     }

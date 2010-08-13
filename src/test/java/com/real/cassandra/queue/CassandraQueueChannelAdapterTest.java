@@ -2,7 +2,6 @@ package com.real.cassandra.queue;
 
 import static org.junit.Assert.assertEquals;
 
-import java.util.ArrayList;
 import java.util.Queue;
 
 import javax.annotation.Resource;
@@ -12,6 +11,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.integration.Message;
+import org.springframework.integration.core.MessageBuilder;
+import org.springframework.integration.core.MessageChannel;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.wyki.cassandra.pelops.Pelops;
@@ -26,8 +28,8 @@ public class CassandraQueueChannelAdapterTest {
     @Autowired
     private QueueRepository qRep;
 
-    @Autowired
-    private CassandraQueueChannelAdapter chAdap;
+    // @Autowired
+    // private CassandraQueueChannelAdapter chAdap;
 
     @Resource(name = "testQueue")
     private CassQueue cq;
@@ -35,25 +37,53 @@ public class CassandraQueueChannelAdapterTest {
     @Autowired
     private MsgReceivedConsumer msgReceivedConsumer;
 
+    @Resource(name = "testChannel")
+    private MessageChannel testChannel;
+
     private TestUtils testUtils;
 
     @Test
-    public void testPushAndPop() throws Exception {
-        testUtils.verifyWaitingQueue(0);
-        testUtils.verifyDeliveredQueue(0);
-
+    public void testPush() throws Exception {
         int numEvents = 100;
         for (int i = 0; i < numEvents; i++) {
-            chAdap.push("xxx_" + i);
+            Message<String> eventMsg;
+            eventMsg = MessageBuilder.withPayload("xxx_" + i).build();
+            testChannel.send(eventMsg);
         }
 
-        Thread.sleep(100); // must wait longer than the interval-trigger in
-                           // inbound-channel-adapter
-        int lastNum = 0;
-        int curNum;
-        while (lastNum != (curNum = msgReceivedConsumer.getMsgQueue().size())) {
-            lastNum = curNum;
-            Thread.sleep(100);
+        verifyAllPopped(numEvents);
+    }
+
+    /**
+     * Test channel automatically pop'ing from queue and delivering event via
+     * channel direct to consumer object.
+     * 
+     * @throws Exception
+     */
+    @Test
+    public void testPop() throws Exception {
+        int numEvents = 100;
+        for (int i = 0; i < numEvents; i++) {
+            cq.push("xxx_" + i);
+        }
+
+        verifyAllPopped(numEvents);
+    }
+
+    // -----------------------
+
+    private void verifyAllPopped(int numEvents) throws Exception {
+
+        int lastNum = -1;
+        for (;;) {
+            int curNum = msgReceivedConsumer.getMsgQueue().size();
+            if (curNum == lastNum) {
+                break;
+            }
+            else if (0 < curNum) {
+                lastNum = curNum;
+            }
+            Thread.sleep(200);
         }
 
         Queue<Event> msgQ = msgReceivedConsumer.getMsgQueue();
@@ -65,12 +95,11 @@ public class CassandraQueueChannelAdapterTest {
         testUtils.verifyDeliveredQueue(0);
     }
 
-    // -----------------------
-
     @Before
-    public void setupQueueMgrAndPool() throws Exception {
+    public void setupTest() throws Exception {
         qRep.initCassandra(true);
         testUtils = new TestUtils(cq);
+        msgReceivedConsumer.clear();
     }
 
     @AfterClass
