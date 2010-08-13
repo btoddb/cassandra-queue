@@ -37,8 +37,6 @@
         <property name="qName" value="test" />
     </bean>
 
-
-
     <bean id="connPoolPolicy" class="org.wyki.cassandra.pelops.ThriftPoolComplex.Policy">
         <property name="targetConnectionsPerNode" value="2" />
         <property name="maxConnectionsPerNode" value="2" />

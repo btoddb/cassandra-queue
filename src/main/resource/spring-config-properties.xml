@@ -4,7 +4,6 @@
 	xmlns="http://www.springframework.org/schema/beans"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xmlns:context="http://www.springframework.org/schema/context"
-	xmlns:tx="http://www.springframework.org/schema/tx"
 	xmlns:util="http://www.springframework.org/schema/util"
 
 	xsi:schemaLocation="
@@ -14,12 +13,12 @@
 		"
 	> <!-- beans -->
 
-	<!--
-		scan for @Components (ie  @service, @repository, etc)
+    <!--
+        scan for @Components (ie  @service, @repository, etc)
 
-		without this, cannot register beans using annotations that XML configuration can reference
-	-->
-	<context:component-scan base-package="com.real.rtppruner, com.real.common.cassandra" />
+        without this, cannot register beans using annotations that XML configuration can reference
+    -->
+    <context:component-scan base-package="com.real.cassandra.queue" />
 
 	<!--
 

@@ -22,7 +22,7 @@ import org.wyki.cassandra.pelops.Pelops;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations = {
-    "classpath:spring-cassandra-queues.xml"
+        "classpath:spring-cassandra-queues.xml", "classpath:spring-config-properties.xml"
 
 })
 public class CassQueueTest {
