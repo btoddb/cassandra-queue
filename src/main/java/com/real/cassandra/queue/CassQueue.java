@@ -16,14 +16,23 @@ import com.real.cassandra.queue.repository.QueueRepository;
  * Implementation of a simple FIFO queue using Cassandra as persistent storage.
  * No caching or priorities are implemented to keep it easy and simple.
  * 
+ * 
  * <p/>
- * Uses multiple keys per key (I call them "pipes") to help distribute data
- * across the cluster.
+ * Uses multiple keys (rows) per queue (I call them "pipes") to help distribute
+ * data across the cluster.
  * <p/>
  * {@link #push(String)} will push a value onto one of the pipes in the queue.
  * The pipe is chosen in round robin fashion.
  * <p/>
  * {@link #pop()} will read from all pipes and return the oldest message.
+ * <p/>
+ * "near FIFO" is the default operating behavior. It means that a pop will
+ * retrieve the oldest message from one of the pipes, but it may not be the
+ * oldest message in the queue. (Round robin is used to choose the pipe.) If
+ * strict FIFO is required, use {@link #setNearFifoOk(boolean)} to set it to
+ * false. This will cause a degradation in performance because all pipes must be
+ * read to determine the oldest message. multiget is used to reduce the wire
+ * time and increase parallelism in Cassandra.
  * 
  * @author Todd Burruss
  */
@@ -33,9 +42,12 @@ public class CassQueue {
     private QueueRepository queueRepository;
     private String name;
     private int numPipes;
-    private int nextPipeToUse = 0;
-    private Object pipeIncMonitor = new Object();
+    private int nextReadPipeToUse = 0;
+    private int nextWritePipeToUse = 0;
+    private Object writePipeIncMonitor = new Object();
+    private Object readPipeIncMonitor = new Object();
     private List<Bytes> queuePipeKeyList;
+    private boolean nearFifoOk = true;
 
     /**
      * 
@@ -86,7 +98,7 @@ public class CassQueue {
      */
     public void push(String value) throws Exception {
         UUID timeUuid = UuidHelper.newTimeUuid();
-        queueRepository.insert(QueueRepository.WAITING_COL_FAM, getName(), getNextPipeAndInc(),
+        queueRepository.insert(QueueRepository.WAITING_COL_FAM, getName(), getNextWritePipeAndInc(),
                 Bytes.fromUuid(timeUuid), Bytes.fromUTF8(value));
     }
 
@@ -97,26 +109,39 @@ public class CassQueue {
      * @throws Exception
      */
     public CassQMsg pop() throws Exception {
+        Bytes rowKey = null;
+        Column col = null;
 
         // enter ZK lock region
 
-        Map<Bytes, List<Column>> colList = queueRepository.getOldestFromAllPipes(queuePipeKeyList);
-
-        // determine which result is the oldest across the queue rows
-        Bytes rowKey = null;
-        UUID oldestColName = null;
-        byte[] oldestColValue = null;
-        for (Entry<Bytes, List<Column>> entry : colList.entrySet()) {
-            if (entry.getValue().isEmpty()) {
-                continue;
+        if (nearFifoOk) {
+            for (int i = 4; 0 < i; i--) {
+                int tmp = getNextReadPipeAndInc();
+                List<Column> colList = queueRepository.getWaitingMessages(getName(), tmp, 1);
+                if (!colList.isEmpty()) {
+                    rowKey = Bytes.fromUTF8(QueueRepository.formatKey(name, tmp));
+                    col = colList.get(0);
+                    break;
+                }
             }
+        }
+        else {
+            Map<Bytes, List<Column>> colList = queueRepository.getOldestFromAllPipes(queuePipeKeyList);
 
-            Column tmpCol = entry.getValue().get(0);
-            UUID colName = UuidHelper.timeUuidFromBytes(tmpCol.getName());
-            if (null == rowKey || -1 == colName.compareTo(oldestColName)) {
-                rowKey = entry.getKey();
-                oldestColName = colName;
-                oldestColValue = tmpCol.getValue();
+            UUID oldestColName = null;
+            // determine which result is the oldest across the queue rows
+            for (Entry<Bytes, List<Column>> entry : colList.entrySet()) {
+                if (entry.getValue().isEmpty()) {
+                    continue;
+                }
+
+                Column tmpCol = entry.getValue().get(0);
+                UUID colName = UuidHelper.timeUuidFromBytes(tmpCol.getName());
+                if (null == rowKey || -1 == colName.compareTo(oldestColName)) {
+                    rowKey = entry.getKey();
+                    col = tmpCol;
+                    oldestColName = colName;
+                }
             }
         }
 
@@ -125,12 +150,13 @@ public class CassQueue {
             return null;
         }
 
-        queueRepository.moveFromWaitingToDelivered(rowKey, Bytes.fromUuid(oldestColName),
-                Bytes.fromBytes(oldestColValue));
+        queueRepository.moveFromWaitingToDelivered(rowKey, Bytes.fromBytes(col.getName()),
+                Bytes.fromBytes(col.getValue()));
 
         // release ZK lock region
 
-        return new CassQMsg(new String(rowKey.getBytes()), oldestColName, new String(oldestColValue));
+        return new CassQMsg(new String(rowKey.getBytes()), UuidHelper.timeUuidFromBytes(col.getName()), new String(
+                col.getValue()));
     }
 
     /**
@@ -165,18 +191,25 @@ public class CassQueue {
     public void truncate() throws Exception {
         // enter ZK lock region
 
-        synchronized (pipeIncMonitor) {
-            queueRepository.truncateQueue(this);
-            nextPipeToUse = 0;
-        }
+        queueRepository.truncateQueue(this);
+        nextReadPipeToUse = 0;
+        nextWritePipeToUse = 0;
 
         // release ZK lock region
     }
 
-    private int getNextPipeAndInc() {
-        synchronized (pipeIncMonitor) {
-            int ret = nextPipeToUse;
-            nextPipeToUse = (nextPipeToUse + 1) % numPipes;
+    private int getNextReadPipeAndInc() {
+        synchronized (readPipeIncMonitor) {
+            int ret = nextReadPipeToUse;
+            nextReadPipeToUse = (nextReadPipeToUse + 1) % numPipes;
+            return ret;
+        }
+    }
+
+    private int getNextWritePipeAndInc() {
+        synchronized (writePipeIncMonitor) {
+            int ret = nextWritePipeToUse;
+            nextWritePipeToUse = (nextWritePipeToUse + 1) % numPipes;
             return ret;
         }
     }
@@ -209,6 +242,14 @@ public class CassQueue {
      */
     public List<Column> getDeliveredMessages(int pipeNum, int maxMessages) throws Exception {
         return queueRepository.getDeliveredMessages(getName(), pipeNum, maxMessages);
+    }
+
+    public boolean isNearFifoOk() {
+        return nearFifoOk;
+    }
+
+    public void setNearFifoOk(boolean nearFifoOk) {
+        this.nearFifoOk = nearFifoOk;
     }
 
 }
