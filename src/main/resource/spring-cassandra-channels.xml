@@ -11,24 +11,26 @@
 
 	<int:channel id="testChannel" />
 
-    <bean id="cassQueueChannelAdapter" class="com.real.cassandra.queue.spring.CassandraQueueChannelAdapter">
-        <constructor-arg name="cq" ref="testQueue" />
-    </bean>
-    
+	<bean id="cassQueueChannelAdapter" class="com.real.cassandra.queue.spring.CassandraQueueChannelAdapter">
+		<constructor-arg name="cassQueue" ref="testQueue" />
+		<property name="txMgr" ref="cassQueueTxMgr" />
+	</bean>
+
 	<int:inbound-channel-adapter channel="testChannel" ref="cassQueueChannelAdapter" method="pop">
 		<int:poller>
 			<int:interval-trigger interval="100" />
+            <!-- this TX encompasses the consuming of the message -->
+            <int:transactional transaction-manager="cassQueueTxMgr" />
 		</int:poller>
 	</int:inbound-channel-adapter>
 
 
-	<int:outbound-channel-adapter channel="testChannel" ref="cassQueueChannelAdapter" method="push">
-<!--		<int:poller>-->
-<!--			<int:interval-trigger interval="2000" />-->
-<!--		</int:poller>-->
-	</int:outbound-channel-adapter>
+	<int:outbound-channel-adapter channel="testChannel" ref="cassQueueChannelAdapter" method="push" />
 
-	 <int:service-activator input-channel="testChannel" ref="msgReceivedConsumer" /> 
+	<int:service-activator input-channel="testChannel" ref="msgReceivedConsumer" />
 
+	<bean id="cassQueueTxMgr" class="com.real.cassandra.queue.spring.CassandraQueueTxMgr">
+		<property name="cassQueue" ref="testQueue" />
+	</bean>
 </beans>
 

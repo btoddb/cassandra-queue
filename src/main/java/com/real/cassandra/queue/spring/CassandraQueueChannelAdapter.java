@@ -17,12 +17,13 @@ import com.real.cassandra.queue.CassQueue;
 public class CassandraQueueChannelAdapter {
     private static Logger logger = LoggerFactory.getLogger(CassandraQueueChannelAdapter.class);
 
-    private CassQueue cq;
+    private CassQueue cassQueue;
+    private CassandraQueueTxMgr txMgr;
 
     // private long checkDelay = 500; // millis
 
-    public CassandraQueueChannelAdapter(CassQueue cq) {
-        this.cq = cq;
+    public CassandraQueueChannelAdapter(CassQueue cassQueue) {
+        this.cassQueue = cassQueue;
     }
 
     /**
@@ -31,27 +32,56 @@ public class CassandraQueueChannelAdapter {
      * 
      * @return {@link CassQMsg}
      */
-    public CassQMsg pop() {
-        CassQMsg evt;
+    public String pop() {
+        CassQMsg qMsg = null;
         try {
-            evt = cq.pop();
-            if (null != evt) {
-                cq.commit(evt);
+            qMsg = cassQueue.pop();
+            if (null == qMsg) {
+                return null;
             }
-            return evt;
+
+            // check for tx mgmt
+            if (null != txMgr) {
+                CassandraQueueTxMgr.setMessageOnThread(cassQueue, qMsg);
+            }
+            else {
+                // TODO BTB:could simply tell queue to not move to delivered and
+                // skip this step for optimization
+                cassQueue.commit(qMsg);
+            }
+
+            return qMsg.getValue();
         }
-        catch (Exception e) {
-            logger.error("exception while popping from queue", e);
-            return null;
+        // propagate exception up so can be handled by tx mgmt code
+        catch (Throwable e) {
+            if (null == txMgr && null != qMsg) {
+                try {
+                    cassQueue.rollback(qMsg);
+                }
+                catch (Exception e1) {
+                    logger.error("exception while rolling back because of a different issue", e);
+                }
+            }
+
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
+            }
+            else {
+                throw new RuntimeException(e);
+            }
         }
     }
 
     public void push(String data) {
         try {
-            cq.push(data);
+            cassQueue.push(data);
         }
         catch (Exception e) {
             logger.error("exception while pushing onto queue", e);
         }
+    }
+
+    public void setTxMgr(CassandraQueueTxMgr txMgr) {
+        this.txMgr = txMgr;
     }
 }

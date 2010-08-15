@@ -40,6 +40,30 @@ public class TestUtils {
         return sb.toString();
     }
 
+    public String outputStringsAsCommaDelim(Collection<String> collection) {
+        if (null == collection) {
+            return null;
+        }
+
+        if (collection.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder sb = null;
+        for (String str : collection) {
+            if (null != sb) {
+                sb.append(", ");
+            }
+            else {
+                sb = new StringBuilder();
+            }
+
+            sb.append(str);
+        }
+
+        return sb.toString();
+    }
+
     public String outputColumnsAsCommaDelim(Collection<Column> collection) {
         if (null == collection) {
             return null;

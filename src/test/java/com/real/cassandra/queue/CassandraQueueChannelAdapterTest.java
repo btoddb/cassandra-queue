@@ -16,6 +16,7 @@ import org.springframework.integration.core.MessageBuilder;
 import org.springframework.integration.core.MessageChannel;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.wyki.cassandra.pelops.Pelops;
 
 import com.real.cassandra.queue.repository.QueueRepository;
@@ -52,8 +53,7 @@ public class CassandraQueueChannelAdapterTest {
     public void testPush() throws Exception {
         int numEvents = 100;
         for (int i = 0; i < numEvents; i++) {
-            Message<String> eventMsg;
-            eventMsg = MessageBuilder.withPayload("xxx_" + i).build();
+            final Message<String> eventMsg = MessageBuilder.withPayload("xxx_" + i).build();
             testChannel.send(eventMsg);
         }
 
@@ -85,15 +85,15 @@ public class CassandraQueueChannelAdapterTest {
             if (curNum == lastNum) {
                 break;
             }
-            else if (0 < curNum) {
+            else if (0 <= curNum) {
                 lastNum = curNum;
             }
             Thread.sleep(200);
         }
 
-        Queue<CassQMsg> msgQ = msgReceivedConsumer.getMsgQueue();
-        System.out.println("msgQ = " + testUtils.outputEventsAsCommaDelim(msgQ));
-        assertEquals("Events didn't get on channel properly: " + testUtils.outputEventsAsCommaDelim(msgQ), numEvents,
+        Queue<String> msgQ = msgReceivedConsumer.getMsgQueue();
+        System.out.println("msgQ = " + testUtils.outputStringsAsCommaDelim(msgQ));
+        assertEquals("Events didn't get on channel properly: " + testUtils.outputStringsAsCommaDelim(msgQ), numEvents,
                 msgQ.size());
 
         testUtils.verifyWaitingQueue(0);
