@@ -159,4 +159,7 @@ public class TestUtils {
         }
     }
 
+    public String formatMsgValue(String base, int pipeNum) {
+        return base + "-" + pipeNum;
+    }
 }

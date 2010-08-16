@@ -26,7 +26,7 @@ import com.real.cassandra.queue.repository.QueueRepository;
  * <p/>
  * {@link #pop()} will read from all pipes and return the oldest message.
  * <p/>
- * "near FIFO" is the default operating behavior. It means that a pop will
+ * "Near FIFO" is the default operating behavior. It means that a pop will
  * retrieve the oldest message from one of the pipes, but it may not be the
  * oldest message in the queue. (Round robin is used to choose the pipe.) If
  * strict FIFO is required, use {@link #setNearFifoOk(boolean)} to set it to
