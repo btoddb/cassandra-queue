@@ -22,9 +22,11 @@ import com.real.cassandra.queue.repository.QueueRepository;
  * data across the cluster.
  * <p/>
  * {@link #push(String)} will push a value onto one of the pipes in the queue.
- * The pipe is chosen in round robin fashion.
+ * The pipe is chosen in round robin fashion. No locking is necessary as pushing
+ * messages is inherently safe.
  * <p/>
- * {@link #pop()} will read from all pipes and return the oldest message.
+ * {@link #pop()} will either read from all pipes and return the oldest message
+ * or simply read from one pipe, depending on whether "Near FIFO" mode is on.
  * <p/>
  * "Near FIFO" is the default operating behavior. It means that a pop will
  * retrieve the oldest message from one of the pipes, but it may not be the
@@ -37,8 +39,6 @@ import com.real.cassandra.queue.repository.QueueRepository;
  * @author Todd Burruss
  */
 public class CassQueue {
-    // private static final Bytes EMPTY_STRING_BYTES = Bytes.fromUTF8("");
-
     private QueueRepository queueRepository;
     private String name;
     private int numPipes;
@@ -48,6 +48,7 @@ public class CassQueue {
     private Object readPipeIncMonitor = new Object();
     private List<Bytes> queuePipeKeyList;
     private boolean nearFifoOk = true;
+    private PopLock popLock;
 
     /**
      * 
@@ -58,35 +59,40 @@ public class CassQueue {
      * @param numPipes
      *            The width or number of "rows" the queue uses internally to
      *            help distibute data across cluster.
+     * @param popLocks
+     *            Client desires <code>pop</code>s to be locked so as to allow
+     *            only one thread in pop routine at a time. Locking mechanism
+     *            depends on the value of <code>distributed</code>.
+     * @param distributed
+     *            Whether or not utilize cross JVM locking capability (Uses
+     *            ZooKeeper.)
      */
-    public CassQueue(QueueRepository queueRepository, String name, int numPipes) {
+    public CassQueue(QueueRepository queueRepository, String name, int numPipes, boolean popLocks, boolean distributed) {
         this.queueRepository = queueRepository;
 
         this.name = name;
         this.numPipes = numPipes;
 
+        if (null == name) {
+            throw new IllegalArgumentException("queue name cannot be null");
+        }
+
+        if (popLocks) {
+            if (distributed) {
+                popLock = new PopLockDistributedImpl(this.name);
+            }
+            else {
+                popLock = new PopLockLocalImpl();
+            }
+        }
+        else {
+            popLock = new PopLockNoOpImpl();
+        }
+
         queuePipeKeyList = new ArrayList<Bytes>(numPipes);
         for (int i = 0; i < numPipes; i++) {
             queuePipeKeyList.add(Bytes.fromUTF8(QueueRepository.formatKey(name, i)));
         }
-    }
-
-    /**
-     * Return name of queue.
-     * 
-     * @return
-     */
-    public String getName() {
-        return name;
-    }
-
-    /**
-     * Return number of pipes.
-     * 
-     * @return
-     */
-    public int getNumPipes() {
-        return numPipes;
     }
 
     /**
@@ -109,10 +115,19 @@ public class CassQueue {
      * @throws Exception
      */
     public CassQMsg pop() throws Exception {
+        popLock.lock();
+
+        try {
+            return lockedPop();
+        }
+        finally {
+            popLock.unlock();
+        }
+    }
+
+    private CassQMsg lockedPop() throws Exception {
         Bytes rowKey = null;
         Column col = null;
-
-        // enter ZK lock region
 
         if (nearFifoOk) {
             for (int i = 4; 0 < i; i--) {
@@ -244,12 +259,40 @@ public class CassQueue {
         return queueRepository.getDeliveredMessages(getName(), pipeNum, maxMessages);
     }
 
+    /**
+     * Return status of near FIFO.
+     * 
+     * @return
+     */
     public boolean isNearFifoOk() {
         return nearFifoOk;
     }
 
+    /**
+     * Set near FIFO.
+     * 
+     * @param nearFifoOk
+     */
     public void setNearFifoOk(boolean nearFifoOk) {
         this.nearFifoOk = nearFifoOk;
+    }
+
+    /**
+     * Return name of queue.
+     * 
+     * @return
+     */
+    public String getName() {
+        return name;
+    }
+
+    /**
+     * Return number of pipes.
+     * 
+     * @return
+     */
+    public int getNumPipes() {
+        return numPipes;
     }
 
 }

@@ -4,12 +4,32 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.wyki.cassandra.pelops.GeneralPolicy;
+import org.wyki.cassandra.pelops.ThriftPoolComplex.Policy;
+
+import com.real.cassandra.queue.repository.PelopsPool;
+import com.real.cassandra.queue.repository.QueueRepository;
 
 public class TestUtils {
+    public static final String POOL_NAME = "myTestPool";
+    public static final String QUEUE_NAME = "myTestQueue";
+    public static final ConsistencyLevel CONSISTENCY_LEVEL = ConsistencyLevel.QUORUM;
+
+    public static final List<String> NODE_LIST = Arrays.asList(new String[] {
+        "localhost" });
+    public static final int THRIFT_PORT = 9160;
+    public static final int REPLICATION_FACTOR = 1;
+    // public static final List<String> NODE_LIST = Arrays.asList(new String[] {
+    // "172.27.109.32", "172.27.109.33", "172.27.109.34", "172.27.109.35" });
+    // public static final int THRIFT_PORT = 9161;
+    // public static final int REPLICATION_FACTOR = 3;
+
     private CassQueue cq;
 
     public TestUtils(CassQueue cq) {
@@ -161,5 +181,30 @@ public class TestUtils {
 
     public String formatMsgValue(String base, int pipeNum) {
         return base + "-" + pipeNum;
+    }
+
+    public static PelopsPool createPelopsPool(int minConns, int maxConns) {
+        Policy policy = new Policy();
+        policy.setFramedTransportRequired(true);
+        policy.setKillNodeConnsOnException(true);
+        policy.setMaxConnectionsPerNode(maxConns);
+        policy.setMinCachedConnectionsPerNode(minConns);
+        policy.setTargetConnectionsPerNode((minConns + maxConns) / 2);
+
+        GeneralPolicy genPolicy = new GeneralPolicy();
+        genPolicy.setMaxOpRetries(10);
+
+        PelopsPool pool = new PelopsPool();
+        pool.setGeneralPolicy(genPolicy);
+        pool.setHostNameList(NODE_LIST);
+        pool.setPort(THRIFT_PORT);
+        pool.setKeyspaceName(QueueRepository.KEYSPACE_NAME);
+        pool.setNodeDiscovery(false);
+        pool.setPolicy(policy);
+        pool.setPoolName(TestUtils.POOL_NAME);
+        pool.setThriftFramedTransport(true);
+
+        pool.initPool();
+        return pool;
     }
 }

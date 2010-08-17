@@ -14,11 +14,13 @@ public class QueueFactoryBean implements FactoryBean<CassQueue> {
     private QueueRepository queueRepository;
     private String qName;
     private int numPipes;
+    private boolean popLocks = true;
+    private boolean distributed = false;
 
     @Override
     public CassQueue getObject() throws Exception {
         queueRepository.createQueue(qName, numPipes);
-        return new CassQueue(queueRepository, qName, numPipes);
+        return new CassQueue(queueRepository, qName, numPipes, popLocks, distributed);
     }
 
     @Override
@@ -41,6 +43,14 @@ public class QueueFactoryBean implements FactoryBean<CassQueue> {
 
     public void setNumPipes(int numPipes) {
         this.numPipes = numPipes;
+    }
+
+    public void setPopLocks(boolean popLocks) {
+        this.popLocks = popLocks;
+    }
+
+    public void setDistributed(boolean distributed) {
+        this.distributed = distributed;
     }
 
 }

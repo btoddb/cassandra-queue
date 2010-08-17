@@ -1,6 +1,10 @@
 package com.real.cassandra.queue;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -8,18 +12,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import javax.annotation.Resource;
-
 import org.apache.cassandra.thrift.Column;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.wyki.cassandra.pelops.Pelops;
 
+import com.real.cassandra.queue.repository.PelopsPool;
 import com.real.cassandra.queue.repository.QueueRepository;
 
 /**
@@ -27,16 +27,10 @@ import com.real.cassandra.queue.repository.QueueRepository;
  * 
  * @author Todd Burruss
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(locations = {
-        "classpath:spring-cassandra-queues.xml", "classpath:spring-config-properties.xml"
-
-})
 public class CassQueueTest {
-    @Autowired
-    private QueueRepository qRep;
+    private static PelopsPool pool;
+    private static QueueRepository qRep;
 
-    @Resource(name = "testQueue")
     private CassQueue cq;
 
     @Test
@@ -180,7 +174,6 @@ public class CassQueueTest {
         Set<CassQMsg> msgSet = new LinkedHashSet<CassQMsg>();
         Set<String> valueSet = new HashSet<String>();
         List<CassQMsg> popList = cqPopper.getPopList();
-        long start = System.currentTimeMillis();
         while (!popList.isEmpty() || !cqPusher.isFinished() || !cqPopper.isFinished()) {
             CassQMsg qMsg = !popList.isEmpty() ? popList.remove(0) : null;
             if (null != qMsg) {
@@ -195,7 +188,8 @@ public class CassQueueTest {
                 valueSet.add(qMsg.getValue());
             }
             else {
-                System.out.println("current elapsed time : " + (System.currentTimeMillis() - start) / 1000.0);
+                System.out.println("current elapsed pop time : " + (cqPopper.getElapsedTime()) / 1000.0 + " ("
+                        + cqPopper.getMsgsPopped() + ")");
                 try {
                     Thread.sleep(200);
                 }
@@ -204,7 +198,13 @@ public class CassQueueTest {
                 }
             }
         }
-        System.out.println("total elapsed time : " + (System.currentTimeMillis() - start) / 1000.0);
+
+        double popSecs = cqPopper.getElapsedTime() / 1000.0;
+        double pushSecs = cqPusher.getElapsedTime() / 1000.0;
+        System.out.println("total elapsed pusher time : " + popSecs);
+        System.out.println("total elapsed pop time : " + popSecs);
+        System.out.println("pushes/sec = " + numToPush / pushSecs);
+        System.out.println("pops/sec = " + numToPop / popSecs);
 
         assertTrue("expected pusher to be finished", cqPusher.isFinished());
         assertTrue("expected popper to be finished", cqPopper.isFinished());
@@ -213,7 +213,6 @@ public class CassQueueTest {
 
         assertEquals("expected to have a total of " + numToPop + " messages in set", numToPop, msgSet.size());
         assertEquals("expected to have a total of " + numToPop + " values in set", numToPop, valueSet.size());
-
     }
 
     // -----------------------
@@ -289,9 +288,21 @@ public class CassQueueTest {
     }
 
     @Before
-    public void setupQueueMgrAndPool() throws Exception {
+    public void setupQueueMgrAndPool() {
+        cq = new CassQueue(qRep, TestUtils.QUEUE_NAME, 4, true, false);
+        try {
+            cq.truncate();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @BeforeClass
+    public static void setupPelopsPool() throws Exception {
+        pool = TestUtils.createPelopsPool(5, 5);
+        qRep = new QueueRepository(pool, TestUtils.REPLICATION_FACTOR, TestUtils.CONSISTENCY_LEVEL);
         qRep.initCassandra(true);
-        cq.truncate();
     }
 
     @AfterClass

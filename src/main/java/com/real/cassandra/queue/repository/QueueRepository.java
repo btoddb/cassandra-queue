@@ -36,10 +36,12 @@ public class QueueRepository {
     public static final String STRATEGY_CLASS_NAME = "org.apache.cassandra.locator.RackUnawareStrategy";
 
     private final PelopsPool pool;
+    private final int replicationFactor;
     private final ConsistencyLevel consistencyLevel;
 
-    public QueueRepository(PelopsPool pool, ConsistencyLevel consistencyLevel) {
+    public QueueRepository(PelopsPool pool, int replicationFactor, ConsistencyLevel consistencyLevel) {
         this.pool = pool;
+        this.replicationFactor = replicationFactor;
         this.consistencyLevel = consistencyLevel;
     }
 
@@ -76,7 +78,7 @@ public class QueueRepository {
         cfDefList.add(new CfDef(KEYSPACE_NAME, WAITING_COL_FAM).setComparator_type("TimeUUIDType"));
         cfDefList.add(new CfDef(KEYSPACE_NAME, DELIVERED_COL_FAM).setComparator_type("TimeUUIDType"));
 
-        KsDef ksDef = new KsDef(KEYSPACE_NAME, STRATEGY_CLASS_NAME, 1, cfDefList);
+        KsDef ksDef = new KsDef(KEYSPACE_NAME, STRATEGY_CLASS_NAME, replicationFactor, cfDefList);
         Management mgmt = Pelops.createManagement(pool.getPoolName());
         try {
             mgmt.addKeyspace(ksDef);

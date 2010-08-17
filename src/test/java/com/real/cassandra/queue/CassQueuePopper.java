@@ -16,6 +16,8 @@ public class CassQueuePopper implements Runnable {
     private List<CassQMsg> popList = Collections.synchronizedList(new LinkedList<CassQMsg>());
 
     private Thread theThread;
+    private long start;
+    private long end = -1;
 
     public CassQueuePopper(CassQueue cq, String baseValue) {
         this.cq = cq;
@@ -25,6 +27,7 @@ public class CassQueuePopper implements Runnable {
 
     @Override
     public void run() {
+        start = System.currentTimeMillis();
         while (msgsPopped < numMsgsToPop) {
             try {
                 CassQMsg qMsg = cq.pop();
@@ -47,6 +50,8 @@ public class CassQueuePopper implements Runnable {
             }
         }
 
+        end = System.currentTimeMillis();
+
         System.out.println("popped " + msgsPopped + " msgs");
     }
 
@@ -55,6 +60,15 @@ public class CassQueuePopper implements Runnable {
         this.delay = delay;
         theThread = new Thread(this);
         theThread.start();
+    }
+
+    public long getElapsedTime() {
+        if (-1 == end) {
+            return System.currentTimeMillis() - start;
+        }
+        else {
+            return end - start;
+        }
     }
 
     public List<CassQMsg> getPopList() {

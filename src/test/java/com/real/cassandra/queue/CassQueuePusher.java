@@ -9,6 +9,8 @@ public class CassQueuePusher implements Runnable {
     private TestUtils testUtils;
 
     private Thread theThread;
+    private long start;
+    private long end = -1;
 
     public CassQueuePusher(CassQueue cq, String baseValue) {
         this.cq = cq;
@@ -18,6 +20,7 @@ public class CassQueuePusher implements Runnable {
 
     @Override
     public void run() {
+        start = System.currentTimeMillis();
         for (int i = 0; i < numMsgsToPush; i++) {
             try {
                 cq.push(testUtils.formatMsgValue(baseValue, i));
@@ -37,7 +40,9 @@ public class CassQueuePusher implements Runnable {
             }
         }
 
-        System.out.println("popped " + msgsPushed + " msgs");
+        end = System.currentTimeMillis();
+
+        System.out.println("pushed " + msgsPushed + " msgs");
     }
 
     public void start(int numMsgsToPush, long delay) {
@@ -45,6 +50,15 @@ public class CassQueuePusher implements Runnable {
         this.delay = delay;
         theThread = new Thread(this);
         theThread.start();
+    }
+
+    public long getElapsedTime() {
+        if (-1 == end) {
+            return System.currentTimeMillis() - start;
+        }
+        else {
+            return end - start;
+        }
     }
 
     public boolean isFinished() {
