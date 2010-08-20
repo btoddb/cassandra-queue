@@ -10,14 +10,13 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.scale7.cassandra.pelops.Pelops;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.integration.Message;
 import org.springframework.integration.core.MessageBuilder;
 import org.springframework.integration.core.MessageChannel;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.wyki.cassandra.pelops.Pelops;
 
 import com.real.cassandra.queue.repository.QueueRepository;
 import com.real.cassandra.queue.spring.CassandraQueueChannelAdapter;

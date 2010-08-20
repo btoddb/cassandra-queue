@@ -7,8 +7,8 @@ import java.util.Map.Entry;
 import java.util.UUID;
 
 import org.apache.cassandra.thrift.Column;
-import org.wyki.cassandra.pelops.Bytes;
-import org.wyki.cassandra.pelops.UuidHelper;
+import org.scale7.cassandra.pelops.Bytes;
+import org.scale7.cassandra.pelops.UuidHelper;
 
 import com.real.cassandra.queue.repository.QueueRepository;
 
@@ -167,8 +167,6 @@ public class CassQueue {
 
         queueRepository.moveFromWaitingToDelivered(rowKey, Bytes.fromBytes(col.getName()),
                 Bytes.fromBytes(col.getValue()));
-
-        // release ZK lock region
 
         return new CassQMsg(new String(rowKey.getBytes()), UuidHelper.timeUuidFromBytes(col.getName()), new String(
                 col.getValue()));

@@ -1,42 +1,38 @@
 package com.real.cassandra.queue.repository;
 
 import java.security.InvalidParameterException;
-import java.util.List;
 
-import org.wyki.cassandra.pelops.GeneralPolicy;
-import org.wyki.cassandra.pelops.Pelops;
-import org.wyki.cassandra.pelops.ThriftPool;
-import org.wyki.cassandra.pelops.ThriftPoolComplex.Policy;
+import org.scale7.cassandra.pelops.CachePerNodePool.Policy;
+import org.scale7.cassandra.pelops.Cluster;
+import org.scale7.cassandra.pelops.IThriftPool;
+import org.scale7.cassandra.pelops.OperandPolicy;
+import org.scale7.cassandra.pelops.Pelops;
 
 public class PelopsPool {
+    private Cluster cluster;
     private Policy policy = new Policy();
-    private GeneralPolicy generalPolicy = new GeneralPolicy();
+    private OperandPolicy operandPolicy = new OperandPolicy();
     private String poolName = "defaultPool";
-    private List<String> hostNameList;
     private String keyspaceName;
     private boolean nodeDiscovery = false;
-    private int port = 9160;
     private int socketReadTimeout = 5000;
-    private boolean thriftFramedTransport = true;
 
     public void initPool() {
-        if (null == hostNameList || hostNameList.isEmpty()) {
-            throw new InvalidParameterException("hostNameList property has not been set or is empty");
+        if (null == cluster) {
+            throw new InvalidParameterException("cluster has not been set");
         }
 
         if (null == policy) {
             throw new InvalidParameterException("policy property has not been set");
         }
-
-        Pelops.addPool(poolName, hostNameList.toArray(new String[] {}), port, socketReadTimeout, nodeDiscovery,
-                keyspaceName, generalPolicy, policy);
+        Pelops.addPool(poolName, cluster, keyspaceName, operandPolicy, policy);
     }
 
-    public ThriftPool getConnectionPool() {
+    public IThriftPool getConnectionPool() {
         return Pelops.getDbConnPool(poolName);
     }
 
-    public ThriftPool.Connection getConnection() {
+    public IThriftPool.IConnection getConnection() {
         try {
             return getConnectionPool().getConnection();
         }
@@ -69,22 +65,6 @@ public class PelopsPool {
         this.keyspaceName = keyspaceName;
     }
 
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
-    }
-
-    public List<String> getHostNameList() {
-        return hostNameList;
-    }
-
-    public void setHostNameList(List<String> hostNameList) {
-        this.hostNameList = hostNameList;
-    }
-
     public boolean isNodeDiscovery() {
         return nodeDiscovery;
     }
@@ -101,16 +81,16 @@ public class PelopsPool {
         this.socketReadTimeout = connTimeout;
     }
 
-    public boolean isThriftFramedTransport() {
-        return thriftFramedTransport;
+    public void setOperandPolicy(OperandPolicy operandPolicy) {
+        this.operandPolicy = operandPolicy;
     }
 
-    public void setThriftFramedTransport(boolean thriftFramedTransport) {
-        this.thriftFramedTransport = thriftFramedTransport;
+    public Cluster getCluster() {
+        return cluster;
     }
 
-    public void setGeneralPolicy(GeneralPolicy generalPolicy) {
-        this.generalPolicy = generalPolicy;
+    public void setCluster(Cluster cluster) {
+        this.cluster = cluster;
     }
 
 }
