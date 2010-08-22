@@ -6,6 +6,8 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -14,12 +16,17 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import org.apache.cassandra.contrib.utils.service.CassandraServiceDataCleaner;
+import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.thrift.Column;
+import org.apache.thrift.transport.TTransportException;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.scale7.cassandra.pelops.Pelops;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.repository.PelopsPool;
 import com.real.cassandra.queue.repository.QueueRepository;
@@ -30,10 +37,13 @@ import com.real.cassandra.queue.repository.QueueRepository;
  * @author Todd Burruss
  */
 public class CassQueueTest {
+    private static Logger logger = LoggerFactory.getLogger(CassQueueTest.class);
+    
     private static PelopsPool queuePool;
     private static PelopsPool systemPool;
     private static QueueRepository qRep;
-
+    private static EmbeddedCassandraService cassandra;
+    
     private CassQueue cq;
     private TestUtils testUtils;
 
@@ -227,9 +237,9 @@ public class CassQueueTest {
 
         int numPushers = 4;
         int numPoppers = 4;
-        int numToPushPerPusher = 250;
-        int numToPopPerPopper = 250;
-        long pushDelay = 00;
+        int numToPushPerPusher = 100;
+        int numToPopPerPopper = 100;
+        long pushDelay = 0;
         long popDelay = 0;
 
         Set<CassQMsg> msgSet = new LinkedHashSet<CassQMsg>();
@@ -389,7 +399,9 @@ public class CassQueueTest {
     }
 
     @BeforeClass
-    public static void setupPelopsPool() throws Exception {
+    public static void setupCassandraAndPelopsPool() throws Exception {
+        startCassandraInstance();
+        
         // must create system pool first and initialize cassandra
         systemPool = TestUtils.createSystemPool();
         qRep = new QueueRepository(systemPool, TestUtils.REPLICATION_FACTOR, TestUtils.CONSISTENCY_LEVEL);
@@ -400,8 +412,25 @@ public class CassQueueTest {
     }
 
     @AfterClass
-    public static void shutdownQueueMgrAndPool() {
+    public static void shutdownPelopsPool() throws Exception {
         Pelops.shutdown();
+    }
+
+    private static void startCassandraInstance() throws TTransportException, IOException, InterruptedException, SecurityException, IllegalArgumentException, NoSuchMethodException, IllegalAccessException, InvocationTargetException {
+        CassandraServiceDataCleaner cleaner = new CassandraServiceDataCleaner();
+        cleaner.prepare();
+        cassandra = new EmbeddedCassandraService();
+        try {
+            cassandra.init();
+        } catch (TTransportException e) {
+            logger.error("exception while initializing cassandra server", e);
+            throw e;
+        }
+        Thread t = new Thread(cassandra);
+        t.setDaemon(true);
+        t.start();
+        logger.info("setup: started embedded cassandra thread");
+        Thread.sleep(100);
     }
 
 }
