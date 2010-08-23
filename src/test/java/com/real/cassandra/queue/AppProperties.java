@@ -31,14 +31,59 @@ public class AppProperties {
         return hostArr;
     }
 
-    public int getHostPort() {
-        String portStr = rawProps.getProperty("thriftPort");
-        if (null == portStr) {
-            logger.info("'hostPort' property not specified, using 9160");
-            portStr = "9160";
-        }
-
-        return Integer.parseInt(portStr);
+    public int getThriftPort() {
+        return getPropertyAsInt("thriftPort", 9160);
     }
 
+    public int getReplicationFactor() {
+        return getPropertyAsInt("replicationFactor", 3);
+    }
+
+    public int getNumPushers() {
+        return getPropertyAsInt("numPushers", 1);
+    }
+
+    public int getNumMsgsPerPusher() {
+        return getPropertyAsInt("numMsgsPerPusher", 10);
+    }
+
+    public int getNumMsgsPerPopper() {
+        return getPropertyAsInt("numMsgsPerPopper", 10);
+    }
+
+    public int getNumPoppers() {
+        return getPropertyAsInt("numPoppers", 1);
+    }
+
+    public long getPushDelay() {
+        return getPropertyAsInt("pushDelay", 0);
+    }
+
+    public long getPopDelay() {
+        return getPropertyAsInt("popDelay", 0);
+    }
+
+    public boolean getNearFifo() {
+        String asStr = rawProps.getProperty("nearFifo");
+        if (null == asStr) {
+            return true;
+        }
+        else {
+            return Boolean.parseBoolean(asStr);
+        }
+    }
+
+    public int getNumPipes() {
+        return getPropertyAsInt("numPipes", 1);
+    }
+
+    private int getPropertyAsInt(String propName, int defaultValue) {
+        String asStr = rawProps.getProperty(propName);
+        if (null == asStr) {
+            logger.info("'" + propName + "' property not specified, using " + defaultValue);
+            return defaultValue;
+        }
+
+        return Integer.parseInt(asStr);
+    }
 }

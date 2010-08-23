@@ -1,6 +1,11 @@
 package com.real.cassandra.queue;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public abstract class PushPopAbstractBase implements Runnable {
+    private static Logger logger = LoggerFactory.getLogger(PushPopAbstractBase.class);
+
     CassQueue cq;
     private long delay;
     private String baseValue;
@@ -32,14 +37,15 @@ public abstract class PushPopAbstractBase implements Runnable {
     public void run() {
         start = System.currentTimeMillis();
 
-        for (int i = 0; i < numMsgsToProcess; i++) {
+        msgsProcessed = 0;
+        while (msgsProcessed < numMsgsToProcess) {
             try {
-                if (processMsg(testUtils.formatMsgValue(baseValue, i))) {
+                if (processMsg(testUtils.formatMsgValue(baseValue, msgsProcessed))) {
                     msgsProcessed++;
                 }
             }
             catch (Exception e) {
-                e.printStackTrace();
+                logger.error("exception while processing messages", e);
             }
 
             if (0 < delay) {
@@ -47,7 +53,7 @@ public abstract class PushPopAbstractBase implements Runnable {
                     Thread.sleep(delay);
                 }
                 catch (InterruptedException e) {
-                    e.printStackTrace();
+                    // ignore
                 }
             }
 
@@ -55,7 +61,7 @@ public abstract class PushPopAbstractBase implements Runnable {
 
         end = System.currentTimeMillis();
 
-        System.out.println("pushed " + msgsProcessed + " msgs");
+        logger.info(this.getClass().getSimpleName() + " " + msgsProcessed + " msgs");
     }
 
     public int getNumMsgsToProcess() {

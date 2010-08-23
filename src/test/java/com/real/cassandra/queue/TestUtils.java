@@ -15,34 +15,70 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.scale7.cassandra.pelops.CachePerNodePool.Policy;
 import org.scale7.cassandra.pelops.Cluster;
 import org.scale7.cassandra.pelops.OperandPolicy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.repository.PelopsPool;
 import com.real.cassandra.queue.repository.QueueRepository;
 
 public class TestUtils {
+    private static Logger logger = LoggerFactory.getLogger(TestUtils.class);
+
     public static final String QUEUE_POOL_NAME = "myTestPool";
     public static final String SYSTEM_POOL_NAME = "mySystemPool";
     public static final String QUEUE_NAME = "myTestQueue";
     public static final ConsistencyLevel CONSISTENCY_LEVEL = ConsistencyLevel.QUORUM;
 
-    public static final String[] NODE_LIST = new String[] {
-        "localhost" };
-    public static final int REPLICATION_FACTOR = 1;
-
-    // public static final String[] NODE_LIST = new String[] {
-    // "172.27.109.32", "172.27.109.33", "172.27.109.34", "172.27.109.35" };
-    // public static final int REPLICATION_FACTOR = 3;
-
-    // public static final String[] NODE_LIST = new String[] {
-    // "172.27.109.32" );
-    // public static final int REPLICATION_FACTOR = 1;
-
-    public static final int THRIFT_PORT = 9161;
-
     private CassQueue cq;
 
     public TestUtils(CassQueue cq) {
         this.cq = cq;
+    }
+
+    public boolean monitorPushersPoppers(Queue<CassQMsg> popQ, Set<PushPopAbstractBase> pusherSet,
+            Set<PushPopAbstractBase> popperSet, Set<CassQMsg> msgSet, Set<String> valueSet) {
+        //
+        // process popped messages and wait until finished - make sure a message
+        // is only processed once
+        //
+
+        logger.info("start monitoring for end-of-test conditions");
+
+        // long start = System.currentTimeMillis();
+        long interval = System.currentTimeMillis();
+        while (!popQ.isEmpty() || !isPushPopOpFinished(popperSet) || !isPushPopOpFinished(pusherSet)) {
+            CassQMsg qMsg = !popQ.isEmpty() ? popQ.remove() : null;
+            if (null != qMsg) {
+                if (null != msgSet && !msgSet.add(qMsg)) {
+                    fail("msg already popped - either message pushed twice or popped twice : " + qMsg.toString());
+                }
+                if (null != valueSet && !valueSet.add(qMsg.getValue())) {
+                    fail("value of message pushed more than once : " + qMsg.toString());
+                }
+            }
+            else {
+                try {
+                    Thread.sleep(200);
+                }
+                catch (InterruptedException e) {
+                    // do nothing
+                }
+            }
+
+            if (1000 < (System.currentTimeMillis() - interval)) {
+                reportPopStatus(popperSet, popQ);
+                interval = System.currentTimeMillis();
+            }
+        }
+
+        logger.info("final pop stats");
+        reportPopStatus(popperSet, popQ);
+
+        return true;
+    }
+
+    private static void fail(String msg) {
+        throw new RuntimeException(msg);
     }
 
     public String outputEventsAsCommaDelim(Collection<CassQMsg> collection) {
@@ -192,8 +228,8 @@ public class TestUtils {
         return base + "-" + pipeNum;
     }
 
-    public static PelopsPool createQueuePool(int minConns, int maxConns) {
-        Cluster cluster = new Cluster(NODE_LIST, THRIFT_PORT);
+    public static PelopsPool createQueuePool(String[] hostArr, int thriftPort, int minConns, int maxConns) {
+        Cluster cluster = new Cluster(hostArr, thriftPort);
         cluster.setFramedTransportRequired(true);
 
         Policy policy = new Policy();
@@ -217,15 +253,15 @@ public class TestUtils {
         return pool;
     }
 
-    public static PelopsPool createSystemPool( String[] hostArr, int hostPort ) {
-        Cluster cluster = new Cluster(hostArr, hostPort);
+    public static PelopsPool createSystemPool(String[] hostArr, int thriftPort) {
+        Cluster cluster = new Cluster(hostArr, thriftPort);
         cluster.setFramedTransportRequired(true);
 
         Policy policy = new Policy();
         policy.setKillNodeConnsOnException(true);
         policy.setMaxConnectionsPerNode(1);
-        policy.setMinCachedConnectionsPerNode(0);
-        policy.setTargetConnectionsPerNode(0);
+        policy.setMinCachedConnectionsPerNode(1);
+        policy.setTargetConnectionsPerNode(1);
 
         OperandPolicy opPolicy = new OperandPolicy();
         opPolicy.setMaxOpRetries(10);
@@ -263,8 +299,7 @@ public class TestUtils {
         }
 
         double secs = elapsed / 1000.0;
-        System.out.println("current elapsed pop time : " + secs + " (" + totalPopped + " : " + totalPopped / secs
-                + "p/s)");
+        logger.info("current elapsed pop time : " + secs + " (" + totalPopped + " : " + totalPopped / secs + " pop/s)");
     }
 
     public Set<PushPopAbstractBase> startPushers(CassQueue cq, String baseValue, int numPushers, int numToPush,

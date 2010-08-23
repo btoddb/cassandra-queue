@@ -4,13 +4,12 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.scale7.cassandra.pelops.Pelops;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,60 +33,40 @@ public class TestMain {
     private static CassQueue cq;
 
     public static void main(String[] args) throws Exception {
+        logger.info("setting up app properties");
         parseAppProperties();
+
+        logger.info("setting up pelops pool");
         setupPelopsPool();
-        setupQueueMgrAndPool();
+
+        logger.info("setting up queue");
+        setupQueue();
 
         TestUtils testUtils = new TestUtils(cq);
-        cq.setNearFifoOk(true);
+        cq.setNearFifoOk(appProps.getNearFifo());
 
-        int numPushers = 4;
-        int numPoppers = 4;
-        int numToPushPerPusher = 1000;
-        int numToPopPerPopper = 1000;
-        long pushDelay = 0;
-        long popDelay = 0;
-
-        Set<CassQMsg> msgSet = new LinkedHashSet<CassQMsg>();
-        Set<String> valueSet = new HashSet<String>();
-        Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
+        int numPushers = appProps.getNumPushers();
+        int numPoppers = appProps.getNumPoppers();
+        int numToPushPerPusher = appProps.getNumMsgsPerPusher();
+        int numToPopPerPopper = appProps.getNumMsgsPerPopper();
+        long pushDelay = appProps.getPushDelay();
+        long popDelay = appProps.getPopDelay();
 
         //
         // start a set of pushers and poppers
         //
 
+        logger.info("starting pushers/poppers after 2 sec pause : " + numPushers + "/" + numPoppers);
+
+        Thread.sleep(2000);
+
+        Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
         Set<PushPopAbstractBase> pusherSet =
                 testUtils.startPushers(cq, "test", numPushers, numToPushPerPusher, pushDelay);
         Set<PushPopAbstractBase> popperSet =
                 testUtils.startPoppers(cq, "test", numPoppers, numToPopPerPopper, popDelay, popQ);
 
-        //
-        // process popped messages and wait until finished - make sure a message
-        // is only processed once
-        //
-
-        long start = System.currentTimeMillis();
-        while (!popQ.isEmpty() || !testUtils.isPushPopOpFinished(popperSet)
-                || !testUtils.isPushPopOpFinished(pusherSet)) {
-            CassQMsg qMsg = !popQ.isEmpty() ? popQ.remove() : null;
-            if (null != qMsg) {
-                if (!msgSet.add(qMsg)) {
-                    fail("msg already popped - either message pushed twice or popped twice : " + qMsg.toString());
-                }
-                if (!valueSet.add(qMsg.getValue())) {
-                    fail("value of message pushed more than once : " + qMsg.toString());
-                }
-            }
-            else {
-                testUtils.reportPopStatus(popperSet, popQ);
-                try {
-                    Thread.sleep(200);
-                }
-                catch (InterruptedException e) {
-                    // do nothing
-                }
-            }
-        }
+        testUtils.monitorPushersPoppers(popQ, pusherSet, popperSet, null, null);
 
         shutdownQueueMgrAndPool();
     }
@@ -104,27 +83,23 @@ public class TestMain {
         logger.info("using thrift port : " + props.getProperty("thriftPort"));
     }
 
-    private static void fail(String msg) {
-        throw new RuntimeException(msg);
-    }
-
-    private static void setupQueueMgrAndPool() {
-        cq = new CassQueue(qRep, TestUtils.QUEUE_NAME, 4, true, false);
-        try {
-            cq.truncate();
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
+    private static void setupQueue() {
+        cq = new CassQueue(qRep, TestUtils.QUEUE_NAME, appProps.getNumPipes(), true, false);
+        // try {
+        // cq.truncate();
+        // }
+        // catch (Exception e) {
+        // logger.error("exception while truncating queue", e);
+        // }
     }
 
     private static void setupPelopsPool() throws Exception {
         // must create system pool first and initialize cassandra
-        systemPool = TestUtils.createSystemPool(appProps.getHostArr(), appProps.getHostPort());
-        qRep = new QueueRepository(systemPool, TestUtils.REPLICATION_FACTOR, TestUtils.CONSISTENCY_LEVEL);
+        systemPool = TestUtils.createSystemPool(appProps.getHostArr(), appProps.getThriftPort());
+        qRep = new QueueRepository(systemPool, appProps.getReplicationFactor(), ConsistencyLevel.QUORUM);
         qRep.initCassandra(true);
 
-        queuePool = TestUtils.createQueuePool(20, 20);
+        queuePool = TestUtils.createQueuePool(appProps.getHostArr(), appProps.getThriftPort(), 20, 20);
         qRep.setQueuePool(queuePool);
     }
 

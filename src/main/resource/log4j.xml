@@ -61,13 +61,7 @@
     <category name="com.real">
         <priority value="error"/>
     </category>
-    <category name="com.real.uds">
-        <priority value="info"/>
-    </category>
-    <category name="com.real.maps">
-        <priority value="info"/>
-    </category>
-    <category name="com.real.maps.monitoring">
+    <category name="com.real.cassandra.queue">
         <priority value="info"/>
     </category>
 

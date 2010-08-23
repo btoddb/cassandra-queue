@@ -39,6 +39,11 @@ import com.real.cassandra.queue.repository.QueueRepository;
 public class CassQueueTest {
     private static Logger logger = LoggerFactory.getLogger(CassQueueTest.class);
 
+    public static final String[] NODE_LIST = new String[] {
+        "localhost" };
+    public static final int REPLICATION_FACTOR = 1;
+    public static final int THRIFT_PORT = 9161;
+
     private static PelopsPool queuePool;
     private static PelopsPool systemPool;
     private static QueueRepository qRep;
@@ -129,6 +134,8 @@ public class CassQueueTest {
 
     @Test
     public void testRollbackAndPopAgain() throws Exception {
+        cq.setNearFifoOk(false);
+
         cq.push("xxx");
         cq.push("yyy");
         cq.push("zzz");
@@ -175,73 +182,80 @@ public class CassQueueTest {
     @Test
     public void testSimultaneousSinglePusherSinglePopper() {
         cq.setNearFifoOk(true);
+        assertPushersPoppersWork(1, 1, 100, 100, 0, 0);
 
-        int numToPush = 100;
-        int numToPop = 100;
-        long pushDelay = 0;
-        long popDelay = 0;
-
-        Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
-
-        CassQueuePusher cqPusher = new CassQueuePusher(cq, "test");
-        CassQueuePopper cqPopper = new CassQueuePopper(cq, "test", popQ);
-        cqPusher.start(numToPush, pushDelay);
-        cqPopper.start(numToPop, popDelay);
-
-        Set<CassQMsg> msgSet = new LinkedHashSet<CassQMsg>();
-        Set<String> valueSet = new HashSet<String>();
-        while (!popQ.isEmpty() || !cqPusher.isFinished() || !cqPopper.isFinished()) {
-            CassQMsg qMsg = !popQ.isEmpty() ? popQ.remove() : null;
-            if (null != qMsg) {
-                if (msgSet.contains(qMsg)) {
-                    fail("msg already popped - either message pushed twice or popped twice : " + qMsg.toString());
-                }
-                else if (valueSet.contains(qMsg.getValue())) {
-                    fail("value of message pushed more than once : " + qMsg.toString());
-                }
-
-                msgSet.add(qMsg);
-                valueSet.add(qMsg.getValue());
-            }
-            else {
-                System.out.println("current elapsed pop time : " + (cqPopper.getElapsedTime()) / 1000.0 + " ("
-                        + cqPopper.getMsgsProcessed() + ")");
-                try {
-                    Thread.sleep(200);
-                }
-                catch (InterruptedException e) {
-                    // do nothing
-                }
-            }
-        }
-
-        double popSecs = cqPopper.getElapsedTime() / 1000.0;
-        double pushSecs = cqPusher.getElapsedTime() / 1000.0;
-        System.out.println("total elapsed pusher time : " + popSecs);
-        System.out.println("total elapsed pop time : " + popSecs);
-        System.out.println("pushes/sec = " + numToPush / pushSecs);
-        System.out.println("pops/sec = " + numToPop / popSecs);
-
-        assertTrue("expected pusher to be finished", cqPusher.isFinished());
-        assertTrue("expected popper to be finished", cqPopper.isFinished());
-        assertEquals("did not push the expected number of messages", numToPush, cqPusher.getMsgsProcessed());
-        assertEquals("did not pop the expected number of messages", numToPop, cqPopper.getMsgsProcessed());
-
-        assertEquals("expected to have a total of " + numToPop + " messages in set", numToPop, msgSet.size());
-        assertEquals("expected to have a total of " + numToPop + " values in set", numToPop, valueSet.size());
+        // int numToPush = 100;
+        // int numToPop = 100;
+        // long pushDelay = 0;
+        // long popDelay = 0;
+        //
+        // Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
+        //
+        // CassQueuePusher cqPusher = new CassQueuePusher(cq, "test");
+        // CassQueuePopper cqPopper = new CassQueuePopper(cq, "test", popQ);
+        // cqPusher.start(numToPush, pushDelay);
+        // cqPopper.start(numToPop, popDelay);
+        //
+        // Set<CassQMsg> msgSet = new LinkedHashSet<CassQMsg>();
+        // Set<String> valueSet = new HashSet<String>();
+        // while (!popQ.isEmpty() || !cqPusher.isFinished() ||
+        // !cqPopper.isFinished()) {
+        // CassQMsg qMsg = !popQ.isEmpty() ? popQ.remove() : null;
+        // if (null != qMsg) {
+        // if (msgSet.contains(qMsg)) {
+        // fail("msg already popped - either message pushed twice or popped twice : "
+        // + qMsg.toString());
+        // }
+        // else if (valueSet.contains(qMsg.getValue())) {
+        // fail("value of message pushed more than once : " + qMsg.toString());
+        // }
+        //
+        // msgSet.add(qMsg);
+        // valueSet.add(qMsg.getValue());
+        // }
+        // else {
+        // System.out.println("current elapsed pop time : " +
+        // (cqPopper.getElapsedTime()) / 1000.0 + " ("
+        // + cqPopper.getMsgsProcessed() + ")");
+        // try {
+        // Thread.sleep(200);
+        // }
+        // catch (InterruptedException e) {
+        // // do nothing
+        // }
+        // }
+        // }
+        //
+        // double popSecs = cqPopper.getElapsedTime() / 1000.0;
+        // double pushSecs = cqPusher.getElapsedTime() / 1000.0;
+        // System.out.println("total elapsed pusher time : " + popSecs);
+        // System.out.println("total elapsed pop time : " + popSecs);
+        // System.out.println("pushes/sec = " + numToPush / pushSecs);
+        // System.out.println("pops/sec = " + numToPop / popSecs);
+        //
+        // assertTrue("expected pusher to be finished", cqPusher.isFinished());
+        // assertTrue("expected popper to be finished", cqPopper.isFinished());
+        // assertEquals("did not push the expected number of messages",
+        // numToPush, cqPusher.getMsgsProcessed());
+        // assertEquals("did not pop the expected number of messages", numToPop,
+        // cqPopper.getMsgsProcessed());
+        //
+        // assertEquals("expected to have a total of " + numToPop +
+        // " messages in set", numToPop, msgSet.size());
+        // assertEquals("expected to have a total of " + numToPop +
+        // " values in set", numToPop, valueSet.size());
     }
 
     @Test
     public void testSimultaneousMultiplePusherMultiplePopper() {
         cq.setNearFifoOk(true);
+        assertPushersPoppersWork(4, 4, 100, 100, 0, 0);
+    }
 
-        int numPushers = 4;
-        int numPoppers = 4;
-        int numToPushPerPusher = 100;
-        int numToPopPerPopper = 100;
-        long pushDelay = 0;
-        long popDelay = 0;
+    // -----------------------
 
+    private void assertPushersPoppersWork(int numPushers, int numPoppers, int numToPushPerPusher,
+            int numToPopPerPopper, long pushDelay, long popDelay) {
         Set<CassQMsg> msgSet = new LinkedHashSet<CassQMsg>();
         Set<String> valueSet = new HashSet<String>();
         Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
@@ -255,37 +269,9 @@ public class CassQueueTest {
         Set<PushPopAbstractBase> popperSet =
                 testUtils.startPoppers(cq, "test", numPoppers, numToPopPerPopper, popDelay, popQ);
 
-        //
-        // process popped messages and wait until finished - make sure a message
-        // is only processed once
-        //
+        boolean finishedProperly = testUtils.monitorPushersPoppers(popQ, pusherSet, popperSet, msgSet, valueSet);
 
-        long start = System.currentTimeMillis();
-        int numPopped = 0;
-        while (!popQ.isEmpty() || !testUtils.isPushPopOpFinished(popperSet)
-                || !testUtils.isPushPopOpFinished(pusherSet)) {
-            CassQMsg qMsg = !popQ.isEmpty() ? popQ.remove() : null;
-            if (null != qMsg) {
-                numPopped++;
-                if (!msgSet.add(qMsg)) {
-                    fail("msg already popped - either message pushed twice or popped twice : " + qMsg.toString());
-                }
-                if (!valueSet.add(qMsg.getValue())) {
-                    fail("value of message pushed more than once : " + qMsg.toString());
-                }
-            }
-            else {
-                testUtils.reportPopStatus(popperSet, popQ);
-                try {
-                    Thread.sleep(200);
-                }
-                catch (InterruptedException e) {
-                    // do nothing
-                }
-            }
-        }
-
-        assertEquals("did not pop the same number pushed", numPushers * numToPushPerPusher, numPopped);
+        assertTrue("monitoring of pushers/poppers finished improperly", finishedProperly);
 
         // double popSecs = cqPopper.getElapsedTime() / 1000.0;
         // double pushSecs = cqPusher.getElapsedTime() / 1000.0;
@@ -313,8 +299,6 @@ public class CassQueueTest {
         assertEquals("expected to have a total of " + (numPoppers * numToPopPerPopper) + " values in set",
                 (numPoppers * numToPopPerPopper), valueSet.size());
     }
-
-    // -----------------------
 
     private void verifyExistsInDeliveredQueue(int index, int numMsgs, boolean wantExists) throws Exception {
         List<Column> colList = cq.getDeliveredMessages(index % cq.getNumPipes(), numMsgs + 1);
@@ -403,11 +387,11 @@ public class CassQueueTest {
         startCassandraInstance();
 
         // must create system pool first and initialize cassandra
-        systemPool = TestUtils.createSystemPool(TestUtils.NODE_LIST, TestUtils.THRIFT_PORT);
-        qRep = new QueueRepository(systemPool, TestUtils.REPLICATION_FACTOR, TestUtils.CONSISTENCY_LEVEL);
+        systemPool = TestUtils.createSystemPool(NODE_LIST, THRIFT_PORT);
+        qRep = new QueueRepository(systemPool, REPLICATION_FACTOR, TestUtils.CONSISTENCY_LEVEL);
         qRep.initCassandra(true);
 
-        queuePool = TestUtils.createQueuePool(1, 1);
+        queuePool = TestUtils.createQueuePool(NODE_LIST, THRIFT_PORT, 1, 10);
         qRep.setQueuePool(queuePool);
     }
 
