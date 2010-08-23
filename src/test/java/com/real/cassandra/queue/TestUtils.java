@@ -217,8 +217,8 @@ public class TestUtils {
         return pool;
     }
 
-    public static PelopsPool createSystemPool() {
-        Cluster cluster = new Cluster(NODE_LIST, THRIFT_PORT);
+    public static PelopsPool createSystemPool( String[] hostArr, int hostPort ) {
+        Cluster cluster = new Cluster(hostArr, hostPort);
         cluster.setFramedTransportRequired(true);
 
         Policy policy = new Policy();

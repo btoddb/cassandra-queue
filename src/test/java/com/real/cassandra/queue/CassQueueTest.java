@@ -38,12 +38,12 @@ import com.real.cassandra.queue.repository.QueueRepository;
  */
 public class CassQueueTest {
     private static Logger logger = LoggerFactory.getLogger(CassQueueTest.class);
-    
+
     private static PelopsPool queuePool;
     private static PelopsPool systemPool;
     private static QueueRepository qRep;
     private static EmbeddedCassandraService cassandra;
-    
+
     private CassQueue cq;
     private TestUtils testUtils;
 
@@ -401,9 +401,9 @@ public class CassQueueTest {
     @BeforeClass
     public static void setupCassandraAndPelopsPool() throws Exception {
         startCassandraInstance();
-        
+
         // must create system pool first and initialize cassandra
-        systemPool = TestUtils.createSystemPool();
+        systemPool = TestUtils.createSystemPool(TestUtils.NODE_LIST, TestUtils.THRIFT_PORT);
         qRep = new QueueRepository(systemPool, TestUtils.REPLICATION_FACTOR, TestUtils.CONSISTENCY_LEVEL);
         qRep.initCassandra(true);
 
@@ -416,13 +416,16 @@ public class CassQueueTest {
         Pelops.shutdown();
     }
 
-    private static void startCassandraInstance() throws TTransportException, IOException, InterruptedException, SecurityException, IllegalArgumentException, NoSuchMethodException, IllegalAccessException, InvocationTargetException {
+    private static void startCassandraInstance() throws TTransportException, IOException, InterruptedException,
+            SecurityException, IllegalArgumentException, NoSuchMethodException, IllegalAccessException,
+            InvocationTargetException {
         CassandraServiceDataCleaner cleaner = new CassandraServiceDataCleaner();
         cleaner.prepare();
         cassandra = new EmbeddedCassandraService();
         try {
             cassandra.init();
-        } catch (TTransportException e) {
+        }
+        catch (TTransportException e) {
             logger.error("exception while initializing cassandra server", e);
             throw e;
         }
