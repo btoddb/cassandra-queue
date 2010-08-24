@@ -64,17 +64,49 @@ public class AppProperties {
     }
 
     public boolean getNearFifo() {
-        String asStr = rawProps.getProperty("nearFifo");
-        if (null == asStr) {
-            return true;
-        }
-        else {
-            return Boolean.parseBoolean(asStr);
-        }
+        return getPropertAsBoolean("nearFifo", true);
+    }
+
+    public boolean getDropKeyspace() {
+        return getPropertAsBoolean("dropKeyspace", false);
+    }
+
+    public boolean getTruncateQueue() {
+        return getPropertAsBoolean("truncateQueue", false);
     }
 
     public int getNumPipes() {
         return getPropertyAsInt("numPipes", 1);
+    }
+
+    public int getMinCacheConnsPerHost() {
+        return getPropertyAsInt("minCacheConnsPerHost", 0);
+    }
+
+    public int getMaxConnectionsPerHost() {
+        return getPropertyAsInt("maxConnsPerHost", 5);
+    }
+
+    public int getTargetConnectionsPerHost() {
+        return getPropertyAsInt("targetConnsPerHost", 5);
+    }
+
+    public boolean getKillNodeConnectionsOnException() {
+        return getPropertAsBoolean("killNodeConnsOnException", true);
+    }
+
+    public boolean getUseFramedTransport() {
+        return getPropertAsBoolean("useFramedTransport", true);
+    }
+
+    private boolean getPropertAsBoolean(String propName, boolean defaultValue) {
+        String asStr = rawProps.getProperty(propName);
+        if (null == asStr) {
+            return defaultValue;
+        }
+        else {
+            return Boolean.parseBoolean(asStr);
+        }
     }
 
     private int getPropertyAsInt(String propName, int defaultValue) {

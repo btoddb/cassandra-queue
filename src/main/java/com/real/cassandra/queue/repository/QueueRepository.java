@@ -30,11 +30,11 @@ import com.real.cassandra.queue.CassQueue;
  */
 public class QueueRepository {
     public static final String QUEUE_KEYSPACE_NAME = "Queues";
-    public static final String SYSTEM_KEYSPACE_NAME = "System";
+    public static final String SYSTEM_KEYSPACE_NAME = "system";
     public static final String SYSTEM_COL_FAM = "QueueSystem";
     public static final String WAITING_COL_FAM = "WaitingQueues";
     public static final String DELIVERED_COL_FAM = "DeliveredQueues";
-    public static final String STRATEGY_CLASS_NAME = "org.apache.cassandra.locator.RackUnawareStrategy";
+    public static final String STRATEGY_CLASS_NAME = "org.apache.cassandra.locator.SimpleStrategy";
 
     private final PelopsPool systemPool;
     private final int replicationFactor;
@@ -196,9 +196,12 @@ public class QueueRepository {
 
     private void createKeyspace() throws Exception {
         ArrayList<CfDef> cfDefList = new ArrayList<CfDef>(2);
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, SYSTEM_COL_FAM).setComparator_type("BytesType"));
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, WAITING_COL_FAM).setComparator_type("TimeUUIDType"));
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, DELIVERED_COL_FAM).setComparator_type("TimeUUIDType"));
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, SYSTEM_COL_FAM).setComparator_type("BytesType")
+                .setKey_cache_size(0).setRow_cache_size(1000));
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, WAITING_COL_FAM).setComparator_type("TimeUUIDType")
+                .setKey_cache_size(0));
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, DELIVERED_COL_FAM).setComparator_type("TimeUUIDType")
+                .setKey_cache_size(0));
 
         KsDef ksDef = new KsDef(QUEUE_KEYSPACE_NAME, STRATEGY_CLASS_NAME, replicationFactor, cfDefList);
         KeyspaceManager ksMgr = Pelops.createKeyspaceManager(systemPool.getCluster());

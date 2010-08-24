@@ -4,7 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -43,6 +42,8 @@ public class CassQueueTest {
         "localhost" };
     public static final int REPLICATION_FACTOR = 1;
     public static final int THRIFT_PORT = 9161;
+
+    private static final boolean useFramedTransport = false;
 
     private static PelopsPool queuePool;
     private static PelopsPool systemPool;
@@ -387,11 +388,11 @@ public class CassQueueTest {
         startCassandraInstance();
 
         // must create system pool first and initialize cassandra
-        systemPool = TestUtils.createSystemPool(NODE_LIST, THRIFT_PORT);
+        systemPool = TestUtils.createSystemPool(NODE_LIST, THRIFT_PORT, useFramedTransport);
         qRep = new QueueRepository(systemPool, REPLICATION_FACTOR, TestUtils.CONSISTENCY_LEVEL);
         qRep.initCassandra(true);
 
-        queuePool = TestUtils.createQueuePool(NODE_LIST, THRIFT_PORT, 1, 10);
+        queuePool = TestUtils.createQueuePool(NODE_LIST, THRIFT_PORT, useFramedTransport, 1, 10, 5, false);
         qRep.setQueuePool(queuePool);
     }
 

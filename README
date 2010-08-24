@@ -1,3 +1,7 @@
 A simple FIFO queue using Cassandra Database and the Pelops client library.
 
 Requires Cassandra version 0.7 and a version of Pelops that works with 0.7
+
+Enhancements
+
+- Priorites can be implemented using multiple row keys per pipe

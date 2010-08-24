@@ -1,5 +1,7 @@
 package com.real.cassandra.queue;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -7,8 +9,10 @@ import java.util.Map.Entry;
 import java.util.UUID;
 
 import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.utils.UUIDGen;
 import org.scale7.cassandra.pelops.Bytes;
-import org.scale7.cassandra.pelops.UuidHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.repository.QueueRepository;
 
@@ -39,6 +43,10 @@ import com.real.cassandra.queue.repository.QueueRepository;
  * @author Todd Burruss
  */
 public class CassQueue {
+    private static Logger logger = LoggerFactory.getLogger(CassQueue.class);
+
+    private final InetAddress inetAddr;
+
     private QueueRepository queueRepository;
     private String name;
     private int numPipes;
@@ -68,6 +76,14 @@ public class CassQueue {
      *            ZooKeeper.)
      */
     public CassQueue(QueueRepository queueRepository, String name, int numPipes, boolean popLocks, boolean distributed) {
+        try {
+            inetAddr = InetAddress.getLocalHost();
+        }
+        catch (UnknownHostException e) {
+            logger.error("exception while getting local IP address", e);
+            throw new RuntimeException(e);
+        }
+
         this.queueRepository = queueRepository;
 
         this.name = name;
@@ -103,7 +119,7 @@ public class CassQueue {
      * @throws Exception
      */
     public void push(String value) throws Exception {
-        UUID timeUuid = UuidHelper.newTimeUuid();
+        UUID timeUuid = UUIDGen.makeType1UUIDFromHost(inetAddr);
         queueRepository.insert(QueueRepository.WAITING_COL_FAM, getName(), getNextWritePipeAndInc(),
                 Bytes.fromUuid(timeUuid), Bytes.fromUTF8(value));
     }
@@ -132,6 +148,7 @@ public class CassQueue {
         if (nearFifoOk) {
             for (int i = 4; 0 < i; i--) {
                 int tmp = getNextReadPipeAndInc();
+                logger.debug("chose read pipe = " + tmp);
                 List<Column> colList = queueRepository.getWaitingMessages(getName(), tmp, 1);
                 if (!colList.isEmpty()) {
                     rowKey = Bytes.fromUTF8(QueueRepository.formatKey(name, tmp));
@@ -151,7 +168,7 @@ public class CassQueue {
                 }
 
                 Column tmpCol = entry.getValue().get(0);
-                UUID colName = UuidHelper.timeUuidFromBytes(tmpCol.getName());
+                UUID colName = UUIDGen.makeType1UUID(tmpCol.getName());
                 if (null == rowKey || -1 == colName.compareTo(oldestColName)) {
                     rowKey = entry.getKey();
                     col = tmpCol;
@@ -168,8 +185,8 @@ public class CassQueue {
         queueRepository.moveFromWaitingToDelivered(rowKey, Bytes.fromBytes(col.getName()),
                 Bytes.fromBytes(col.getValue()));
 
-        return new CassQMsg(new String(rowKey.getBytes()), UuidHelper.timeUuidFromBytes(col.getName()), new String(
-                col.getValue()));
+        UUID colName = UUIDGen.makeType1UUID(col.getName());
+        return new CassQMsg(new String(rowKey.getBytes()), colName, new String(col.getValue()));
     }
 
     /**
@@ -223,6 +240,7 @@ public class CassQueue {
         synchronized (writePipeIncMonitor) {
             int ret = nextWritePipeToUse;
             nextWritePipeToUse = (nextWritePipeToUse + 1) % numPipes;
+            logger.debug("chose write pipe = " + ret);
             return ret;
         }
     }

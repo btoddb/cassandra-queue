@@ -85,21 +85,29 @@ public class TestMain {
 
     private static void setupQueue() {
         cq = new CassQueue(qRep, TestUtils.QUEUE_NAME, appProps.getNumPipes(), true, false);
-        // try {
-        // cq.truncate();
-        // }
-        // catch (Exception e) {
-        // logger.error("exception while truncating queue", e);
-        // }
+        if (appProps.getTruncateQueue() && !appProps.getDropKeyspace()) {
+            try {
+                cq.truncate();
+            }
+            catch (Exception e) {
+                logger.error("exception while truncating queue", e);
+            }
+        }
     }
 
     private static void setupPelopsPool() throws Exception {
         // must create system pool first and initialize cassandra
-        systemPool = TestUtils.createSystemPool(appProps.getHostArr(), appProps.getThriftPort());
+        systemPool =
+                TestUtils.createSystemPool(appProps.getHostArr(), appProps.getThriftPort(),
+                        appProps.getUseFramedTransport());
         qRep = new QueueRepository(systemPool, appProps.getReplicationFactor(), ConsistencyLevel.QUORUM);
-        qRep.initCassandra(true);
+        qRep.initCassandra(appProps.getDropKeyspace());
 
-        queuePool = TestUtils.createQueuePool(appProps.getHostArr(), appProps.getThriftPort(), 20, 20);
+        queuePool =
+                TestUtils.createQueuePool(appProps.getHostArr(), appProps.getThriftPort(),
+                        appProps.getUseFramedTransport(), appProps.getMinCacheConnsPerHost(),
+                        appProps.getMaxConnectionsPerHost(), appProps.getTargetConnectionsPerHost(),
+                        appProps.getKillNodeConnectionsOnException());
         qRep.setQueuePool(queuePool);
     }
 

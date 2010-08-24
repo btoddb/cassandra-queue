@@ -228,15 +228,17 @@ public class TestUtils {
         return base + "-" + pipeNum;
     }
 
-    public static PelopsPool createQueuePool(String[] hostArr, int thriftPort, int minConns, int maxConns) {
+    public static PelopsPool createQueuePool(String[] hostArr, int thriftPort, boolean useFramedTransport,
+            int minCachedConns, int maxConns, int targetConns, boolean killNodeConnsOnException) {
         Cluster cluster = new Cluster(hostArr, thriftPort);
-        cluster.setFramedTransportRequired(true);
+        cluster.setFramedTransportRequired(useFramedTransport);
 
         Policy policy = new Policy();
         policy.setKillNodeConnsOnException(true);
         policy.setMaxConnectionsPerNode(maxConns);
-        policy.setMinCachedConnectionsPerNode(minConns);
-        policy.setTargetConnectionsPerNode((minConns + maxConns) / 2);
+        policy.setMinCachedConnectionsPerNode(minCachedConns);
+        policy.setTargetConnectionsPerNode(targetConns);
+        policy.setKillNodeConnsOnException(killNodeConnsOnException);
 
         OperandPolicy opPolicy = new OperandPolicy();
         opPolicy.setMaxOpRetries(10);
@@ -253,9 +255,9 @@ public class TestUtils {
         return pool;
     }
 
-    public static PelopsPool createSystemPool(String[] hostArr, int thriftPort) {
+    public static PelopsPool createSystemPool(String[] hostArr, int thriftPort, boolean useFramedTransport) {
         Cluster cluster = new Cluster(hostArr, thriftPort);
-        cluster.setFramedTransportRequired(true);
+        cluster.setFramedTransportRequired(useFramedTransport);
 
         Policy policy = new Policy();
         policy.setKillNodeConnsOnException(true);
