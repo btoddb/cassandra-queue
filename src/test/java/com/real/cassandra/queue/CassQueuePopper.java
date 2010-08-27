@@ -14,6 +14,7 @@ public class CassQueuePopper extends PushPopAbstractBase {
     protected boolean processMsg(String value) throws Exception {
         CassQMsg qMsg = cq.pop();
         if (null != qMsg) {
+            cq.commit(qMsg);
             popQ.add(qMsg);
             return true;
         }

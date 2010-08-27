@@ -8,12 +8,12 @@ package com.real.cassandra.queue;
 public class PopLockNoOpImpl implements PopLock {
 
     @Override
-    public void lock() {
+    public void lock(int pipeNum) {
         // do nothing
     }
 
     @Override
-    public void unlock() {
+    public void unlock(int pipeNum) {
         // do nothing
     }
 

@@ -7,8 +7,8 @@ public interface PopLock {
     /**
      * straight from the javadoc for {@link LockSupport}.
      */
-    void lock();
+    void lock(int pipeNum);
 
-    void unlock();
+    void unlock(int pipeNum);
 
 }

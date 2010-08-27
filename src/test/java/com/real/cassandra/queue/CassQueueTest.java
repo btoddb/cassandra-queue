@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -48,13 +49,83 @@ public class CassQueueTest {
     private static PelopsPool queuePool;
     private static PelopsPool systemPool;
     private static QueueRepository qRep;
+    private static CassQueueFactory cassQueueFactory;
     private static EmbeddedCassandraService cassandra;
 
+    private EnvProperties envProps;
     private CassQueue cq;
     private TestUtils testUtils;
 
+    // @Test
+    // public void testDirectColumnAccess() throws Exception {
+    // String myColFam = "myColFam";
+    // KeyspaceManager ksMgr =
+    // Pelops.createKeyspaceManager(systemPool.getCluster());
+    // ksMgr.dropKeyspace(QueueRepository.QUEUE_KEYSPACE_NAME);
+    //
+    // ArrayList<CfDef> cfDefList = new ArrayList<CfDef>(1);
+    // cfDefList.add(new CfDef(QueueRepository.QUEUE_KEYSPACE_NAME,
+    // myColFam).setComparator_type("BytesType")
+    // .setKey_cache_size(0));
+    //
+    // KsDef ksDef = new KsDef(QueueRepository.QUEUE_KEYSPACE_NAME,
+    // QueueRepository.STRATEGY_CLASS_NAME, 1, cfDefList);
+    // ksMgr.addKeyspace(ksDef);
+    //
+    // for (int i = 0; i < 10000; i++) {
+    // qRep.insert(myColFam, TestUtils.QUEUE_NAME, 0, Bytes.fromInt(i),
+    // Bytes.fromInt(i));
+    // }
+    //
+    // {
+    // Selector s = Pelops.createSelector(queuePool.getPoolName());
+    // SlicePredicate pred = Selector.newColumnsPredicateAll(false, 1000000);
+    // int colCount =
+    // s.getColumnCount(myColFam,
+    // Bytes.fromUTF8(QueueRepository.formatKey(TestUtils.QUEUE_NAME, 0)),
+    // pred, ConsistencyLevel.QUORUM);
+    //
+    // System.out.println("count = " + colCount);
+    // }
+    //
+    // long start = System.currentTimeMillis();
+    // String rowKey = QueueRepository.formatKey(TestUtils.QUEUE_NAME, 0);
+    // for (int i = 0; i < 10000; i++) {
+    // Selector s = Pelops.createSelector(queuePool.getPoolName());
+    //
+    // Column col =
+    // s.getColumnFromRow(myColFam, Bytes.fromUTF8(rowKey), Bytes.fromInt(i),
+    // ConsistencyLevel.QUORUM);
+    //
+    // // // using slicepredicate
+    // // SlicePredicate pred = Selector.newColumnsPredicateAll(false, 1);
+    // // List<Column> colList = s.getColumnsFromRow(myColFam, rowKey,
+    // // pred, ConsistencyLevel.QUORUM);
+    // // Column col = colList.get(0);
+    //
+    // // delete it
+    // Mutator m = Pelops.createMutator(queuePool.getPoolName());
+    // m.deleteColumn(myColFam, rowKey, Bytes.fromBytes(col.getName()));
+    // m.execute(ConsistencyLevel.QUORUM);
+    // }
+    //
+    // System.out.println("duration = " + (System.currentTimeMillis() - start));
+    //
+    // Selector s = Pelops.createSelector(queuePool.getPoolName());
+    // SlicePredicate pred = Selector.newColumnsPredicateAll(false, 1000000);
+    // int colCount =
+    // s.getColumnCount(myColFam,
+    // Bytes.fromUTF8(QueueRepository.formatKey(TestUtils.QUEUE_NAME, 0)), pred,
+    // ConsistencyLevel.QUORUM);
+    //
+    // System.out.println("count = " + colCount);
+    //
+    // }
+
     @Test
     public void testPush() throws Exception {
+        cq.setStopPipeWatcher();
+
         int numMsgs = 10;
         for (int i = 0; i < numMsgs; i++) {
             cq.push("xxx_" + i);
@@ -66,15 +137,19 @@ public class CassQueueTest {
 
     @Test
     public void testPop() throws Exception {
+        cq.setStopPipeWatcher();
+
         int numMsgs = 100;
         for (int i = 0; i < numMsgs; i++) {
             cq.push("xxx_" + i);
         }
 
         ArrayList<CassQMsg> popList = new ArrayList<CassQMsg>(numMsgs);
-        CassQMsg evt;
-        while (null != (evt = cq.pop())) {
-            popList.add(evt);
+        CassQMsg qMsg;
+        while (0 < qRep.getCount(cq.getName())) {
+            if (null != (qMsg = cq.pop())) {
+                popList.add(qMsg);
+            }
         }
 
         assertEquals("did not pop the correct amount", numMsgs, popList.size());
@@ -183,7 +258,7 @@ public class CassQueueTest {
     @Test
     public void testSimultaneousSinglePusherSinglePopper() {
         cq.setNearFifoOk(true);
-        assertPushersPoppersWork(1, 1, 100, 100, 0, 0);
+        assertPushersPoppersWork(1, 1, 1000, 1000, 0, 0);
 
         // int numToPush = 100;
         // int numToPop = 100;
@@ -250,7 +325,7 @@ public class CassQueueTest {
     @Test
     public void testSimultaneousMultiplePusherMultiplePopper() {
         cq.setNearFifoOk(true);
-        assertPushersPoppersWork(4, 4, 100, 100, 0, 0);
+        assertPushersPoppersWork(4, 4, 1000, 1000, 0, 0);
     }
 
     // -----------------------
@@ -342,12 +417,16 @@ public class CassQueueTest {
     }
 
     private void verifyDeliveredQueue(int numMsgs) throws Exception {
+        QueueDescriptor qDesc = qRep.getQueueDescriptor(TestUtils.QUEUE_NAME);
+
+        long startPipe = qDesc.getPopStartPipe();
         int min = numMsgs / cq.getNumPipes();
         int mod = numMsgs % cq.getNumPipes();
 
         for (int i = 0; i < cq.getNumPipes(); i++) {
-            List<Column> colList = cq.getDeliveredMessages(i, numMsgs + 1);
-            assertEquals("count on queue index " + i + " is incorrect", i < mod ? min + 1 : min, colList.size());
+            List<Column> colList = cq.getDeliveredMessages(startPipe + i, numMsgs + 1);
+            assertEquals("count on queue index " + (startPipe + i) + " is incorrect", i < mod ? min + 1 : min,
+                    colList.size());
 
             for (int j = 0; j < colList.size(); j++) {
                 String value = new String(colList.get(j).getValue());
@@ -357,12 +436,16 @@ public class CassQueueTest {
     }
 
     private void verifyWaitingQueue(int numMsgs) throws Exception {
-        int min = numMsgs / cq.getNumPipes();
-        int mod = numMsgs % cq.getNumPipes();
+        QueueDescriptor qDesc = qRep.getQueueDescriptor(TestUtils.QUEUE_NAME);
+
+        long startPipe = qDesc.getPushStartPipe();
+        long min = numMsgs / cq.getNumPipes();
+        long mod = numMsgs % cq.getNumPipes();
 
         for (int i = 0; i < cq.getNumPipes(); i++) {
-            List<Column> colList = cq.getWaitingMessages(i, numMsgs + 1);
-            assertEquals("count on queue index " + i + " is incorrect", i < mod ? min + 1 : min, colList.size());
+            List<Column> colList = cq.getWaitingMessages(startPipe + i, numMsgs + 1);
+            assertEquals("count on queue index " + (startPipe + i) + " is incorrect", i < mod ? min + 1 : min,
+                    colList.size());
 
             for (int j = 0; j < colList.size(); j++) {
                 String value = new String(colList.get(j).getValue());
@@ -372,8 +455,13 @@ public class CassQueueTest {
     }
 
     @Before
-    public void setupQueueMgrAndPool() {
-        cq = new CassQueue(qRep, TestUtils.QUEUE_NAME, 4, true, false);
+    public void setupQueue() throws Exception {
+        Properties rawProps = new Properties();
+        rawProps.setProperty("numPipes", "4");
+        rawProps.setProperty("pushPipeIncrementDelay", "20000");
+        envProps = new EnvProperties(rawProps);
+
+        cq = cassQueueFactory.createInstance(TestUtils.QUEUE_NAME, envProps, true, false);
         testUtils = new TestUtils(cq);
         try {
             cq.truncate();
@@ -391,6 +479,7 @@ public class CassQueueTest {
         systemPool = TestUtils.createSystemPool(NODE_LIST, THRIFT_PORT, useFramedTransport);
         qRep = new QueueRepository(systemPool, REPLICATION_FACTOR, TestUtils.CONSISTENCY_LEVEL);
         qRep.initCassandra(true);
+        cassQueueFactory = new CassQueueFactory(qRep);
 
         queuePool = TestUtils.createQueuePool(NODE_LIST, THRIFT_PORT, useFramedTransport, 1, 10, 5, false);
         qRep.setQueuePool(queuePool);

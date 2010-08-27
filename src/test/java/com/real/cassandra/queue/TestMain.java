@@ -27,8 +27,9 @@ public class TestMain {
 
     private static PelopsPool queuePool;
     private static PelopsPool systemPool;
-    private static QueueRepository qRep;
-    private static AppProperties appProps;
+    private static QueueRepository qRepository;
+    private static CassQueueFactory cassQueueFactory;
+    private static EnvProperties envProps;
 
     private static CassQueue cq;
 
@@ -43,14 +44,14 @@ public class TestMain {
         setupQueue();
 
         TestUtils testUtils = new TestUtils(cq);
-        cq.setNearFifoOk(appProps.getNearFifo());
+        cq.setNearFifoOk(envProps.getNearFifo());
 
-        int numPushers = appProps.getNumPushers();
-        int numPoppers = appProps.getNumPoppers();
-        int numToPushPerPusher = appProps.getNumMsgsPerPusher();
-        int numToPopPerPopper = appProps.getNumMsgsPerPopper();
-        long pushDelay = appProps.getPushDelay();
-        long popDelay = appProps.getPopDelay();
+        int numPushers = envProps.getNumPushers();
+        int numPoppers = envProps.getNumPoppers();
+        int numToPushPerPusher = envProps.getNumMsgsPerPusher();
+        int numToPopPerPopper = envProps.getNumMsgsPerPopper();
+        long pushDelay = envProps.getPushDelay();
+        long popDelay = envProps.getPopDelay();
 
         //
         // start a set of pushers and poppers
@@ -58,6 +59,7 @@ public class TestMain {
 
         logger.info("starting pushers/poppers after 2 sec pause : " + numPushers + "/" + numPoppers);
 
+        // must wait for keyspace creation to propagate
         Thread.sleep(2000);
 
         Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
@@ -77,15 +79,15 @@ public class TestMain {
         File appPropsFile = new File("conf/app.properties");
         Properties props = new Properties();
         props.load(new FileReader(appPropsFile));
-        appProps = new AppProperties(props);
+        envProps = new EnvProperties(props);
 
         logger.info("using hosts : " + props.getProperty("hosts"));
         logger.info("using thrift port : " + props.getProperty("thriftPort"));
     }
 
-    private static void setupQueue() {
-        cq = new CassQueue(qRep, TestUtils.QUEUE_NAME, appProps.getNumPipes(), true, false);
-        if (appProps.getTruncateQueue() && !appProps.getDropKeyspace()) {
+    private static void setupQueue() throws Exception {
+        cq = cassQueueFactory.createInstance(TestUtils.QUEUE_NAME, envProps, true, false);
+        if (envProps.getTruncateQueue() && !envProps.getDropKeyspace()) {
             try {
                 cq.truncate();
             }
@@ -98,17 +100,19 @@ public class TestMain {
     private static void setupPelopsPool() throws Exception {
         // must create system pool first and initialize cassandra
         systemPool =
-                TestUtils.createSystemPool(appProps.getHostArr(), appProps.getThriftPort(),
-                        appProps.getUseFramedTransport());
-        qRep = new QueueRepository(systemPool, appProps.getReplicationFactor(), ConsistencyLevel.QUORUM);
-        qRep.initCassandra(appProps.getDropKeyspace());
+                TestUtils.createSystemPool(envProps.getHostArr(), envProps.getThriftPort(),
+                        envProps.getUseFramedTransport());
+        qRepository = new QueueRepository(systemPool, envProps.getReplicationFactor(), ConsistencyLevel.QUORUM);
+        qRepository.initCassandra(envProps.getDropKeyspace());
+
+        cassQueueFactory = new CassQueueFactory(qRepository);
 
         queuePool =
-                TestUtils.createQueuePool(appProps.getHostArr(), appProps.getThriftPort(),
-                        appProps.getUseFramedTransport(), appProps.getMinCacheConnsPerHost(),
-                        appProps.getMaxConnectionsPerHost(), appProps.getTargetConnectionsPerHost(),
-                        appProps.getKillNodeConnectionsOnException());
-        qRep.setQueuePool(queuePool);
+                TestUtils.createQueuePool(envProps.getHostArr(), envProps.getThriftPort(),
+                        envProps.getUseFramedTransport(), envProps.getMinCacheConnsPerHost(),
+                        envProps.getMaxConnectionsPerHost(), envProps.getTargetConnectionsPerHost(),
+                        envProps.getKillNodeConnectionsOnException());
+        qRepository.setQueuePool(queuePool);
     }
 
     private static void shutdownQueueMgrAndPool() {

@@ -14,11 +14,17 @@ public class PopLockLocalImpl implements PopLock {
     private final AtomicBoolean locked = new AtomicBoolean(false);
     private final Queue<Thread> waiters = new ConcurrentLinkedQueue<Thread>();
 
+    private final int numPipes;
+
+    public PopLockLocalImpl(int numPipes) {
+        this.numPipes = numPipes;
+    }
+
     /**
      * straight from the javadoc for {@link LockSupport}.
      */
     @Override
-    public void lock() {
+    public void lock(int pipeNum) {
         boolean wasInterrupted = false;
         Thread current = Thread.currentThread();
         waiters.add(current);
@@ -40,7 +46,7 @@ public class PopLockLocalImpl implements PopLock {
     }
 
     @Override
-    public void unlock() {
+    public void unlock(int pipeNum) {
         locked.set(false);
         LockSupport.unpark(waiters.peek());
     }

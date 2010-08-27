@@ -5,13 +5,18 @@ import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class AppProperties {
-    private static Logger logger = LoggerFactory.getLogger(AppProperties.class);
+public class EnvProperties {
+    private static Logger logger = LoggerFactory.getLogger(EnvProperties.class);
 
     private Properties rawProps;
     private String[] hostArr;
 
-    public AppProperties(Properties rawProps) {
+    /**
+     * Load from raw properties file.
+     * 
+     * @param rawProps
+     */
+    public EnvProperties(Properties rawProps) {
         this.rawProps = rawProps;
     }
 
@@ -99,6 +104,14 @@ public class AppProperties {
         return getPropertAsBoolean("useFramedTransport", true);
     }
 
+    public long getPipeCheckDelay() {
+        return getPropertyAsLong("pipeCheckDelay", 100);
+    }
+
+    public long getPushPipeIncrementDelay() {
+        return getPropertyAsLong("pushPipeIncrementDelay", 1 * 1000 * 60);
+    }
+
     private boolean getPropertAsBoolean(String propName, boolean defaultValue) {
         String asStr = rawProps.getProperty(propName);
         if (null == asStr) {
@@ -117,5 +130,15 @@ public class AppProperties {
         }
 
         return Integer.parseInt(asStr);
+    }
+
+    private long getPropertyAsLong(String propName, long defaultValue) {
+        String asStr = rawProps.getProperty(propName);
+        if (null == asStr) {
+            logger.info("'" + propName + "' property not specified, using " + defaultValue);
+            return defaultValue;
+        }
+
+        return Long.parseLong(asStr);
     }
 }
