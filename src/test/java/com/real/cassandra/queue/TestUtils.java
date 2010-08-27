@@ -29,6 +29,8 @@ public class TestUtils {
     public static final String QUEUE_NAME = "myTestQueue";
     public static final ConsistencyLevel CONSISTENCY_LEVEL = ConsistencyLevel.QUORUM;
 
+    private static PelopsPool queuePool;
+
     private CassQueue cq;
 
     public TestUtils(CassQueue cq) {
@@ -261,9 +263,9 @@ public class TestUtils {
 
         Policy policy = new Policy();
         policy.setKillNodeConnsOnException(true);
-        policy.setMaxConnectionsPerNode(1);
+        policy.setMaxConnectionsPerNode(10);
         policy.setMinCachedConnectionsPerNode(1);
-        policy.setTargetConnectionsPerNode(1);
+        policy.setTargetConnectionsPerNode(2);
 
         OperandPolicy opPolicy = new OperandPolicy();
         opPolicy.setMaxOpRetries(10);
@@ -302,6 +304,31 @@ public class TestUtils {
 
         double secs = elapsed / 1000.0;
         logger.info("current elapsed pop time : " + secs + " (" + totalPopped + " : " + totalPopped / secs + " pop/s)");
+    }
+
+    public static QueueRepository setupCassandraAndPelopsPool(EnvProperties envProps, ConsistencyLevel consistencyLevel)
+            throws Exception {
+        // must create system pool first and initialize cassandra
+        PelopsPool systemPool =
+                TestUtils.createSystemPool(envProps.getHostArr(), envProps.getThriftPort(),
+                        envProps.getUseFramedTransport());
+        QueueRepository qRep = new QueueRepository(systemPool, envProps.getReplicationFactor(), consistencyLevel);
+        qRep.initCassandra(envProps.getDropKeyspace());
+
+        queuePool =
+                TestUtils.createQueuePool(envProps.getHostArr(), envProps.getThriftPort(),
+                        envProps.getUseFramedTransport(), envProps.getMinCacheConnsPerHost(),
+                        envProps.getMaxConnectionsPerHost(), envProps.getTargetConnectionsPerHost(),
+                        envProps.getKillNodeConnectionsOnException());
+        qRep.setQueuePool(queuePool);
+        return qRep;
+    }
+
+    public static CassQueue setupQueue(QueueRepository qRep, String name, EnvProperties envProps, boolean popLocks,
+            boolean distributed) throws Exception {
+        CassQueueFactory cqf = new CassQueueFactory(qRep);
+        CassQueue cq = cqf.createInstance(name, envProps, popLocks, distributed);
+        return cq;
     }
 
     public Set<PushPopAbstractBase> startPushers(CassQueue cq, String baseValue, int numPushers, int numToPush,

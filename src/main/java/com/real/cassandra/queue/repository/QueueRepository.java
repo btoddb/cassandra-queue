@@ -168,6 +168,9 @@ public class QueueRepository {
         }
 
         createKeyspace();
+
+        // give the cluster a chance to propagate keyspaces created in previous
+        Thread.sleep(2000);
     }
 
     public List<Column> getWaitingMessages(String name, long pipeNum, int maxColumns) throws Exception {

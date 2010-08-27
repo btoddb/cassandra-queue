@@ -25,8 +25,6 @@ import com.real.cassandra.queue.repository.QueueRepository;
 public class TestMain {
     private static Logger logger = LoggerFactory.getLogger(TestMain.class);
 
-    private static PelopsPool queuePool;
-    private static PelopsPool systemPool;
     private static QueueRepository qRepository;
     private static CassQueueFactory cassQueueFactory;
     private static EnvProperties envProps;
@@ -86,33 +84,12 @@ public class TestMain {
     }
 
     private static void setupQueue() throws Exception {
-        cq = cassQueueFactory.createInstance(TestUtils.QUEUE_NAME, envProps, true, false);
-        if (envProps.getTruncateQueue() && !envProps.getDropKeyspace()) {
-            try {
-                cq.truncate();
-            }
-            catch (Exception e) {
-                logger.error("exception while truncating queue", e);
-            }
-        }
+        cq = TestUtils.setupQueue(qRepository, TestUtils.QUEUE_NAME, envProps, true, false);
     }
 
     private static void setupPelopsPool() throws Exception {
-        // must create system pool first and initialize cassandra
-        systemPool =
-                TestUtils.createSystemPool(envProps.getHostArr(), envProps.getThriftPort(),
-                        envProps.getUseFramedTransport());
-        qRepository = new QueueRepository(systemPool, envProps.getReplicationFactor(), ConsistencyLevel.QUORUM);
-        qRepository.initCassandra(envProps.getDropKeyspace());
-
+        qRepository = TestUtils.setupCassandraAndPelopsPool(envProps, ConsistencyLevel.QUORUM);
         cassQueueFactory = new CassQueueFactory(qRepository);
-
-        queuePool =
-                TestUtils.createQueuePool(envProps.getHostArr(), envProps.getThriftPort(),
-                        envProps.getUseFramedTransport(), envProps.getMinCacheConnsPerHost(),
-                        envProps.getMaxConnectionsPerHost(), envProps.getTargetConnectionsPerHost(),
-                        envProps.getKillNodeConnectionsOnException());
-        qRepository.setQueuePool(queuePool);
     }
 
     private static void shutdownQueueMgrAndPool() {

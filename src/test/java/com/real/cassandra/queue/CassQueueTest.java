@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import org.apache.cassandra.contrib.utils.service.CassandraServiceDataCleaner;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.thrift.transport.TTransportException;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -28,7 +29,6 @@ import org.scale7.cassandra.pelops.Pelops;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.repository.PelopsPool;
 import com.real.cassandra.queue.repository.QueueRepository;
 
 /**
@@ -39,20 +39,11 @@ import com.real.cassandra.queue.repository.QueueRepository;
 public class CassQueueTest {
     private static Logger logger = LoggerFactory.getLogger(CassQueueTest.class);
 
-    public static final String[] NODE_LIST = new String[] {
-        "localhost" };
-    public static final int REPLICATION_FACTOR = 1;
-    public static final int THRIFT_PORT = 9161;
-
-    private static final boolean useFramedTransport = false;
-
-    private static PelopsPool queuePool;
-    private static PelopsPool systemPool;
     private static QueueRepository qRep;
     private static CassQueueFactory cassQueueFactory;
     private static EmbeddedCassandraService cassandra;
+    private static EnvProperties envProps;
 
-    private EnvProperties envProps;
     private CassQueue cq;
     private TestUtils testUtils;
 
@@ -454,35 +445,40 @@ public class CassQueueTest {
         }
     }
 
-    @Before
-    public void setupQueue() throws Exception {
+    private static void setupEnvProperties() {
+
         Properties rawProps = new Properties();
         rawProps.setProperty("numPipes", "4");
         rawProps.setProperty("pushPipeIncrementDelay", "20000");
-        envProps = new EnvProperties(rawProps);
+        rawProps.setProperty("hosts", "localhost");
+        rawProps.setProperty("thriftPort", "9161");
+        rawProps.setProperty("useFramedTransport", "false");
+        rawProps.setProperty("minCacheConnsPerHost", "1");
+        rawProps.setProperty("maxConnsPerHost", "20");
+        rawProps.setProperty("targetConnsPerHost", "10");
+        rawProps.setProperty("killNodeConnsOnException", "false");
+        rawProps.setProperty("dropKeyspace", "true");
+        rawProps.setProperty("replicationFactor", "1");
+        rawProps.setProperty("dropKeyspace", "true");
+        rawProps.setProperty("truncateQueue", "true");
 
-        cq = cassQueueFactory.createInstance(TestUtils.QUEUE_NAME, envProps, true, false);
+        envProps = new EnvProperties(rawProps);
+    }
+
+    @Before
+    public void setupQueue() throws Exception {
+        cq = TestUtils.setupQueue(qRep, TestUtils.QUEUE_NAME, envProps, true, false);
         testUtils = new TestUtils(cq);
-        try {
-            cq.truncate();
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     @BeforeClass
     public static void setupCassandraAndPelopsPool() throws Exception {
+        setupEnvProperties();
         startCassandraInstance();
 
-        // must create system pool first and initialize cassandra
-        systemPool = TestUtils.createSystemPool(NODE_LIST, THRIFT_PORT, useFramedTransport);
-        qRep = new QueueRepository(systemPool, REPLICATION_FACTOR, TestUtils.CONSISTENCY_LEVEL);
-        qRep.initCassandra(true);
-        cassQueueFactory = new CassQueueFactory(qRep);
+        qRep = TestUtils.setupCassandraAndPelopsPool(envProps, ConsistencyLevel.ONE);
 
-        queuePool = TestUtils.createQueuePool(NODE_LIST, THRIFT_PORT, useFramedTransport, 1, 10, 5, false);
-        qRep.setQueuePool(queuePool);
+        cassQueueFactory = new CassQueueFactory(qRep);
     }
 
     @AfterClass

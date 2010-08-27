@@ -45,7 +45,7 @@ seeds:
 # machine by mmapping only index files) and "standard".
 # (The buffer size settings that follow only apply to standard,
 # non-mmapped i/o.)
-disk_access_mode: auto
+disk_access_mode: standard
 
 # Unlike most systems, in Cassandra writes are faster than reads, so
 # you can afford more of those in parallel.  A good rule of thumb is 2
