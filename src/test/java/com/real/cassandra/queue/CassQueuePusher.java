@@ -2,8 +2,8 @@ package com.real.cassandra.queue;
 
 public class CassQueuePusher extends PushPopAbstractBase {
 
-    public CassQueuePusher(CassQueue cq, String baseValue) {
-        super(cq, baseValue);
+    public CassQueuePusher(CassQueue cq, String baseValue, EnvProperties envProps) {
+        super(cq, baseValue, envProps, EnvProperties.ENV_pushDelay);
     }
 
     @Override

@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.List;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
@@ -14,7 +15,6 @@ import org.scale7.cassandra.pelops.Pelops;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.repository.PelopsPool;
 import com.real.cassandra.queue.repository.QueueRepository;
 
 /**
@@ -26,7 +26,6 @@ public class TestMain {
     private static Logger logger = LoggerFactory.getLogger(TestMain.class);
 
     private static QueueRepository qRepository;
-    private static CassQueueFactory cassQueueFactory;
     private static EnvProperties envProps;
 
     private static CassQueue cq;
@@ -36,7 +35,7 @@ public class TestMain {
         parseAppProperties();
 
         logger.info("setting up pelops pool");
-        setupPelopsPool();
+        setupQueueSystemAndPelopsPool();
 
         logger.info("setting up queue");
         setupQueue();
@@ -44,27 +43,19 @@ public class TestMain {
         TestUtils testUtils = new TestUtils(cq);
         cq.setNearFifoOk(envProps.getNearFifo());
 
-        int numPushers = envProps.getNumPushers();
-        int numPoppers = envProps.getNumPoppers();
-        int numToPushPerPusher = envProps.getNumMsgsPerPusher();
-        int numToPopPerPopper = envProps.getNumMsgsPerPopper();
-        long pushDelay = envProps.getPushDelay();
-        long popDelay = envProps.getPopDelay();
-
         //
         // start a set of pushers and poppers
         //
 
-        logger.info("starting pushers/poppers after 2 sec pause : " + numPushers + "/" + numPoppers);
+        logger.info("starting pushers/poppers after 2 sec pause : " + envProps.getNumPushers() + "/"
+                + envProps.getNumPoppers());
 
         // must wait for keyspace creation to propagate
         Thread.sleep(2000);
 
         Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
-        Set<PushPopAbstractBase> pusherSet =
-                testUtils.startPushers(cq, "test", numPushers, numToPushPerPusher, pushDelay);
-        Set<PushPopAbstractBase> popperSet =
-                testUtils.startPoppers(cq, "test", numPoppers, numToPopPerPopper, popDelay, popQ);
+        List<PushPopAbstractBase> pusherSet = testUtils.startPushers(cq, "test", envProps);
+        List<PushPopAbstractBase> popperSet = testUtils.startPoppers(cq, "test", popQ, envProps);
 
         testUtils.monitorPushersPoppers(popQ, pusherSet, popperSet, null, null);
 
@@ -87,9 +78,8 @@ public class TestMain {
         cq = TestUtils.setupQueue(qRepository, TestUtils.QUEUE_NAME, envProps, true, false);
     }
 
-    private static void setupPelopsPool() throws Exception {
-        qRepository = TestUtils.setupCassandraAndPelopsPool(envProps, ConsistencyLevel.QUORUM);
-        cassQueueFactory = new CassQueueFactory(qRepository);
+    private static void setupQueueSystemAndPelopsPool() throws Exception {
+        qRepository = TestUtils.setupQueueSystemAndPelopsPool(envProps, ConsistencyLevel.QUORUM);
     }
 
     private static void shutdownQueueMgrAndPool() {

@@ -7,10 +7,12 @@ public abstract class PushPopAbstractBase implements Runnable {
     private static Logger logger = LoggerFactory.getLogger(PushPopAbstractBase.class);
 
     CassQueue cq;
-    private long delay;
+    private EnvProperties envProps;
+    private String delayPropName;
     private String baseValue;
     private int numMsgsToProcess;
     private int msgsProcessed;
+    private boolean stopProcessing = false;
 
     TestUtils testUtils;
 
@@ -18,16 +20,19 @@ public abstract class PushPopAbstractBase implements Runnable {
     long start;
     long end = -1;
 
-    public PushPopAbstractBase(CassQueue cq, String baseValue) {
+    public PushPopAbstractBase(CassQueue cq, String baseValue, EnvProperties envProps, String delayPropName) {
         this.cq = cq;
         this.baseValue = baseValue;
+        this.envProps = envProps;
+        this.delayPropName = delayPropName;
         this.testUtils = new TestUtils(cq);
     }
 
-    public void start(int numMsgsToPush, long delay) {
+    public void start(int numMsgsToPush) {
         this.numMsgsToProcess = numMsgsToPush;
-        this.delay = delay;
         theThread = new Thread(this);
+        theThread.setDaemon(true);
+        theThread.setName(getClass().getSimpleName());
         theThread.start();
     }
 
@@ -38,7 +43,7 @@ public abstract class PushPopAbstractBase implements Runnable {
         start = System.currentTimeMillis();
 
         msgsProcessed = 0;
-        while (msgsProcessed < numMsgsToProcess) {
+        while (msgsProcessed < numMsgsToProcess && !stopProcessing) {
             try {
                 if (processMsg(testUtils.formatMsgValue(baseValue, msgsProcessed))) {
                     msgsProcessed++;
@@ -48,6 +53,7 @@ public abstract class PushPopAbstractBase implements Runnable {
                 logger.error("exception while processing messages", e);
             }
 
+            long delay = envProps.getPropertyAsLong(delayPropName, 0L);
             if (0 < delay) {
                 try {
                     Thread.sleep(delay);
@@ -89,12 +95,12 @@ public abstract class PushPopAbstractBase implements Runnable {
         return cq;
     }
 
-    public long getDelay() {
-        return delay;
-    }
-
     public String getBaseValue() {
         return baseValue;
+    }
+
+    public void setStopProcessing(boolean stopProcessing) {
+        this.stopProcessing = stopProcessing;
     }
 
 }

@@ -1,9 +1,6 @@
 package com.real.cassandra.queue;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -40,9 +37,8 @@ public class CassQueueTest {
     private static Logger logger = LoggerFactory.getLogger(CassQueueTest.class);
 
     private static QueueRepository qRep;
-    private static CassQueueFactory cassQueueFactory;
     private static EmbeddedCassandraService cassandra;
-    private static EnvProperties envProps;
+    private static EnvProperties baseEnvProps;
 
     private CassQueue cq;
     private TestUtils testUtils;
@@ -319,10 +315,16 @@ public class CassQueueTest {
         assertPushersPoppersWork(4, 4, 1000, 1000, 0, 0);
     }
 
+    @Test
+    public void testStartStopOfQueue() {
+        fail("not implemented");
+    }
+
     // -----------------------
 
     private void assertPushersPoppersWork(int numPushers, int numPoppers, int numToPushPerPusher,
             int numToPopPerPopper, long pushDelay, long popDelay) {
+
         Set<CassQMsg> msgSet = new LinkedHashSet<CassQMsg>();
         Set<String> valueSet = new HashSet<String>();
         Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
@@ -330,11 +332,16 @@ public class CassQueueTest {
         //
         // start a set of pushers and poppers
         //
+        EnvProperties tmpProps = baseEnvProps.clone();
+        tmpProps.setNumPushers(numPushers);
+        tmpProps.setPushDelay(pushDelay);
+        tmpProps.setNumMsgsPerPusher(numToPushPerPusher);
+        tmpProps.setNumPoppers(numPoppers);
+        tmpProps.setPopDelay(popDelay);
+        tmpProps.setNumMsgsPerPopper(numToPopPerPopper);
 
-        Set<PushPopAbstractBase> pusherSet =
-                testUtils.startPushers(cq, "test", numPushers, numToPushPerPusher, pushDelay);
-        Set<PushPopAbstractBase> popperSet =
-                testUtils.startPoppers(cq, "test", numPoppers, numToPopPerPopper, popDelay, popQ);
+        List<PushPopAbstractBase> pusherSet = testUtils.startPushers(cq, "test", tmpProps);
+        List<PushPopAbstractBase> popperSet = testUtils.startPoppers(cq, "test", popQ, tmpProps);
 
         boolean finishedProperly = testUtils.monitorPushersPoppers(popQ, pusherSet, popperSet, msgSet, valueSet);
 
@@ -462,12 +469,12 @@ public class CassQueueTest {
         rawProps.setProperty("dropKeyspace", "true");
         rawProps.setProperty("truncateQueue", "true");
 
-        envProps = new EnvProperties(rawProps);
+        baseEnvProps = new EnvProperties(rawProps);
     }
 
     @Before
     public void setupQueue() throws Exception {
-        cq = TestUtils.setupQueue(qRep, TestUtils.QUEUE_NAME, envProps, true, false);
+        cq = TestUtils.setupQueue(qRep, TestUtils.QUEUE_NAME, baseEnvProps, true, false);
         testUtils = new TestUtils(cq);
     }
 
@@ -476,9 +483,7 @@ public class CassQueueTest {
         setupEnvProperties();
         startCassandraInstance();
 
-        qRep = TestUtils.setupCassandraAndPelopsPool(envProps, ConsistencyLevel.ONE);
-
-        cassQueueFactory = new CassQueueFactory(qRep);
+        qRep = TestUtils.setupQueueSystemAndPelopsPool(baseEnvProps, ConsistencyLevel.ONE);
     }
 
     @AfterClass

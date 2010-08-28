@@ -5,8 +5,8 @@ import java.util.Queue;
 public class CassQueuePopper extends PushPopAbstractBase {
     private Queue<CassQMsg> popQ;
 
-    public CassQueuePopper(CassQueue cq, String baseValue, Queue<CassQMsg> popQ) {
-        super(cq, baseValue);
+    public CassQueuePopper(CassQueue cq, String baseValue, EnvProperties envProps, Queue<CassQMsg> popQ) {
+        super(cq, baseValue, envProps, EnvProperties.ENV_popDelay);
         this.popQ = popQ;
     }
 

@@ -16,7 +16,10 @@ public class CassQueueFactory {
 
     public CassQueue createInstance(String qName, EnvProperties envProps, boolean popLocks, boolean distributed)
             throws Exception {
-        qRepos.createQueue(qName, envProps.getNumPipes());
+        if (null == qRepos.getQueueDescriptor(qName)) {
+            qRepos.createQueue(qName, envProps.getNumPipes());
+        }
+
         CassQueue cq = new CassQueue(qRepos, qName, popLocks, distributed, envProps);
         if (envProps.getTruncateQueue()) {
             try {
