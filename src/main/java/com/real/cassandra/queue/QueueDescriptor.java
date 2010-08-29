@@ -38,4 +38,19 @@ public class QueueDescriptor {
         this.popStartPipe = popStartPipe;
     }
 
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("QueueDescriptor [name=");
+        builder.append(name);
+        builder.append(", numPipes=");
+        builder.append(numPipes);
+        builder.append(", pushStartPipe=");
+        builder.append(pushStartPipe);
+        builder.append(", popStartPipe=");
+        builder.append(popStartPipe);
+        builder.append("]");
+        return builder.toString();
+    }
+
 }

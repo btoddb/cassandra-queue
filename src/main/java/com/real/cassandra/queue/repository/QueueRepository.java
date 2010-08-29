@@ -18,6 +18,7 @@ import org.scale7.cassandra.pelops.RowDeletor;
 import org.scale7.cassandra.pelops.Selector;
 
 import com.real.cassandra.queue.CassQueue;
+import com.real.cassandra.queue.PipeDescriptor;
 import com.real.cassandra.queue.QueueDescriptor;
 import com.real.cassandra.queue.QueueDescriptorFactory;
 
@@ -185,28 +186,28 @@ public class QueueRepository {
         return s.getColumnsFromRow(DELIVERED_COL_FAM, formatKey(name, pipeNum), pred, consistencyLevel);
     }
 
-    public void removeFromDelivered(Bytes key, Bytes colName) throws Exception {
+    public void removeFromDelivered(PipeDescriptor pipeDesc, Bytes colName) throws Exception {
         Mutator m = Pelops.createMutator(queuePool.getPoolName());
-        m.deleteColumn(DELIVERED_COL_FAM, new String(key.getBytes()), colName);
+        m.deleteColumn(DELIVERED_COL_FAM, new String(pipeDesc.getRowKey().getBytes()), colName);
         m.execute(consistencyLevel);
     }
 
-    public void moveFromWaitingToDelivered(Bytes key, Bytes colName, Bytes colValue) throws Exception {
+    public void moveFromWaitingToDelivered(PipeDescriptor pipeDesc, Bytes colName, Bytes colValue) throws Exception {
         Mutator m = Pelops.createMutator(queuePool.getPoolName());
         Column col = m.newColumn(colName, colValue);
-        m.writeColumn(DELIVERED_COL_FAM, key, col);
-        m.deleteColumn(WAITING_COL_FAM, new String(key.getBytes()), colName);
+        m.writeColumn(DELIVERED_COL_FAM, pipeDesc.getRowKey(), col);
+        m.deleteColumn(WAITING_COL_FAM, pipeDesc.getRowKeyAsStr(), colName);
         m.execute(consistencyLevel);
     }
 
-    public void moveFromDeliveredToWaiting(Bytes key, Bytes colName, Bytes colValue) throws Exception {
+    public void moveFromDeliveredToWaiting(PipeDescriptor pipeDesc, Bytes colName, Bytes colValue) throws Exception {
 
         // possibly inside ZK lock
 
         Mutator m = Pelops.createMutator(queuePool.getPoolName());
         Column col = m.newColumn(colName, colValue);
-        m.writeColumn(WAITING_COL_FAM, key, col);
-        m.deleteColumn(DELIVERED_COL_FAM, new String(key.getBytes()), colName);
+        m.writeColumn(WAITING_COL_FAM, pipeDesc.getRowKey(), col);
+        m.deleteColumn(DELIVERED_COL_FAM, pipeDesc.getRowKey().toString(), colName);
         m.execute(consistencyLevel);
 
         // release ZK lock

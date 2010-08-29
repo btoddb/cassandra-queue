@@ -9,12 +9,12 @@ import java.util.UUID;
  */
 public class CassQMsg {
 
-    private String queuePipeKey;
+    private PipeDescriptor pipeDesc;
     private UUID msgId;
     private String value;
 
-    public CassQMsg(String key, UUID msgId, String value) {
-        this.queuePipeKey = key;
+    public CassQMsg(PipeDescriptor pipeDesc, UUID msgId, String value) {
+        this.pipeDesc = pipeDesc;
         this.msgId = msgId;
         this.value = value;
     }
@@ -27,15 +27,15 @@ public class CassQMsg {
         return value;
     }
 
-    public String getQueuePipeKey() {
-        return queuePipeKey;
+    public PipeDescriptor getQueuePipeDescriptor() {
+        return pipeDesc;
     }
 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("CassQMsg [queuePipeKey=");
-        builder.append(queuePipeKey);
+        builder.append("CassQMsg [queuePipeDesc =");
+        builder.append(pipeDesc);
         builder.append(", msgId=");
         builder.append(msgId);
         builder.append(", value=");

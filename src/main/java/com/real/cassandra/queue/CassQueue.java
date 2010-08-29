@@ -2,14 +2,10 @@ package com.real.cassandra.queue;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.management.InstanceAlreadyExistsException;
@@ -51,26 +47,16 @@ public class CassQueue implements CassQueueMXBean {
     private static Logger logger = LoggerFactory.getLogger(CassQueue.class);
 
     private InetAddress inetAddr;
-    private final Map<Long, Object> pipeMonitorObjMap = new HashMap<Long, Object>();
 
     private EnvProperties envProps;
-    private QueueRepository queueRepository;
+    private QueueRepository qRepos;
     private String name;
-    private Map<Bytes, PipeDescriptor> pipeDescLookupMap = new HashMap<Bytes, PipeDescriptor>();
-    private List<Bytes> popAllKeyList = new LinkedList<Bytes>();
     private boolean nearFifoOk = true;
     private PopLock popLock;
-    private QueueDescriptor qDesc;
-    private Map<Long, AtomicLong> pipeCountCurrent = new HashMap<Long, AtomicLong>();
-    private PipeWatcher pipeWatcher;
 
     // pipe mgmt
-    private Object pushPipeIncMonitor = new Object();
-    private Object popPipeIncMonitor = new Object();
-    private Object pipeManipulateMonitorObj = new Object();
-    private long nextPopPipeOffset = 0;
-    private long nextPushPipeToUse = 0;
-    private Map<Long, AtomicBoolean> pipeUseLockMap = new HashMap<Long, AtomicBoolean>();
+    private PipeManager pipeMgr;
+    private PipeSelectionRoundRobinStrategy pipeSelector;
 
     // stats
     private AtomicLong msgCountCurrent = new AtomicLong();
@@ -91,7 +77,7 @@ public class CassQueue implements CassQueueMXBean {
 
     /**
      * 
-     * @param queueRepository
+     * @param qRepos
      *            Repository used to communicate to/from Cassandra cluster
      * @param name
      *            Name of the Queue
@@ -122,11 +108,13 @@ public class CassQueue implements CassQueueMXBean {
             throw new IllegalArgumentException("queue must be setup with one or more pipes");
         }
 
-        this.queueRepository = queueRepository;
+        this.qRepos = queueRepository;
         this.name = name;
 
         initJmx();
         initUuidCreator();
+        initPipeManager();
+        initPipeSelectionStrategy();
 
         if (popLocks) {
             if (distributed) {
@@ -143,48 +131,27 @@ public class CassQueue implements CassQueueMXBean {
         initQueue();
     }
 
+    private void initPipeManager() {
+        pipeMgr = new PipeManager(getName());
+    }
+
+    private void initPipeSelectionStrategy() {
+        pipeSelector = new PipeSelectionRoundRobinStrategy(envProps, getName(), pipeMgr, qRepos);
+    }
+
     private void initQueue() throws Exception {
-        qDesc = queueRepository.getQueueDescriptor(name);
+        QueueDescriptor qDesc = qRepos.getQueueDescriptor(name);
 
         long startPipe = qDesc.getPopStartPipe() - 1;
         startPipe = 0 <= startPipe ? startPipe : 0;
         long endPipe = qDesc.getPushStartPipe() + envProps.getNumPipes();
 
         for (Long pipeNum = startPipe; pipeNum <= endPipe; pipeNum++) {
-            addPipe(pipeNum);
+            pipeMgr.addPipe(pipeNum);
         }
 
-        createPopKeyList(qDesc.getPopStartPipe(), startPipe + envProps.getNumPipes() - 1);
-
-        int count = queueRepository.getCount(getName(), startPipe, endPipe);
+        int count = qRepos.getCount(getName(), startPipe, endPipe);
         this.msgCountCurrent.set(count);
-
-        pipeWatcher = new PipeWatcher();
-        new Thread(pipeWatcher).start();
-    }
-
-    private void addPipe(Long pipeNum) {
-        pipeCountCurrent.put(pipeNum, new AtomicLong());
-        pipeMonitorObjMap.put(pipeNum, new Object());
-        pipeUseLockMap.put(pipeNum, new AtomicBoolean());
-
-        Bytes rowKey = Bytes.fromUTF8(QueueRepository.formatKey(getName(), pipeNum));
-
-        pipeDescLookupMap.put(rowKey, new PipeDescriptor(pipeNum, rowKey));
-        popAllKeyList.add(rowKey);
-
-    }
-
-    private void removePipe(Long pipeNum) {
-        pipeCountCurrent.remove(pipeNum);
-        pipeMonitorObjMap.remove(pipeNum);
-        pipeUseLockMap.remove(pipeNum);
-
-        Bytes rowKey = Bytes.fromUTF8(QueueRepository.formatKey(getName(), pipeNum));
-
-        pipeDescLookupMap.remove(rowKey);
-        popAllKeyList.remove(rowKey);
-
     }
 
     // private void createPipeDescMap(long startPipe, long endPipe) {
@@ -199,16 +166,6 @@ public class CassQueue implements CassQueueMXBean {
     // pipeDescLookupMap = tmpMap;
     // }
 
-    private void createPopKeyList(long startPipe, long endPipe) {
-        List<Bytes> tmpList = new ArrayList<Bytes>((int) (endPipe - startPipe + 1));
-        for (long pipeNum = startPipe; pipeNum <= endPipe; pipeNum++) {
-            Bytes rowKey = Bytes.fromUTF8(QueueRepository.formatKey(name, pipeNum));
-            tmpList.add(rowKey);
-        }
-
-        popAllKeyList = tmpList;
-    }
-
     /**
      * Push a value onto the Queue. Choose in round robin fashion the next pipe.
      * 
@@ -217,19 +174,24 @@ public class CassQueue implements CassQueueMXBean {
      * @throws Exception
      */
     public void push(String value) throws Exception {
+        long pipeNum;
         long start = System.currentTimeMillis();
-        long pipeNum = getNextPushPipeAndInc();
-        UUID timeUuid = UUIDGen.makeType1UUIDFromHost(inetAddr);
-        queueRepository.insert(QueueRepository.WAITING_COL_FAM, getName(), pipeNum, Bytes.fromUuid(timeUuid),
-                Bytes.fromUTF8(value));
-        pushCountTotal.incrementAndGet();
-        msgCountCurrent.incrementAndGet();
-        incPipeCountCurrent(pipeNum);
-        pushTimes.addSample(System.currentTimeMillis() - start);
-    }
 
-    private void incPipeCountCurrent(Long pipeNum) {
-        pipeCountCurrent.get(pipeNum).incrementAndGet();
+        pipeNum = pipeSelector.pickPushPipe();
+        getNextPushPipeTimes.addSample(System.currentTimeMillis() - start);
+
+        try {
+            UUID timeUuid = UUIDGen.makeType1UUIDFromHost(inetAddr);
+            qRepos.insert(QueueRepository.WAITING_COL_FAM, getName(), pipeNum, Bytes.fromUuid(timeUuid),
+                    Bytes.fromUTF8(value));
+            pushCountTotal.incrementAndGet();
+            msgCountCurrent.incrementAndGet();
+            pipeMgr.incPushCount(pipeNum);
+            pushTimes.addSample(System.currentTimeMillis() - start);
+        }
+        finally {
+            pipeSelector.releasePushPipe(pipeNum);
+        }
     }
 
     // private void decPipeCountCurrent(Long pipeNum) {
@@ -252,85 +214,60 @@ public class CassQueue implements CassQueueMXBean {
         else {
             qMsg = strictFifoPop();
         }
+
         if (null != qMsg) {
             popCountTotal.incrementAndGet();
             msgCountCurrent.decrementAndGet();
             popTimes.addSample(System.currentTimeMillis() - start);
         }
         return qMsg;
-
-        // popLock.lock();
-        // popLockWaitTimes.addSample(System.currentTimeMillis() - start);
-        //
-        // try {
-        // CassQMsg qMsg = nearFifoPop( int pipeNum);
-        // return qMsg;
-        // }
-        // finally {
-        // popLock.unlock();
-        // }
     }
 
     private CassQMsg nearFifoPop() throws Exception {
-        Bytes rowKey = null;
+        PipeDescriptor pipeDesc = null;
         Column col = null;
 
+        // try to get a pipe with data "numPipes" times
         for (int i = 0; i < envProps.getNumPipes(); i++) {
-            Long pipeNum = lockNextFreePopPipe();
+            PipeDescriptor tmpDesc = lockNextFreePopPipe();
             try {
-                logger.debug("chose read pipe = " + pipeNum);
-
-                // can optimize the following to not block if the pipe is in use
-                // use a test and set approach on atomics representing the set
-                // of
-                // pipes. if test and set succeeds then use the pipe, if not
-                // then
-                // move along keep doing this until data found or 'numPipes'
-                // fail.
-                // doesn't guarantee data will be returned if exists, but the
-                // alternative is equally piss poor
                 long startPopLockWait = System.currentTimeMillis();
-                synchronized (getPipeMonitor(pipeNum)) {
+                synchronized (pipeMgr.getPipeMonitor(tmpDesc)) {
                     popLockWaitTimes.addSample(System.currentTimeMillis() - startPopLockWait);
                     long start = System.currentTimeMillis();
-                    List<Column> colList = queueRepository.getWaitingMessages(getName(), pipeNum, 1);
+                    List<Column> colList = qRepos.getWaitingMessages(getName(), tmpDesc.getPipeNum(), 1);
                     getWaitingMsgTimes.addSample(System.currentTimeMillis() - start);
                     if (!colList.isEmpty()) {
-                        rowKey = Bytes.fromUTF8(QueueRepository.formatKey(name, pipeNum));
+                        logger.debug("pipe has data : " + pipeDesc);
+                        pipeDesc = tmpDesc;
                         col = colList.get(0);
-                        moveToDelivered(rowKey, col);
+                        moveToDelivered(pipeDesc, col);
                         break;
                     }
                     else {
-                        if (pipeNum < qDesc.getPushStartPipe() - 1) {
-                            incrementPopStartPipe();
-                        }
+                        pipeSelector.popPipeEmpty(tmpDesc);
                     }
                 }
             }
             finally {
-                releasePopPipe(pipeNum);
+                pipeSelector.releasePopPipe(tmpDesc.getPipeNum());
             }
         }
 
         // if no "oldest", then return null
-        if (null == rowKey) {
+        if (null == pipeDesc) {
             return null;
         }
 
         UUID colName = UUIDGen.makeType1UUID(col.getName());
-        return new CassQMsg(new String(rowKey.getBytes()), colName, new String(col.getValue()));
-    }
-
-    private Object getPipeMonitor(Long pipeNum) {
-        return pipeMonitorObjMap.get(pipeNum);
+        return new CassQMsg(pipeDesc, colName, new String(col.getValue()));
     }
 
     private CassQMsg strictFifoPop() throws Exception {
-        Bytes rowKey = null;
+        PipeDescriptor pipeDesc = null;
         Column col = null;
         long start = System.currentTimeMillis();
-        Map<Bytes, List<Column>> colList = queueRepository.getOldestFromAllPipes(popAllKeyList);
+        Map<Bytes, List<Column>> colList = qRepos.getOldestFromAllPipes(pipeMgr.getPopAllKeyList());
         getWaitingMsgTimes.addSample(System.currentTimeMillis() - start);
 
         UUID oldestColName = null;
@@ -342,31 +279,29 @@ public class CassQueue implements CassQueueMXBean {
 
             Column tmpCol = entry.getValue().get(0);
             UUID colName = UUIDGen.makeType1UUID(tmpCol.getName());
-            if (null == rowKey || -1 == colName.compareTo(oldestColName)) {
-                rowKey = entry.getKey();
+            if (null == pipeDesc || -1 == colName.compareTo(oldestColName)) {
+                pipeDesc = pipeMgr.getPipeDescriptor(entry.getKey());
                 col = tmpCol;
                 oldestColName = colName;
             }
         }
 
         // if no "oldest", then return null
-        if (null == rowKey) {
+        if (null == pipeDesc) {
             return null;
         }
 
-        moveToDelivered(rowKey, col);
+        moveToDelivered(pipeDesc, col);
 
         UUID colName = UUIDGen.makeType1UUID(col.getName());
-        return new CassQMsg(new String(rowKey.getBytes()), colName, new String(col.getValue()));
+        return new CassQMsg(pipeDesc, colName, new String(col.getValue()));
     }
 
-    private void moveToDelivered(Bytes rowKey, Column col) throws Exception {
-        PipeDescriptor pipeDesc = pipeDescLookupMap.get(rowKey);
+    private void moveToDelivered(PipeDescriptor pipeDesc, Column col) throws Exception {
         // decPipeCountCurrent(pipeDesc.getPipeNum());
 
         long moveStart = System.currentTimeMillis();
-        queueRepository.moveFromWaitingToDelivered(rowKey, Bytes.fromBytes(col.getName()),
-                Bytes.fromBytes(col.getValue()));
+        qRepos.moveFromWaitingToDelivered(pipeDesc, Bytes.fromBytes(col.getName()), Bytes.fromBytes(col.getValue()));
         moveToDeliveredTimes.addSample(System.currentTimeMillis() - moveStart);
     }
 
@@ -379,7 +314,7 @@ public class CassQueue implements CassQueueMXBean {
      */
     public void commit(CassQMsg qMsg) throws Exception {
         long start = System.currentTimeMillis();
-        queueRepository.removeFromDelivered(Bytes.fromUTF8(qMsg.getQueuePipeKey()), Bytes.fromUuid(qMsg.getMsgId()));
+        qRepos.removeFromDelivered(qMsg.getQueuePipeDescriptor(), Bytes.fromUuid(qMsg.getMsgId()));
         commitTotal.incrementAndGet();
         commitTimes.addSample(System.currentTimeMillis() - start);
     }
@@ -393,8 +328,8 @@ public class CassQueue implements CassQueueMXBean {
      */
     public void rollback(CassQMsg qMsg) throws Exception {
         long start = System.currentTimeMillis();
-        queueRepository.moveFromDeliveredToWaiting(Bytes.fromUTF8(qMsg.getQueuePipeKey()),
-                Bytes.fromUuid(qMsg.getMsgId()), Bytes.fromUTF8(qMsg.getValue()));
+        qRepos.moveFromDeliveredToWaiting(qMsg.getQueuePipeDescriptor(), Bytes.fromUuid(qMsg.getMsgId()),
+                Bytes.fromUTF8(qMsg.getValue()));
         msgCountCurrent.incrementAndGet();
         popCountTotal.decrementAndGet();
         rollbackTotal.incrementAndGet();
@@ -410,51 +345,48 @@ public class CassQueue implements CassQueueMXBean {
     public void truncate() throws Exception {
         // enter ZK lock region
 
-        queueRepository.truncateQueueData(this);
-        qDesc = queueRepository.createQueue(getName(), envProps.getNumPipes());
+        qRepos.truncateQueueData(this);
+        qRepos.createQueue(getName(), envProps.getNumPipes());
 
         // release ZK lock region
     }
 
-    private Long lockNextFreePopPipe() throws Exception {
+    private PipeDescriptor lockNextFreePopPipe() throws Exception {
         long start = System.currentTimeMillis();
 
         try {
-            for (;;) {
-                Long ret;
-                synchronized (popPipeIncMonitor) {
-                    ret = nextPopPipeOffset + qDesc.getPopStartPipe();
-                    // we do the numPipes+1 to give overlap if the pushers have
-                    // already incremented their start pipe.
-                    nextPopPipeOffset = (nextPopPipeOffset + 1) % (envProps.getNumPipes() + 1);
-                }
-
-                AtomicBoolean tmpBoo = pipeUseLockMap.get(ret);
-                if (null != tmpBoo && tmpBoo.compareAndSet(false, true)) {
-                    return ret;
-                }
-            }
+            return pipeSelector.pickPopPipe();
         }
         finally {
             getNextPopPipeTimes.addSample(System.currentTimeMillis() - start);
         }
     }
 
-    private void releasePopPipe(Long pipeNum) {
-        AtomicBoolean tmpBoo = pipeUseLockMap.get(pipeNum);
-        if (null != tmpBoo) {
-            tmpBoo.set(false);
+    private void initJmx() {
+        String beanName = JMX_MBEAN_OBJ_NAME + "-" + name;
+        try {
+            JmxMBeanManager.getInstance().registerMBean(this, beanName);
+        }
+        catch (InstanceAlreadyExistsException e1) {
+            logger.warn("exception while registering MBean, " + beanName + " - ignoring");
+        }
+        catch (Exception e) {
+            throw new RuntimeException("exception while registering MBean, " + beanName);
         }
     }
 
-    private long getNextPushPipeAndInc() throws Exception {
-        long start = System.currentTimeMillis();
-        synchronized (pushPipeIncMonitor) {
-            long ret = nextPushPipeToUse + qDesc.getPushStartPipe();
-            nextPushPipeToUse = (nextPushPipeToUse + 1) % envProps.getNumPipes();
-            getNextPushPipeTimes.addSample(System.currentTimeMillis() - start);
-            return ret;
+    private void initUuidCreator() {
+        try {
+            inetAddr = InetAddress.getLocalHost();
         }
+        catch (UnknownHostException e) {
+            logger.error("exception while getting local IP address", e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void setStopPipeWatcher() {
+        pipeSelector.shutdown();
     }
 
     /**
@@ -469,7 +401,7 @@ public class CassQueue implements CassQueueMXBean {
      * @throws Exception
      */
     public List<Column> getWaitingMessages(long pipeNum, int maxMessags) throws Exception {
-        return queueRepository.getWaitingMessages(getName(), pipeNum, maxMessags);
+        return qRepos.getWaitingMessages(getName(), pipeNum, maxMessags);
     }
 
     /**
@@ -484,7 +416,7 @@ public class CassQueue implements CassQueueMXBean {
      * @throws Exception
      */
     public List<Column> getDeliveredMessages(long pipeNum, int maxMessages) throws Exception {
-        return queueRepository.getDeliveredMessages(getName(), pipeNum, maxMessages);
+        return qRepos.getDeliveredMessages(getName(), pipeNum, maxMessages);
     }
 
     /**
@@ -593,12 +525,7 @@ public class CassQueue implements CassQueueMXBean {
 
     @Override
     public String[] getPipeCounts() {
-        String[] counts = new String[pipeCountCurrent.size()];
-        int i = 0;
-        for (Entry<Long, AtomicLong> entry : pipeCountCurrent.entrySet()) {
-            counts[i++] = entry.getKey() + " = " + entry.getValue().get();
-        }
-        return counts;
+        return pipeMgr.getPipeCounts();
     }
 
     @Override
@@ -616,113 +543,11 @@ public class CassQueue implements CassQueueMXBean {
     }
 
     public long getPopStartPipe() {
-        return qDesc.getPopStartPipe();
+        return pipeSelector.getPopStartPipe();
     }
 
     public long getPushStartPipe() {
-        return qDesc.getPushStartPipe();
-    }
-
-    private void incrementPushStartPipe() throws Exception {
-        synchronized (pipeManipulateMonitorObj) {
-            long tmp = qDesc.getPushStartPipe() + 1;
-
-            addPipe(tmp + envProps.getNumPipes());
-
-            queueRepository.setPushStartPipe(getName(), tmp);
-
-            // don't update qDesc until after the map is updated
-            qDesc.setPushStartPipe(tmp);
-        }
-    }
-
-    private void incrementPopStartPipe() throws Exception {
-        long tmp = qDesc.getPopStartPipe() + 1;
-        queueRepository.setPopStartPipe(getName(), tmp);
-        qDesc.setPopStartPipe(tmp);
-        removePipe(tmp - 1);
-    }
-
-    private void initJmx() {
-        String beanName = JMX_MBEAN_OBJ_NAME + "-" + name;
-        try {
-            JmxMBeanManager.getInstance().registerMBean(this, beanName);
-        }
-        catch (InstanceAlreadyExistsException e1) {
-            logger.warn("exception while registering MBean, " + beanName + " - ignoring");
-        }
-        catch (Exception e) {
-            throw new RuntimeException("exception while registering MBean, " + beanName);
-        }
-    }
-
-    private void initUuidCreator() {
-        try {
-            inetAddr = InetAddress.getLocalHost();
-        }
-        catch (UnknownHostException e) {
-            logger.error("exception while getting local IP address", e);
-            throw new RuntimeException(e);
-        }
-    }
-
-    public void setStopPipeWatcher() {
-        pipeWatcher.setContinueProcessing(false);
-    }
-
-    /**
-     * Determines when to increase the start pipe for pushing new messages.
-     * 
-     * @author Todd Burruss
-     */
-    class PipeWatcher implements Runnable {
-        private long sleepTime = 100;
-        private long lastPushPipeInctime = 0;
-        private boolean continueProcessing = true;
-        private Thread theThread;
-
-        @Override
-        public void run() {
-            theThread = Thread.currentThread();
-            theThread.setName(getClass().getSimpleName());
-            lastPushPipeInctime = System.currentTimeMillis();
-            while (continueProcessing) {
-                try {
-                    qDesc = queueRepository.getQueueDescriptor(getName());
-                    if (System.currentTimeMillis() - lastPushPipeInctime > envProps.getPushPipeIncrementDelay()) {
-                        try {
-                            incrementPushStartPipe();
-                            lastPushPipeInctime = System.currentTimeMillis();
-                        }
-                        catch (Throwable e) {
-                            logger.error("exception while incrementing push start pipe", e);
-                        }
-                    }
-                    // read again to get latest data
-                    qDesc = queueRepository.getQueueDescriptor(getName());
-
-                }
-                catch (Exception e) {
-                    logger.error("exception while getting queue descriptor", e);
-                }
-
-                try {
-                    Thread.sleep(sleepTime);
-                }
-                catch (InterruptedException e) {
-                    Thread.interrupted();
-                }
-            }
-        }
-
-        public boolean isContinueProcessing() {
-            return continueProcessing;
-        }
-
-        public void setContinueProcessing(boolean continueProcessing) {
-            this.continueProcessing = continueProcessing;
-            theThread.interrupt();
-        }
+        return pipeSelector.getPushStartPipe();
     }
 
     @Override
