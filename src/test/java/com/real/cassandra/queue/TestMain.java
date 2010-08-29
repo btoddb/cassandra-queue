@@ -83,6 +83,7 @@ public class TestMain {
     }
 
     private static void shutdownQueueMgrAndPool() {
+        cq.shutdown();
         Pelops.shutdown();
     }
 

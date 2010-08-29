@@ -316,6 +316,11 @@ public class CassQueueTest {
     }
 
     @Test
+    public void testShutdown() {
+        cq.shutdown();
+    }
+
+    @Test
     public void testStartStopOfQueue() {
         fail("not implemented");
     }

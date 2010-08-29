@@ -154,17 +154,10 @@ public class CassQueue implements CassQueueMXBean {
         this.msgCountCurrent.set(count);
     }
 
-    // private void createPipeDescMap(long startPipe, long endPipe) {
-    // Map<Bytes, PipeDescriptor> tmpMap = new HashMap<Bytes, PipeDescriptor>();
-    //
-    // // create pipe descriptors for ALL active pipes
-    // for (long pipeNum = startPipe; pipeNum <= endPipe; pipeNum++) {
-    // Bytes rowKey = Bytes.fromUTF8(QueueRepository.formatKey(name, pipeNum));
-    // tmpMap.put(rowKey, new PipeDescriptor(pipeNum, rowKey));
-    // }
-    //
-    // pipeDescLookupMap = tmpMap;
-    // }
+    public void shutdown() {
+        pipeSelector.shutdown();
+        pipeMgr.shutdown();
+    }
 
     /**
      * Push a value onto the Queue. Choose in round robin fashion the next pipe.

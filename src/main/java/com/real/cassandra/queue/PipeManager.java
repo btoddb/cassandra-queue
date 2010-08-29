@@ -90,6 +90,10 @@ public class PipeManager {
 
     }
 
+    public void shutdown() {
+        // do nothing
+    }
+
     public List<Bytes> getPopAllKeyList() {
         return popAllKeyList;
     }
