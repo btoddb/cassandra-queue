@@ -23,11 +23,12 @@ public class RollingStat implements Runnable {
     public RollingStat(long windowSizeInMillis) {
         this.windowSizeInMillis = windowSizeInMillis;
         theThread = new Thread(this);
+        theThread.setDaemon(true);
+        Thread.currentThread().setName(this.getClass().getSimpleName());
         theThread.start();
     }
 
     public void run() {
-        Thread.currentThread().setName(this.getClass().getSimpleName());
         while (keepGoing) {
             try {
                 Thread.sleep(500);

@@ -29,7 +29,7 @@ public class PipeSelectionRoundRobinStrategy {
         this.qRepos = qRepos;
 
         pipeWatcher = new PipeWatcher();
-        new Thread(pipeWatcher).start();
+        pipeWatcher.start();
 
     }
 
@@ -120,10 +120,15 @@ public class PipeSelectionRoundRobinStrategy {
         private boolean continueProcessing = true;
         private Thread theThread;
 
+        public void start() {
+            theThread = new Thread(pipeWatcher);
+            theThread.setName(getClass().getSimpleName());
+            theThread.setDaemon(true);
+            theThread.start();
+        }
+
         @Override
         public void run() {
-            theThread = Thread.currentThread();
-            theThread.setName(getClass().getSimpleName());
             lastPushPipeInctime = System.currentTimeMillis();
             while (continueProcessing) {
                 try {
