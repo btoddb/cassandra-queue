@@ -2,7 +2,9 @@ package com.real.cassandra.queue.pipeperpusher;
 
 import static org.junit.Assert.*;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -40,7 +42,8 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         String qName = "test_" + System.currentTimeMillis();
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        int maxPopWidth = 4;
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
 
         KeyspaceManager ksMgr = Pelops.createKeyspaceManager(qRepos.getSystemPool().getCluster());
         KsDef ksDef = ksMgr.getKeyspaceSchema(QueueRepositoryImpl.QUEUE_KEYSPACE_NAME);
@@ -60,19 +63,23 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
 
         assertEquals(maxPushTimeOfPipe, qDesc.getMaxPushTimeOfPipe());
         assertEquals(maxPushesPerPipe, qDesc.getMaxPushesPerPipe());
+        assertEquals(maxPopWidth, qDesc.getMaxPopWidth());
     }
 
     @Test
-    public void testCreateQueueDoesExistSameDesc() throws Exception {
+    public void testCreateQueueExistsSameDesc() throws Exception {
         String qName = "test_" + System.currentTimeMillis();
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        int maxPopWidth = 4;
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
 
-        QueueDescriptor qDesc = qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        QueueDescriptor qDesc =
+                qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
 
         assertEquals(maxPushTimeOfPipe, qDesc.getMaxPushTimeOfPipe());
         assertEquals(maxPushesPerPipe, qDesc.getMaxPushesPerPipe());
+        assertEquals(maxPopWidth, qDesc.getMaxPopWidth());
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -80,10 +87,11 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         String qName = "test_" + System.currentTimeMillis();
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
+        int maxPopWidth = 4;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe * 2, maxPushesPerPipe * 2);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe * 2, maxPushesPerPipe * 2, maxPopWidth * 2);
     }
 
     @Test
@@ -91,17 +99,19 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         String qName = "test_" + System.currentTimeMillis();
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        int maxPopWidth = 4;
+
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
 
         String msgData = "get the msg";
 
         UUID pipeId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
 
-        qRepos.setPipeDescriptorActive(qName, pipeId, true);
+        qRepos.setPipeDescriptorStatus(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
 
         UUID msgId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
 
-        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId);
+        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
         pipeDesc.setMsgCount(1);
         CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
         qRepos.insert(qName, pipeDesc, msgId, msgData);
@@ -109,8 +119,107 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         CassQMsg qMsgNew = qRepos.getMsg(qName, pipeId, msgId);
 
         assertEquals("inserted value is not equal to the retrieved value", qMsg.getMsgData(), qMsgNew.getMsgData());
-        assertTrue("pipe descriptor should be active", ((PipeDescriptorImpl) qMsgNew.getPipeDescriptor()).isActive());
+        assertTrue("pipe descriptor should be active",
+                ((PipeDescriptorImpl) qMsgNew.getPipeDescriptor()).isPushActive());
         assertEquals("inserted one value, so pipe descriptor msg count should reflect this", 1,
                 ((PipeDescriptorImpl) qMsgNew.getPipeDescriptor()).getMsgCount());
+    }
+
+    @Test
+    public void testGetOldestMsgFromPipe() throws Exception {
+        String qName = "test_" + System.currentTimeMillis();
+        long maxPushTimeOfPipe = 20000;
+        int maxPushesPerPipe = 20;
+        int maxPopWidth = 4;
+        int msgCount = 15;
+
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+
+        UUID pipeId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
+        qRepos.setPipeDescriptorStatus(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
+        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
+        for (int i = 0; i < msgCount; i++) {
+            String msgData = "data-" + i;
+            UUID msgId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
+            qRepos.insert(qName, pipeDesc, msgId, msgData);
+        }
+
+        // ArrayList<CassQMsg> msgList = new ArrayList<CassQMsg>(msgCount);
+        CassQMsg qMsg;
+        int i = 0;
+        while (null != (qMsg = qRepos.getOldestMsgFromWaitingPipe(pipeDesc))) {
+            assertEquals("data was not retrieved (or inserted) in the proper order, or too much data found", "data-"
+                    + i, qMsg.getMsgData());
+            qRepos.removeMsgFromWaitingPipe(pipeDesc, qMsg);
+            i++;
+        }
+        assertEquals("should have retrieve exactly " + msgCount + " msgs", msgCount, i);
+    }
+
+    @Test
+    public void testMoveMsgFromWaitingToDeliveredPipe() throws Exception {
+        String qName = "test_" + System.currentTimeMillis();
+        long maxPushTimeOfPipe = 20000;
+        int maxPushesPerPipe = 10;
+        int maxPopWidth = 4;
+        int msgCount = 15;
+
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+
+        UUID pipeId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
+        qRepos.setPipeDescriptorStatus(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
+        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
+        for (int i = 0; i < msgCount; i++) {
+            String msgData = "data-" + i;
+            UUID msgId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
+            qRepos.insert(qName, pipeDesc, msgId, msgData);
+        }
+
+        // ArrayList<CassQMsg> msgList = new ArrayList<CassQMsg>(msgCount);
+        CassQMsg qMsg;
+        while (null != (qMsg = qRepos.getOldestMsgFromWaitingPipe(pipeDesc))) {
+            qRepos.moveMsgFromWaitingToDeliveredPipe(pipeDesc, qMsg);
+        }
+
+        int i = 0;
+        while (null != (qMsg = qRepos.getOldestMsgFromDeliveredPipe(pipeDesc))) {
+            assertEquals("data was not retrieved (or inserted) in the proper order, or too much data found", "data-"
+                    + i, qMsg.getMsgData());
+            qRepos.removeMsgFromDeliveredPipe(pipeDesc, qMsg);
+            i++;
+        }
+        assertEquals("should have retrieve exactly " + msgCount + " msgs", msgCount, i);
+    }
+
+    @Test
+    public void testGetAllNonEmptyPipesInOrder() throws Exception {
+        String qName = "test_" + System.currentTimeMillis();
+        long maxPushTimeOfPipe = 20000;
+        int maxPushesPerPipe = 10;
+        int maxPopWidth = 4;
+        int pipeCount = 20;
+
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+
+        ArrayList<UUID> pipeList = new ArrayList<UUID>();
+        for (int i = 0; i < pipeCount; i++) {
+            UUID pipeId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
+            String status =
+                    0 == i % 2 ? PipeDescriptorImpl.STATUS_PUSH_ACTIVE : PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY;
+            qRepos.createPipeDescriptor(qName, pipeId, status);
+            pipeList.add(pipeId);
+        }
+
+        List<PipeDescriptorImpl> pipeListNew = qRepos.getOldestNonEmptyPipes(qName, pipeCount + 1);
+
+        assertEquals("should have returned same number of pipes as created", pipeList.size() / 2, pipeListNew.size());
+
+        Iterator<PipeDescriptorImpl> newIter = pipeListNew.iterator();
+        for (int i = 0; i < pipeCount; i++) {
+            if (0 == i % 2) {
+                UUID pipeId = pipeList.get(i);
+                assertEquals("pipe descriptors are not returned in expected order", pipeId, newIter.next().getPipeId());
+            }
+        }
     }
 }

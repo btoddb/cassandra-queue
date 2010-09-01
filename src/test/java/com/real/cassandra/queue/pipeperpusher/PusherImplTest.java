@@ -97,12 +97,17 @@ public class PusherImplTest extends PipePerPusherTestBase {
             PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(cq.getName(), pipeId);
             assertEquals(numMsgs / pipeSet.size(), pipeDesc.getMsgCount());
             if (!pipeDesc.getPipeId().equals(lastPipeId)) {
-                assertFalse("pipe should not be active", pipeDesc.isActive());
+                assertFalse("pipe should not be active", pipeDesc.isPushActive());
             }
             else {
-                assertTrue("pipe should still be active", pipeDesc.isActive());
+                assertTrue("pipe should still be active", pipeDesc.isPushActive());
             }
         }
+    }
+
+    @Test
+    public void testRollAfterTimePasses() {
+        fail("not finished");
     }
 
     @Test
@@ -127,7 +132,7 @@ public class PusherImplTest extends PipePerPusherTestBase {
 
         for (UUID pipeId : pipeSet) {
             PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(cq.getName(), pipeId);
-            assertFalse("all pipes should be inactive because in shutdown mode", pipeDesc.isActive());
+            assertFalse("all pipes should be inactive because in shutdown mode", pipeDesc.isPushActive());
         }
     }
 
@@ -137,6 +142,6 @@ public class PusherImplTest extends PipePerPusherTestBase {
     public void setupTest() throws Exception {
         PipeDescriptorFactory pipeDescFactory = new PipeDescriptorFactory();
         cqFactory = new CassQueueFactoryImpl(qRepos, pipeDescFactory);
-        cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, false);
     }
 }

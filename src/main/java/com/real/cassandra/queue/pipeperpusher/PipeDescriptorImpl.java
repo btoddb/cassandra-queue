@@ -3,18 +3,22 @@ package com.real.cassandra.queue.pipeperpusher;
 import java.util.UUID;
 
 public class PipeDescriptorImpl {
+    public static final String STATUS_PUSH_ACTIVE = "PA";
+    public static final String STATUS_PUSH_FINISHED = "PF";
+    public static final String STATUS_FINISHED_AND_EMPTY = "E";
+
     private String qName;
     private UUID pipeId;
     private String pipeIdAsStr;
     private int msgCount;
-    private boolean active;
+    private String status;
 
-    public PipeDescriptorImpl(String qName, UUID pipeId) {
+    public PipeDescriptorImpl(String qName, UUID pipeId, String status) {
         this.qName = qName;
         this.pipeId = pipeId;
         this.pipeIdAsStr = pipeId.toString();
         this.msgCount = 0;
-        this.active = true;
+        this.status = status;
     }
 
     public UUID getPipeId() {
@@ -76,12 +80,23 @@ public class PipeDescriptorImpl {
         this.msgCount = msgCount;
     }
 
-    public boolean isActive() {
-        return active;
+    public String getStatus() {
+        return status;
     }
 
-    public void setActive(boolean active) {
-        this.active = active;
+    public void setStatus(String status) {
+        this.status = status;
     }
 
+    public boolean isPushActive() {
+        return STATUS_PUSH_ACTIVE.equals(status);
+    }
+
+    public boolean isPushFinished() {
+        return STATUS_PUSH_FINISHED.equals(status);
+    }
+
+    public boolean isFinishedAndEmpty() {
+        return STATUS_FINISHED_AND_EMPTY.equals(status);
+    }
 }

@@ -50,15 +50,15 @@ public class PusherImpl {
 
     private void createNewPipe() throws Exception {
         UUID pipeId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
-        qRepos.setPipeDescriptorActive(cq.getName(), pipeId, true);
+        qRepos.createPipeDescriptor(cq.getName(), pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
 
         // TODO:BTB optimize by combining setting each pipe's active status
         // set old pipeDesc as inactive
         if (null != pipeDesc) {
-            qRepos.setPipeDescriptorActive(cq.getName(), pipeDesc.getPipeId(), false);
+            qRepos.setPipeDescriptorStatus(cq.getName(), pipeDesc.getPipeId(), PipeDescriptorImpl.STATUS_PUSH_FINISHED);
         }
 
-        pipeDesc = pipeDescFactory.createInstance(cq.getName(), pipeId);
+        pipeDesc = pipeDescFactory.createInstance(cq.getName(), pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
     }
 
     private boolean isNewPipeNeeded() {
@@ -71,7 +71,7 @@ public class PusherImpl {
 
     public void shutdown() throws Exception {
         shutdownInProgress = true;
-        qRepos.setPipeDescriptorActive(cq.getName(), pipeDesc.getPipeId(), false);
+        qRepos.setPipeDescriptorStatus(cq.getName(), pipeDesc.getPipeId(), PipeDescriptorImpl.STATUS_PUSH_FINISHED);
     }
 
     public long getMaxPushTimeOfPipe() {

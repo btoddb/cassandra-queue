@@ -19,6 +19,9 @@ public class QueueDescriptorFactory {
             else if (QueueRepositoryImpl.QDESC_COLNAME_MAX_PUSHES_PER_PIPE.equals(Bytes.fromBytes(col.getName()))) {
                 qDesc.setMaxPushesPerPipe(Bytes.fromBytes(col.getValue()).toInt());
             }
+            else if (QueueRepositoryImpl.QDESC_COLNAME_MAX_POP_WIDTH.equals(Bytes.fromBytes(col.getName()))) {
+                qDesc.setMaxPopWidth(Bytes.fromBytes(col.getValue()).toInt());
+            }
             else {
                 logger.warn("unknown queue attribute found in database, ignoring : " + new String(col.getName()));
             }

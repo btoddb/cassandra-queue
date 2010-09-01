@@ -336,7 +336,7 @@ public class CassQueueTest {
     @Before
     public void setupQueue() throws Exception {
         String qName = "test-" + System.currentTimeMillis();
-        cq = (CassQueueImpl) cqFactory.createQueueInstance(qName, 10000, 2000, false);
+        cq = (CassQueueImpl) cqFactory.createQueueInstance(qName, 10000, 2000, 1, false);
     }
 
     @BeforeClass

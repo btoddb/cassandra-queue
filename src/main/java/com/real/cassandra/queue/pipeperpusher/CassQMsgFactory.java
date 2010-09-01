@@ -2,7 +2,9 @@ package com.real.cassandra.queue.pipeperpusher;
 
 import java.util.UUID;
 
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.UUIDGen;
+import org.scale7.cassandra.pelops.Bytes;
 
 import com.real.cassandra.queue.CassQMsg;
 
@@ -15,5 +17,9 @@ public class CassQMsgFactory {
 
     public CassQMsg createInstance(PipeDescriptorImpl pipeDesc, String msgData) {
         return createInstance(pipeDesc, UUIDGen.makeType1UUIDFromHost(inetAddr.get()), msgData);
+    }
+
+    public CassQMsg createInstance(PipeDescriptorImpl pipeDesc, Column col) {
+        return createInstance(pipeDesc, Bytes.fromBytes(col.getName()).toUuid(), new String(col.getValue()));
     }
 }
