@@ -1,12 +1,14 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.roundrobin;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.real.cassandra.queue.roundrobin.CassQueueImpl;
+
 public abstract class PushPopAbstractBase implements Runnable {
     private static Logger logger = LoggerFactory.getLogger(PushPopAbstractBase.class);
 
-    CassQueue cq;
+    CassQueueImpl cq;
     private EnvProperties envProps;
     private String delayPropName;
     private String baseValue;
@@ -20,7 +22,7 @@ public abstract class PushPopAbstractBase implements Runnable {
     long start;
     long end = -1;
 
-    public PushPopAbstractBase(CassQueue cq, String baseValue, EnvProperties envProps, String delayPropName) {
+    public PushPopAbstractBase(CassQueueImpl cq, String baseValue, EnvProperties envProps, String delayPropName) {
         this.cq = cq;
         this.baseValue = baseValue;
         this.envProps = envProps;
@@ -91,7 +93,7 @@ public abstract class PushPopAbstractBase implements Runnable {
         return msgsProcessed == numMsgsToProcess;
     }
 
-    public CassQueue getCassQueue() {
+    public CassQueueImpl getCassQueue() {
         return cq;
     }
 

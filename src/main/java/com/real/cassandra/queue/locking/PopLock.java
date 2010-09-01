@@ -1,4 +1,4 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.locking;
 
 import java.util.concurrent.locks.LockSupport;
 

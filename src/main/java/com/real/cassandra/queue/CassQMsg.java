@@ -2,6 +2,8 @@ package com.real.cassandra.queue;
 
 import java.util.UUID;
 
+import com.real.cassandra.queue.pipeperpusher.PipeDescriptorImpl;
+
 /**
  * Model object for a message in the Cassandra queue
  * 
@@ -9,25 +11,25 @@ import java.util.UUID;
  */
 public class CassQMsg {
 
-    private PipeDescriptor pipeDesc;
+    private PipeDescriptorImpl pipeDesc;
     private UUID msgId;
-    private String value;
+    private String msgData;
 
-    public CassQMsg(PipeDescriptor pipeDesc, UUID msgId, String value) {
+    public CassQMsg(PipeDescriptorImpl pipeDesc, UUID msgId, String msgData) {
         this.pipeDesc = pipeDesc;
         this.msgId = msgId;
-        this.value = value;
+        this.msgData = msgData;
     }
 
     public UUID getMsgId() {
         return msgId;
     }
 
-    public String getValue() {
-        return value;
+    public String getMsgData() {
+        return msgData;
     }
 
-    public PipeDescriptor getQueuePipeDescriptor() {
+    public PipeDescriptorImpl getPipeDescriptor() {
         return pipeDesc;
     }
 
@@ -39,7 +41,7 @@ public class CassQMsg {
         builder.append(", msgId=");
         builder.append(msgId);
         builder.append(", value=");
-        builder.append(value);
+        builder.append(msgData);
         builder.append("]");
         return builder.toString();
     }

@@ -1,4 +1,4 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.roundrobin;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
@@ -18,8 +18,12 @@ import org.scale7.cassandra.pelops.OperandPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.repository.PelopsPool;
-import com.real.cassandra.queue.repository.QueueRepository;
+import com.real.cassandra.queue.roundrobin.CassQueueFactoryImpl;
+import com.real.cassandra.queue.roundrobin.CassQueueImpl;
+import com.real.cassandra.queue.roundrobin.PipeManagerImpl;
+import com.real.cassandra.queue.roundrobin.QueueRepositoryImpl;
 
 public class TestUtils {
     private static Logger logger = LoggerFactory.getLogger(TestUtils.class);
@@ -31,9 +35,9 @@ public class TestUtils {
 
     private static PelopsPool queuePool;
 
-    private CassQueue cq;
+    private CassQueueImpl cq;
 
-    public TestUtils(CassQueue cq) {
+    public TestUtils(CassQueueImpl cq) {
         this.cq = cq;
     }
 
@@ -175,21 +179,23 @@ public class TestUtils {
 
     }
 
-    public void verifyExistsInWaitingQueue(int index, int numEvents, boolean wantExists) throws Exception {
-        List<Column> colList = cq.getWaitingMessages(index % cq.getNumPipes(), numEvents + 1);
+    public void verifyExistsInWaitingQueue(int pipeNum, int numEvents, boolean wantExists, PipeManagerImpl pipeMgr)
+            throws Exception {
+        List<Column> colList =
+                cq.getWaitingMessages(pipeMgr.getPipeDescriptor(pipeNum % cq.getNumPipes()), numEvents + 1);
         if (wantExists) {
             boolean found = false;
             for (Column col : colList) {
-                if (new String(col.getValue()).equals("xxx_" + index)) {
+                if (new String(col.getValue()).equals("xxx_" + pipeNum)) {
                     found = true;
                     break;
                 }
             }
-            assertTrue("should have found value, xxx_" + index + " in waiting queue", found);
+            assertTrue("should have found value, xxx_" + pipeNum + " in waiting queue", found);
         }
         else {
             for (Column col : colList) {
-                assertNotSame(new String(col.getValue()), "xxx_" + index);
+                assertNotSame(new String(col.getValue()), "xxx_" + pipeNum);
             }
         }
 
@@ -210,12 +216,12 @@ public class TestUtils {
         }
     }
 
-    public void verifyWaitingQueue(int numEvents) throws Exception {
+    public void verifyWaitingQueue(int numEvents, PipeManagerImpl pipeMgr) throws Exception {
         int min = numEvents / cq.getNumPipes();
         int mod = numEvents % cq.getNumPipes();
 
         for (int i = 0; i < cq.getNumPipes(); i++) {
-            List<Column> colList = cq.getWaitingMessages(i, numEvents + 1);
+            List<Column> colList = cq.getWaitingMessages(pipeMgr.getPipeDescriptor(i), numEvents + 1);
             assertEquals("count on queue index " + i + " is incorrect: events = " + outputColumnsAsCommaDelim(colList),
                     i < mod ? min + 1 : min, colList.size());
 
@@ -248,7 +254,7 @@ public class TestUtils {
         PelopsPool pool = new PelopsPool();
         pool.setCluster(cluster);
         pool.setOperandPolicy(opPolicy);
-        pool.setKeyspaceName(QueueRepository.QUEUE_KEYSPACE_NAME);
+        pool.setKeyspaceName(QueueRepositoryImpl.QUEUE_KEYSPACE_NAME);
         pool.setNodeDiscovery(false);
         pool.setPolicy(policy);
         pool.setPoolName(TestUtils.QUEUE_POOL_NAME);
@@ -273,7 +279,7 @@ public class TestUtils {
         PelopsPool pool = new PelopsPool();
         pool.setCluster(cluster);
         pool.setOperandPolicy(opPolicy);
-        pool.setKeyspaceName(QueueRepository.SYSTEM_KEYSPACE_NAME);
+        pool.setKeyspaceName(QueueRepositoryImpl.SYSTEM_KEYSPACE_NAME);
         pool.setNodeDiscovery(false);
         pool.setPolicy(policy);
         pool.setPoolName(TestUtils.SYSTEM_POOL_NAME);
@@ -311,13 +317,14 @@ public class TestUtils {
         logger.info("current elapsed pop time : " + secs + " (" + totalPopped + " : " + totalPopped / secs + " pop/s)");
     }
 
-    public static QueueRepository setupQueueSystemAndPelopsPool(EnvProperties envProps,
+    public static QueueRepositoryImpl setupQueueSystemAndPelopsPool(EnvProperties envProps,
             ConsistencyLevel consistencyLevel) throws Exception {
         // must create system pool first and initialize cassandra
         PelopsPool systemPool =
                 TestUtils.createSystemPool(envProps.getHostArr(), envProps.getThriftPort(),
                         envProps.getUseFramedTransport());
-        QueueRepository qRep = new QueueRepository(systemPool, envProps.getReplicationFactor(), consistencyLevel);
+        QueueRepositoryImpl qRep =
+                new QueueRepositoryImpl(systemPool, envProps.getReplicationFactor(), consistencyLevel);
         qRep.initCassandra(envProps.getDropKeyspace());
 
         queuePool =
@@ -329,21 +336,21 @@ public class TestUtils {
         return qRep;
     }
 
-    public static CassQueue setupQueue(QueueRepository qRep, String name, EnvProperties envProps, boolean popLocks,
-            boolean distributed) throws Exception {
-        CassQueueFactory cqf = new CassQueueFactory(qRep);
-        CassQueue cq = cqf.createInstance(name, envProps, popLocks, distributed);
+    public static CassQueueImpl setupQueue(QueueRepositoryImpl qRep, String name, EnvProperties envProps,
+            boolean popLocks, boolean distributed, PipeManagerImpl pipeMgr) throws Exception {
+        CassQueueFactoryImpl cqf = new CassQueueFactoryImpl(qRep);
+        CassQueueImpl cq = cqf.createQueueInstance(name, envProps, popLocks, distributed, pipeMgr);
         return cq;
     }
 
-    public List<PushPopAbstractBase> startPushers(CassQueue cq, String baseValue, EnvProperties envProps) {
+    public List<PushPopAbstractBase> startPushers(CassQueueImpl cq, String baseValue, EnvProperties envProps) {
         List<PushPopAbstractBase> retList = new ArrayList<PushPopAbstractBase>(envProps.getNumPushers());
         WorkerThreadWatcher ptw = new PusherThreadWatcher(envProps, retList, baseValue);
         ptw.start();
         return retList;
     }
 
-    public List<PushPopAbstractBase> startPoppers(CassQueue cq, String baseValue, Queue<CassQMsg> popQ,
+    public List<PushPopAbstractBase> startPoppers(CassQueueImpl cq, String baseValue, Queue<CassQMsg> popQ,
             EnvProperties envProps) {
         List<PushPopAbstractBase> retList = new ArrayList<PushPopAbstractBase>(envProps.getNumPoppers());
         WorkerThreadWatcher ptw = new PopperThreadWatcher(envProps, retList, baseValue, popQ);

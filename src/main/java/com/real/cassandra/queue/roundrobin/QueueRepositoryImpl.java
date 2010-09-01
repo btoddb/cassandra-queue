@@ -1,4 +1,4 @@
-package com.real.cassandra.queue.repository;
+package com.real.cassandra.queue.roundrobin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,16 +11,15 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.scale7.cassandra.pelops.Bytes;
+import org.scale7.cassandra.pelops.ColumnFamilyManager;
 import org.scale7.cassandra.pelops.KeyspaceManager;
 import org.scale7.cassandra.pelops.Mutator;
 import org.scale7.cassandra.pelops.Pelops;
 import org.scale7.cassandra.pelops.RowDeletor;
 import org.scale7.cassandra.pelops.Selector;
 
-import com.real.cassandra.queue.CassQueue;
-import com.real.cassandra.queue.PipeDescriptor;
 import com.real.cassandra.queue.QueueDescriptor;
-import com.real.cassandra.queue.QueueDescriptorFactory;
+import com.real.cassandra.queue.repository.PelopsPool;
 
 /**
  * Responsible for the raw I/O for Cassandra queues. Uses Pelops library for
@@ -31,7 +30,7 @@ import com.real.cassandra.queue.QueueDescriptorFactory;
  * 
  * @author Todd Burruss
  */
-public class QueueRepository {
+public class QueueRepositoryImpl {
     public static final String QUEUE_KEYSPACE_NAME = "Queues";
     public static final String SYSTEM_KEYSPACE_NAME = "system";
     public static final String SYSTEM_COL_FAM = "QueueSystem";
@@ -51,7 +50,7 @@ public class QueueRepository {
     private PelopsPool queuePool;
     private QueueDescriptorFactory qDescFactory = new QueueDescriptorFactory();
 
-    public QueueRepository(PelopsPool systemPool, int replicationFactor, ConsistencyLevel consistencyLevel) {
+    public QueueRepositoryImpl(PelopsPool systemPool, int replicationFactor, ConsistencyLevel consistencyLevel) {
         this.systemPool = systemPool;
         this.replicationFactor = replicationFactor;
         this.consistencyLevel = consistencyLevel;
@@ -67,6 +66,10 @@ public class QueueRepository {
      * @throws Exception
      */
     public QueueDescriptor createQueue(String qName, int numPipes) throws Exception {
+        if (isQueueExists(qName)) {
+            throw new IllegalStateException("Queue, " + qName + ", already exists - cannot create");
+        }
+
         Mutator m = Pelops.createMutator(queuePool.getPoolName());
 
         // keep track of number of pipes and the current "first pipe" for
@@ -90,6 +93,10 @@ public class QueueRepository {
         SlicePredicate pred = Selector.newColumnsPredicateAll(false, 100);
         List<Column> colList = s.getColumnsFromRow(SYSTEM_COL_FAM, qName, pred, consistencyLevel);
         return qDescFactory.createInstance(qName, colList);
+    }
+
+    public boolean isQueueExists(String qName) throws Exception {
+        return null != getQueueDescriptor(qName);
     }
 
     public void setPushStartPipe(String qName, long startPipeNum) throws Exception {
@@ -128,7 +135,12 @@ public class QueueRepository {
      * @param cq
      * @throws Exception
      */
-    public void truncateQueueData(CassQueue cq) throws Exception {
+    public void truncateQueueData(CassQueueImpl cq) throws Exception {
+        // ColumnFamilyManager cfMgr =
+        // Pelops.createColumnFamilyManager(systemPool.getCluster(),
+        // QUEUE_KEYSPACE_NAME);
+        // cfMgr.truncateColumnFamily(columnFamily);
+
         QueueDescriptor qDesc = getQueueDescriptor(cq.getName());
         long startPipe = qDesc.getPopStartPipe();
         long endPipe = qDesc.getPushStartPipe() + qDesc.getNumPipes();
@@ -174,10 +186,10 @@ public class QueueRepository {
         Thread.sleep(2000);
     }
 
-    public List<Column> getWaitingMessages(String name, long pipeNum, int maxColumns) throws Exception {
+    public List<Column> getWaitingMessages(PipeDescriptorImpl pipeDesc, int maxColumns) throws Exception {
         Selector s = Pelops.createSelector(queuePool.getPoolName());
         SlicePredicate pred = Selector.newColumnsPredicateAll(false, maxColumns);
-        return s.getColumnsFromRow(WAITING_COL_FAM, formatKey(name, pipeNum), pred, consistencyLevel);
+        return s.getColumnsFromRow(WAITING_COL_FAM, pipeDesc.getRowKeyAsStr(), pred, consistencyLevel);
     }
 
     public List<Column> getDeliveredMessages(String name, long pipeNum, int maxColumns) throws Exception {
@@ -186,13 +198,13 @@ public class QueueRepository {
         return s.getColumnsFromRow(DELIVERED_COL_FAM, formatKey(name, pipeNum), pred, consistencyLevel);
     }
 
-    public void removeFromDelivered(PipeDescriptor pipeDesc, Bytes colName) throws Exception {
+    public void removeFromDelivered(PipeDescriptorImpl pipeDesc, Bytes colName) throws Exception {
         Mutator m = Pelops.createMutator(queuePool.getPoolName());
         m.deleteColumn(DELIVERED_COL_FAM, new String(pipeDesc.getRowKey().getBytes()), colName);
         m.execute(consistencyLevel);
     }
 
-    public void moveFromWaitingToDelivered(PipeDescriptor pipeDesc, Bytes colName, Bytes colValue) throws Exception {
+    public void moveFromWaitingToDelivered(PipeDescriptorImpl pipeDesc, Bytes colName, Bytes colValue) throws Exception {
         Mutator m = Pelops.createMutator(queuePool.getPoolName());
         Column col = m.newColumn(colName, colValue);
         m.writeColumn(DELIVERED_COL_FAM, pipeDesc.getRowKey(), col);
@@ -200,7 +212,7 @@ public class QueueRepository {
         m.execute(consistencyLevel);
     }
 
-    public void moveFromDeliveredToWaiting(PipeDescriptor pipeDesc, Bytes colName, Bytes colValue) throws Exception {
+    public void moveFromDeliveredToWaiting(PipeDescriptorImpl pipeDesc, Bytes colName, Bytes colValue) throws Exception {
 
         // possibly inside ZK lock
 
@@ -238,12 +250,11 @@ public class QueueRepository {
      * @param value
      * @throws Exception
      */
-    public void insert(String colFam, String qName, long pipeNum, Bytes colName, Bytes value) throws Exception {
+    public void insert(String colFam, PipeDescriptorImpl pipeDesc, Bytes colName, Bytes value) throws Exception {
         Mutator m = Pelops.createMutator(queuePool.getPoolName());
         Column col = m.newColumn(colName, value);
 
-        String rowKey = formatKey(qName, pipeNum);
-        m.writeColumn(colFam, rowKey, col);
+        m.writeColumn(colFam, pipeDesc.getRowKey(), col);
         m.execute(consistencyLevel);
     }
 
@@ -272,8 +283,12 @@ public class QueueRepository {
         ksMgr.addKeyspace(ksDef);
     }
 
-    public static String formatKey(String name, long pipeNum) {
-        return name + "-" + pipeNum;
+    public static String formatKey(String name, long pipeId) {
+        return formatKey(name, String.valueOf(pipeId));
+    }
+
+    public static String formatKey(String name, String pipeId) {
+        return name + "-" + pipeId;
     }
 
     public PelopsPool getQueuePool() {

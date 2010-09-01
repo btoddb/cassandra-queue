@@ -1,8 +1,10 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.roundrobin;
+
+import com.real.cassandra.queue.roundrobin.CassQueueImpl;
 
 public class CassQueuePusher extends PushPopAbstractBase {
 
-    public CassQueuePusher(CassQueue cq, String baseValue, EnvProperties envProps) {
+    public CassQueuePusher(CassQueueImpl cq, String baseValue, EnvProperties envProps) {
         super(cq, baseValue, envProps, EnvProperties.ENV_pushDelay);
     }
 

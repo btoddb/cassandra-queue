@@ -1,4 +1,4 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.roundrobin;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Properties;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -15,20 +14,24 @@ import org.scale7.cassandra.pelops.Pelops;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.repository.QueueRepository;
+import com.real.cassandra.queue.CassQMsg;
+import com.real.cassandra.queue.roundrobin.CassQueueImpl;
+import com.real.cassandra.queue.roundrobin.PipeManagerImpl;
+import com.real.cassandra.queue.roundrobin.QueueRepositoryImpl;
 
 /**
- * Unit tests for {@link CassQueue}.
+ * Unit tests for {@link CassQueueImpl}.
  * 
  * @author Todd Burruss
  */
 public class TestMain {
     private static Logger logger = LoggerFactory.getLogger(TestMain.class);
 
-    private static QueueRepository qRepository;
+    private static QueueRepositoryImpl qRepository;
     private static EnvProperties envProps;
 
-    private static CassQueue cq;
+    private static PipeManagerImpl pipeMgr;
+    private static CassQueueImpl cq;
 
     public static void main(String[] args) throws Exception {
         logger.info("setting up app properties");
@@ -75,7 +78,8 @@ public class TestMain {
     }
 
     private static void setupQueue() throws Exception {
-        cq = TestUtils.setupQueue(qRepository, TestUtils.QUEUE_NAME, envProps, true, false);
+        pipeMgr = new PipeManagerImpl(TestUtils.QUEUE_NAME);
+        cq = TestUtils.setupQueue(qRepository, TestUtils.QUEUE_NAME, envProps, true, false, pipeMgr);
     }
 
     private static void setupQueueSystemAndPelopsPool() throws Exception {

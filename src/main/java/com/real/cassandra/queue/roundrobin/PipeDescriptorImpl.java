@@ -1,31 +1,40 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.roundrobin;
 
 import org.scale7.cassandra.pelops.Bytes;
+
+import com.real.cassandra.queue.PipeDescriptor;
 
 /**
  * Attributes that uniquely describe a 'pipe'.
  * 
  * @author Todd Burruss
  */
-public class PipeDescriptor {
+public class PipeDescriptorImpl implements PipeDescriptor {
 
-    private long pipeNum;
+    private String pipeNum;
     private Bytes rowKey;
     private String rowKeyAsStr;
 
-    public PipeDescriptor(long pipeNum, Bytes rowKey) {
+    public PipeDescriptorImpl(long pipeNum, String rowKey) {
+        this(pipeNum, Bytes.fromUTF8(rowKey));
+    }
+
+    public PipeDescriptorImpl(long pipeNum, Bytes rowKey) {
+        this(String.valueOf(pipeNum), rowKey);
+    }
+
+    public PipeDescriptorImpl(String pipeNum, String rowKey) {
+        this(pipeNum, Bytes.fromUTF8(rowKey));
+    }
+
+    public PipeDescriptorImpl(String pipeNum, Bytes rowKey) {
         this.pipeNum = pipeNum;
         this.rowKey = rowKey;
         this.rowKeyAsStr = new String(rowKey.getBytes());
     }
 
-    public PipeDescriptor(long pipeNum, String rowKey) {
-        this.pipeNum = pipeNum;
-        this.rowKey = Bytes.fromUTF8(rowKey);
-        this.rowKeyAsStr = rowKey;
-    }
-
-    public long getPipeNum() {
+    @Override
+    public String getPipeId() {
         return pipeNum;
     }
 
@@ -41,7 +50,7 @@ public class PipeDescriptor {
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        result = prime * result + (int) (pipeNum ^ (pipeNum >>> 32));
+        result = prime * result + ((pipeNum == null) ? 0 : pipeNum.hashCode());
         result = prime * result + ((rowKey == null) ? 0 : rowKey.hashCode());
         return result;
     }
@@ -54,8 +63,12 @@ public class PipeDescriptor {
             return false;
         if (getClass() != obj.getClass())
             return false;
-        PipeDescriptor other = (PipeDescriptor) obj;
-        if (pipeNum != other.pipeNum)
+        PipeDescriptorImpl other = (PipeDescriptorImpl) obj;
+        if (pipeNum == null) {
+            if (other.pipeNum != null)
+                return false;
+        }
+        else if (!pipeNum.equals(other.pipeNum))
             return false;
         if (rowKey == null) {
             if (other.rowKey != null)
@@ -69,7 +82,7 @@ public class PipeDescriptor {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("PipeDescriptor [pipeNum=");
+        builder.append("PipeDescriptorImpl [pipeNum=");
         builder.append(pipeNum);
         builder.append(", rowKeyAsStr=");
         builder.append(rowKeyAsStr);

@@ -1,4 +1,4 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.roundrobin;
 
 import java.util.List;
 
@@ -7,7 +7,7 @@ import org.scale7.cassandra.pelops.Bytes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.repository.QueueRepository;
+import com.real.cassandra.queue.QueueDescriptor;
 
 public class QueueDescriptorFactory {
     private static Logger logger = LoggerFactory.getLogger(QueueDescriptorFactory.class);
@@ -16,13 +16,13 @@ public class QueueDescriptorFactory {
 
         QueueDescriptor qDesc = new QueueDescriptor(qName);
         for (Column col : colList) {
-            if (QueueRepository.NUM_PIPES_COL_NAME.equals(Bytes.fromBytes(col.getName()))) {
+            if (QueueRepositoryImpl.NUM_PIPES_COL_NAME.equals(Bytes.fromBytes(col.getName()))) {
                 qDesc.setNumPipes(Bytes.fromBytes(col.getValue()).toInt());
             }
-            else if (QueueRepository.PUSH_PIPE_COL_NAME.equals(Bytes.fromBytes(col.getName()))) {
+            else if (QueueRepositoryImpl.PUSH_PIPE_COL_NAME.equals(Bytes.fromBytes(col.getName()))) {
                 qDesc.setPushStartPipe(Bytes.fromBytes(col.getValue()).toLong());
             }
-            else if (QueueRepository.POP_PIPE_COL_NAME.equals(Bytes.fromBytes(col.getName()))) {
+            else if (QueueRepositoryImpl.POP_PIPE_COL_NAME.equals(Bytes.fromBytes(col.getName()))) {
                 qDesc.setPopStartPipe(Bytes.fromBytes(col.getValue()).toLong());
             }
             else {

@@ -1,4 +1,4 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.locking;
 
 /**
  * Does nothing, used as a No Op call.

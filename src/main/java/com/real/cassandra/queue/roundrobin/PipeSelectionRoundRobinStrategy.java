@@ -1,14 +1,14 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.roundrobin;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.repository.QueueRepository;
+import com.real.cassandra.queue.EnvProperties;
+import com.real.cassandra.queue.QueueDescriptor;
 
 public class PipeSelectionRoundRobinStrategy {
     private static Logger logger = LoggerFactory.getLogger(PipeSelectionRoundRobinStrategy.class);
 
-    private Object popPipePickMonitorObj = new Object();
     private Object pushPipePickMonitorObj = new Object();
     private Object pushPipeIncMonitorObj = new Object();
     private long nextPushPipeToUse = 0;
@@ -16,13 +16,13 @@ public class PipeSelectionRoundRobinStrategy {
     private PipeWatcher pipeWatcher;
     private QueueDescriptor qDesc;
 
-    private QueueRepository qRepos;
+    private QueueRepositoryImpl qRepos;
     private EnvProperties envProps;
     private String qName;
-    private PipeManager pipeMgr;
+    private PipeManagerImpl pipeMgr;
 
-    public PipeSelectionRoundRobinStrategy(EnvProperties envProps, String qName, PipeManager pipeMgr,
-            QueueRepository qRepos) {
+    public PipeSelectionRoundRobinStrategy(EnvProperties envProps, String qName, PipeManagerImpl pipeMgr,
+            QueueRepositoryImpl qRepos) {
         this.envProps = envProps;
         this.qName = qName;
         this.pipeMgr = pipeMgr;
@@ -42,16 +42,35 @@ public class PipeSelectionRoundRobinStrategy {
         }
     }
 
-    public PipeDescriptor pickPopPipe() {
+    public void initQueue() throws Exception {
+        QueueDescriptor qDesc = qRepos.getQueueDescriptor(qName);
+
+        long startPipe = qDesc.getPopStartPipe() - 1;
+        startPipe = 0 <= startPipe ? startPipe : 0;
+        long endPipe = qDesc.getPushStartPipe() + envProps.getNumPipes();
+
+        for (Long pipeNum = startPipe; pipeNum <= endPipe; pipeNum++) {
+            pipeMgr.addPipe(pipeNum);
+        }
+    }
+
+    public void truncate() {
+        pipeMgr.truncate();
+
+    }
+
+    public int getCount() throws Exception {
+        return qRepos.getCount(qName);
+    }
+
+    public PipeDescriptorImpl pickPopPipe() {
         QueueDescriptor qDesc = getQueueDescriptor();
         for (;;) {
-            PipeDescriptor pipeDesc;
-            synchronized (popPipePickMonitorObj) {
-                pipeDesc = pipeMgr.getPipeDescriptor(nextPopPipeOffset + qDesc.getPopStartPipe());
-                // we do the numPipes+1 to give overlap if the pushers have
-                // already incremented their start pipe.
-                nextPopPipeOffset = (nextPopPipeOffset + 1) % (envProps.getNumPipes() + 1);
-            }
+            PipeDescriptorImpl pipeDesc;
+            pipeDesc = pipeMgr.getPipeDescriptor(nextPopPipeOffset + qDesc.getPopStartPipe());
+            // we do the numPipes+1 to give overlap if the pushers have
+            // already incremented their start pipe.
+            nextPopPipeOffset = (nextPopPipeOffset + 1) % (envProps.getNumPipes() + 1);
 
             if (pipeMgr.lockPopPipe(pipeDesc)) {
                 logger.debug("locked pipe : " + pipeDesc);
@@ -60,13 +79,13 @@ public class PipeSelectionRoundRobinStrategy {
         }
     }
 
-    public void releasePopPipe(long pipeNum) {
+    public void releasePopPipe(PipeDescriptorImpl pipeNum) {
         pipeMgr.releasePopPipe(pipeNum);
     }
 
-    public void popPipeEmpty(PipeDescriptor pipeDesc) {
+    public void popPipeEmpty(PipeDescriptorImpl pipeDesc) {
         QueueDescriptor qDesc = getQueueDescriptor();
-        if (pipeDesc.getPipeNum() < qDesc.getPushStartPipe() - 1) {
+        if (Long.valueOf(pipeDesc.getPipeId()) < qDesc.getPushStartPipe() - 1) {
             try {
                 incrementPopStartPipe(qDesc);
             }
@@ -80,18 +99,18 @@ public class PipeSelectionRoundRobinStrategy {
         long tmp = qDesc.getPopStartPipe() + 1;
         qRepos.setPopStartPipe(qName, tmp);
         qDesc.setPopStartPipe(tmp);
-        pipeMgr.removePipe(tmp - 1);
+        pipeMgr.removePipe(pipeMgr.getPipeDescriptor(tmp - 1));
     }
 
-    public long pickPushPipe() throws Exception {
+    public PipeDescriptorImpl pickPushPipe() throws Exception {
         synchronized (pushPipePickMonitorObj) {
             long ret = nextPushPipeToUse + qDesc.getPushStartPipe();
             nextPushPipeToUse = (nextPushPipeToUse + 1) % envProps.getNumPipes();
-            return ret;
+            return pipeMgr.getPipeDescriptor(ret);
         }
     }
 
-    public void releasePushPipe(long pipeNum) {
+    public void releasePushPipe(PipeDescriptorImpl pipeNum) {
         // do nothing
     }
 

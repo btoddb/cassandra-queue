@@ -1,7 +1,7 @@
 package com.real.cassandra.queue;
 
 public interface CassQueueMXBean {
-    String JMX_MBEAN_OBJ_NAME = "com.real.cassq:type=CassQueue";
+    String JMX_MBEAN_OBJ_NAME = "com.real.cassq:type=CassQueueImpl";
 
     boolean isNearFifoOk();
 

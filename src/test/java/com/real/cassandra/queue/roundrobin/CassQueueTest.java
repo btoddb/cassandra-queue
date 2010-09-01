@@ -1,4 +1,4 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.roundrobin;
 
 import static org.junit.Assert.*;
 
@@ -26,21 +26,26 @@ import org.scale7.cassandra.pelops.Pelops;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.repository.QueueRepository;
+import com.real.cassandra.queue.CassQMsg;
+import com.real.cassandra.queue.QueueDescriptor;
+import com.real.cassandra.queue.roundrobin.CassQueueImpl;
+import com.real.cassandra.queue.roundrobin.PipeManagerImpl;
+import com.real.cassandra.queue.roundrobin.QueueRepositoryImpl;
 
 /**
- * Unit tests for {@link CassQueue}.
+ * Unit tests for {@link CassQueueImpl}.
  * 
  * @author Todd Burruss
  */
 public class CassQueueTest {
     private static Logger logger = LoggerFactory.getLogger(CassQueueTest.class);
 
-    private static QueueRepository qRep;
+    private static QueueRepositoryImpl qRep;
     private static EmbeddedCassandraService cassandra;
     private static EnvProperties baseEnvProps;
 
-    private CassQueue cq;
+    private CassQueueImpl cq;
+    private PipeManagerImpl pipeMgr;
     private TestUtils testUtils;
 
     // @Test
@@ -48,15 +53,15 @@ public class CassQueueTest {
     // String myColFam = "myColFam";
     // KeyspaceManager ksMgr =
     // Pelops.createKeyspaceManager(systemPool.getCluster());
-    // ksMgr.dropKeyspace(QueueRepository.QUEUE_KEYSPACE_NAME);
+    // ksMgr.dropKeyspace(QueueRepositoryImpl.QUEUE_KEYSPACE_NAME);
     //
     // ArrayList<CfDef> cfDefList = new ArrayList<CfDef>(1);
-    // cfDefList.add(new CfDef(QueueRepository.QUEUE_KEYSPACE_NAME,
+    // cfDefList.add(new CfDef(QueueRepositoryImpl.QUEUE_KEYSPACE_NAME,
     // myColFam).setComparator_type("BytesType")
     // .setKey_cache_size(0));
     //
-    // KsDef ksDef = new KsDef(QueueRepository.QUEUE_KEYSPACE_NAME,
-    // QueueRepository.STRATEGY_CLASS_NAME, 1, cfDefList);
+    // KsDef ksDef = new KsDef(QueueRepositoryImpl.QUEUE_KEYSPACE_NAME,
+    // QueueRepositoryImpl.STRATEGY_CLASS_NAME, 1, cfDefList);
     // ksMgr.addKeyspace(ksDef);
     //
     // for (int i = 0; i < 10000; i++) {
@@ -69,14 +74,14 @@ public class CassQueueTest {
     // SlicePredicate pred = Selector.newColumnsPredicateAll(false, 1000000);
     // int colCount =
     // s.getColumnCount(myColFam,
-    // Bytes.fromUTF8(QueueRepository.formatKey(TestUtils.QUEUE_NAME, 0)),
+    // Bytes.fromUTF8(QueueRepositoryImpl.formatKey(TestUtils.QUEUE_NAME, 0)),
     // pred, ConsistencyLevel.QUORUM);
     //
     // System.out.println("count = " + colCount);
     // }
     //
     // long start = System.currentTimeMillis();
-    // String rowKey = QueueRepository.formatKey(TestUtils.QUEUE_NAME, 0);
+    // String rowKey = QueueRepositoryImpl.formatKey(TestUtils.QUEUE_NAME, 0);
     // for (int i = 0; i < 10000; i++) {
     // Selector s = Pelops.createSelector(queuePool.getPoolName());
     //
@@ -102,7 +107,7 @@ public class CassQueueTest {
     // SlicePredicate pred = Selector.newColumnsPredicateAll(false, 1000000);
     // int colCount =
     // s.getColumnCount(myColFam,
-    // Bytes.fromUTF8(QueueRepository.formatKey(TestUtils.QUEUE_NAME, 0)), pred,
+    // Bytes.fromUTF8(QueueRepositoryImpl.formatKey(TestUtils.QUEUE_NAME, 0)), pred,
     // ConsistencyLevel.QUORUM);
     //
     // System.out.println("count = " + colCount);
@@ -255,7 +260,7 @@ public class CassQueueTest {
         // Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
         //
         // CassQueuePusher cqPusher = new CassQueuePusher(cq, "test");
-        // CassQueuePopper cqPopper = new CassQueuePopper(cq, "test", popQ);
+        // Popper cqPopper = new Popper(cq, "test", popQ);
         // cqPusher.start(numToPush, pushDelay);
         // cqPopper.start(numToPop, popDelay);
         //
@@ -312,7 +317,7 @@ public class CassQueueTest {
     @Test
     public void testSimultaneousMultiplePusherMultiplePopper() {
         cq.setNearFifoOk(true);
-        assertPushersPoppersWork(4, 4, 1000, 1000, 0, 0);
+        assertPushersPoppersWork(4, 10, 10000, 4000, 2, 0);
     }
 
     @Test
@@ -351,13 +356,6 @@ public class CassQueueTest {
         boolean finishedProperly = testUtils.monitorPushersPoppers(popQ, pusherSet, popperSet, msgSet, valueSet);
 
         assertTrue("monitoring of pushers/poppers finished improperly", finishedProperly);
-
-        // double popSecs = cqPopper.getElapsedTime() / 1000.0;
-        // double pushSecs = cqPusher.getElapsedTime() / 1000.0;
-        // System.out.println("total elapsed pusher time : " + popSecs);
-        // System.out.println("total elapsed pop time : " + popSecs);
-        // System.out.println("pushes/sec = " + numToPush / pushSecs);
-        // System.out.println("pops/sec = " + numToPop / popSecs);
         //
         assertTrue("expected pusher to be finished", testUtils.isPushPopOpFinished(pusherSet));
         assertTrue("expected popper to be finished", testUtils.isPushPopOpFinished(popperSet));
@@ -399,21 +397,22 @@ public class CassQueueTest {
 
     }
 
-    private void verifyExistsInWaitingQueue(int index, int numMsgs, boolean wantExists) throws Exception {
-        List<Column> colList = cq.getWaitingMessages(index % cq.getNumPipes(), numMsgs + 1);
+    private void verifyExistsInWaitingQueue(int pipeNum, int numMsgs, boolean wantExists) throws Exception {
+        List<Column> colList =
+                cq.getWaitingMessages(pipeMgr.getPipeDescriptor(pipeNum % cq.getNumPipes()), numMsgs + 1);
         if (wantExists) {
             boolean found = false;
             for (Column col : colList) {
-                if (new String(col.getValue()).equals("xxx_" + index)) {
+                if (new String(col.getValue()).equals("xxx_" + pipeNum)) {
                     found = true;
                     break;
                 }
             }
-            assertTrue("should have found value, xxx_" + index + " in waiting queue", found);
+            assertTrue("should have found value, xxx_" + pipeNum + " in waiting queue", found);
         }
         else {
             for (Column col : colList) {
-                assertNotSame(new String(col.getValue()), "xxx_" + index);
+                assertNotSame(new String(col.getValue()), "xxx_" + pipeNum);
             }
         }
 
@@ -446,7 +445,7 @@ public class CassQueueTest {
         long mod = numMsgs % cq.getNumPipes();
 
         for (int i = 0; i < cq.getNumPipes(); i++) {
-            List<Column> colList = cq.getWaitingMessages(startPipe + i, numMsgs + 1);
+            List<Column> colList = cq.getWaitingMessages(pipeMgr.getPipeDescriptor(startPipe + i), numMsgs + 1);
             assertEquals("count on queue index " + (startPipe + i) + " is incorrect", i < mod ? min + 1 : min,
                     colList.size());
 
@@ -479,7 +478,8 @@ public class CassQueueTest {
 
     @Before
     public void setupQueue() throws Exception {
-        cq = TestUtils.setupQueue(qRep, TestUtils.QUEUE_NAME, baseEnvProps, true, false);
+        pipeMgr = new PipeManagerImpl(TestUtils.QUEUE_NAME);
+        cq = TestUtils.setupQueue(qRep, TestUtils.QUEUE_NAME, baseEnvProps, true, false, pipeMgr);
         testUtils = new TestUtils(cq);
     }
 
