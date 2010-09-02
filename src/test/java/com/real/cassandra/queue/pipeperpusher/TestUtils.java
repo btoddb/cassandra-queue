@@ -2,12 +2,10 @@ package com.real.cassandra.queue.pipeperpusher;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.util.List;
 import java.util.Properties;
 
 import org.apache.cassandra.contrib.utils.service.CassandraServiceDataCleaner;
 import org.apache.cassandra.service.EmbeddedCassandraService;
-import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.thrift.transport.TTransportException;
 import org.scale7.cassandra.pelops.CachePerNodePool.Policy;
