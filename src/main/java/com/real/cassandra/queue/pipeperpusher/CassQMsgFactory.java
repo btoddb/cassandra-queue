@@ -16,10 +16,14 @@ public class CassQMsgFactory {
     }
 
     public CassQMsg createInstance(PipeDescriptorImpl pipeDesc, String msgData) {
-        return createInstance(pipeDesc, UUIDGen.makeType1UUIDFromHost(inetAddr.get()), msgData);
+        return createInstance(pipeDesc, createMsgId(), msgData);
     }
 
     public CassQMsg createInstance(PipeDescriptorImpl pipeDesc, Column col) {
         return createInstance(pipeDesc, Bytes.fromBytes(col.getName()).toUuid(), new String(col.getValue()));
+    }
+
+    public UUID createMsgId() {
+        return UUIDGen.makeType1UUIDFromHost(inetAddr.get());
     }
 }

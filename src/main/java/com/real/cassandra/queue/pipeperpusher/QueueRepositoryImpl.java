@@ -311,8 +311,8 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         }
     }
 
-    public List<CassQMsg> getDeliveredMessagesFromPipe(PipeDescriptorImpl pipeDesc, int maxColumns) throws Exception {
-        return getMessagesFromPipe(formatDeliveredColFamName(pipeDesc.getQName()), pipeDesc, maxColumns);
+    public List<CassQMsg> getDeliveredMessagesFromPipe(PipeDescriptorImpl pipeDesc, int maxMsgs) throws Exception {
+        return getMessagesFromPipe(formatDeliveredColFamName(pipeDesc.getQName()), pipeDesc, maxMsgs);
     }
 
     public List<CassQMsg> getWaitingMessagesFromPipe(PipeDescriptorImpl pipeDesc, int maxColumns) throws Exception {
@@ -332,7 +332,8 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         return msgList;
     }
 
-    public void removeMsgFromDeliveredPipe(PipeDescriptorImpl pipeDesc, CassQMsg qMsg) throws Exception {
+    public void removeMsgFromDeliveredPipe(CassQMsg qMsg) throws Exception {
+        PipeDescriptorImpl pipeDesc = qMsg.getPipeDescriptor();
         removeMsgFromPipe(formatDeliveredColFamName(pipeDesc.getQName()), pipeDesc, qMsg);
     }
 
@@ -346,7 +347,8 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         m.execute(getConsistencyLevel());
     }
 
-    public void moveMsgFromWaitingToDeliveredPipe(PipeDescriptorImpl pipeDesc, CassQMsg qMsg) throws Exception {
+    public void moveMsgFromWaitingToDeliveredPipe(CassQMsg qMsg) throws Exception {
+        PipeDescriptorImpl pipeDesc = qMsg.getPipeDescriptor();
         Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
         Bytes colName = Bytes.fromUuid(qMsg.getMsgId());
         Bytes colValue = Bytes.fromUTF8(qMsg.getMsgData());
@@ -355,6 +357,22 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         m.deleteColumn(formatWaitingColFamName(pipeDesc.getQName()), pipeId, colName);
         m.execute(getConsistencyLevel());
     }
+
+    // public void moveMsgFromDeliveredToWaitingPipe(CassQMsg qMsg,
+    // PipeDescriptorImpl newPipeDesc) throws Exception {
+    // PipeDescriptorImpl oldPipeDesc = qMsg.getPipeDescriptor();
+    // Bytes colName = Bytes.fromUuid(qMsg.getMsgId());
+    // Bytes colValue = Bytes.fromUTF8(qMsg.getMsgData());
+    //
+    // Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
+    // Column col = m.newColumn(colName, colValue);
+    // m.writeColumn(formatWaitingColFamName(newPipeDesc.getQName()),
+    // Bytes.fromUuid(newPipeDesc.getPipeId()), col);
+    // m.deleteColumn(formatDeliveredColFamName(oldPipeDesc.getQName()),
+    // Bytes.fromUuid(oldPipeDesc.getPipeId()),
+    // colName);
+    // m.execute(getConsistencyLevel());
+    // }
 
     public List<PipeDescriptorImpl> getOldestNonEmptyPipes(String qName, int maxNumPipeDescs) throws Exception {
         Selector s = Pelops.createSelector(getQueuePool().getPoolName());
@@ -396,6 +414,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
         return pipeDescList;
     }
+
     // public List<Column> getDeliveredMessages(String name, long pipeNum, int
     // maxColumns) throws Exception {
     // Selector s = Pelops.createSelector(queuePool.getPoolName());
@@ -452,26 +471,6 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     // }
     // }
 
-    // public void removeFromDelivered(PipeDescriptorImpl pipeDesc, Bytes
-    // colName) throws Exception {
-    // Mutator m = Pelops.createMutator(queuePool.getPoolName());
-    // m.deleteColumn(DELIVERED_COL_FAM, new
-    // String(pipeDesc.getRowKey().getBytes()), colName);
-    // m.execute(consistencyLevel);
-    // }
-
-    // public void moveFromDeliveredToWaiting(PipeDescriptorImpl pipeDesc, Bytes
-    // colName, Bytes colValue) throws Exception {
-    //
-    // Mutator m = Pelops.createMutator(queuePool.getPoolName());
-    // Column col = m.newColumn(colName, colValue);
-    // m.writeColumn(WAITING_COL_FAM, pipeDesc.getRowKey(), col);
-    // m.deleteColumn(DELIVERED_COL_FAM, pipeDesc.getRowKey().toString(),
-    // colName);
-    // m.execute(consistencyLevel);
-    //
-    // }
-    //
     // public Map<Bytes, List<Column>> getOldestFromAllPipes(List<Bytes>
     // queueKeyList) throws Exception {
     // SlicePredicate pred = Selector.newColumnsPredicateAll(false, 1);

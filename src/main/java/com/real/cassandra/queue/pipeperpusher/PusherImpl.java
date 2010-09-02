@@ -35,6 +35,14 @@ public class PusherImpl {
     }
 
     public CassQMsg push(String msgData) throws Exception {
+        return insertInternal(qMsgFactory.createMsgId(), msgData);
+    }
+
+    public CassQMsg insert(CassQMsg qMsg) throws Exception {
+        return insertInternal(qMsg.getMsgId(), qMsg.getMsgData());
+    }
+
+    private CassQMsg insertInternal(UUID msgId, String msgData) throws Exception {
         if (shutdownInProgress) {
             throw new IllegalStateException("cannot push messages when shutdown in progress");
         }
@@ -45,9 +53,10 @@ public class PusherImpl {
 
         pipeDesc.incMsgCount();
 
-        CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgData);
-        qRepos.insert(getQName(), pipeDesc, qMsg.getMsgId(), msgData);
+        CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
+        qRepos.insert(getQName(), pipeDesc, qMsg.getMsgId(), qMsg.getMsgData());
         return qMsg;
+
     }
 
     private void createNewPipe() throws Exception {
