@@ -44,9 +44,8 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     public static final Bytes QDESC_COLNAME_MAX_PUSHES_PER_PIPE = Bytes.fromUTF8("maxPushesPerPipe");
     public static final Bytes QDESC_COLNAME_MAX_POP_WIDTH = Bytes.fromUTF8("maxPopWidth");
 
-    public static final String ACTIVE_PIPES_COLFAM = "ActivePipes";
+    public static final String PIPE_STATUS_COLFAM = "PipeStatus";
 
-    public static final String PUSH_STATS_COLFAM = "PushStats";
     public static final String WAITING_COLFAM_SUFFIX = "_Waiting";
     public static final String DELIVERED_COLFAM_SUFFIX = "_Delivered";
 
@@ -55,6 +54,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     private QueueDescriptorFactory qDescFactory = new QueueDescriptorFactory();
     private PipeDescriptorFactory pipeDescFactory = new PipeDescriptorFactory();
     private CassQMsgFactory qMsgFactory = new CassQMsgFactory();
+    private PipeStatusFactory pipeStatusFactory = new PipeStatusFactory();
 
     public QueueRepositoryImpl(PelopsPool systemPool, PelopsPool queuePool, int replicationFactor,
             ConsistencyLevel consistencyLevel) {
@@ -203,21 +203,20 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     public void createPipeDescriptor(String qName, UUID pipeId, String pipeStatus) throws Exception {
+        String rawStatus = pipeStatusFactory.createInstance(new PipeStatus(pipeStatus, 0));
+
         Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
-
-        Column col = m.newColumn(Bytes.fromUuid(pipeId), pipeStatus);
-        m.writeColumn(ACTIVE_PIPES_COLFAM, qName, col);
-
-        col = m.newColumn(Bytes.fromUuid(pipeId), Bytes.fromInt(0));
-        m.writeColumn(PUSH_STATS_COLFAM, qName, col);
-
+        Column col = m.newColumn(Bytes.fromUuid(pipeId), Bytes.fromUTF8(rawStatus));
+        m.writeColumn(PIPE_STATUS_COLFAM, qName, col);
         m.execute(getConsistencyLevel());
     }
 
-    public void setPipeDescriptorStatus(String qName, UUID pipeId, String status) throws Exception {
+    public void setPipeDescriptorStatus(String qName, PipeDescriptorImpl pipeDesc, String pipeStatus) throws Exception {
+        String rawStatus = pipeStatusFactory.createInstance(new PipeStatus(pipeStatus, pipeDesc.getMsgCount()));
+
         Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
-        Column col = m.newColumn(Bytes.fromUuid(pipeId), status);
-        m.writeColumn(ACTIVE_PIPES_COLFAM, qName, col);
+        Column col = m.newColumn(Bytes.fromUuid(pipeDesc.getPipeId()), rawStatus);
+        m.writeColumn(PIPE_STATUS_COLFAM, qName, col);
         m.execute(getConsistencyLevel());
     }
 
@@ -233,29 +232,32 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         Selector s = Pelops.createSelector(getQueuePool().getPoolName());
         Bytes colName = Bytes.fromUuid(pipeId);
         try {
-            Column colActive = s.getColumnFromRow(ACTIVE_PIPES_COLFAM, qName, colName, getConsistencyLevel());
-            Column colStats = s.getColumnFromRow(PUSH_STATS_COLFAM, qName, colName, getConsistencyLevel());
-            return pipeDescFactory.createInstance(qName, colActive, colStats);
+            Column colStatus = s.getColumnFromRow(PIPE_STATUS_COLFAM, qName, colName, getConsistencyLevel());
+            return pipeDescFactory.createInstance(qName, colStatus);
         }
         catch (NotFoundException e) {
-            return pipeDescFactory.createInstance(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
+            return pipeDescFactory.createInstance(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE, 0);
         }
     }
 
     public void insert(String qName, PipeDescriptorImpl pipeDesc, UUID msgId, String msgData) throws Exception {
         Bytes colName = Bytes.fromUuid(msgId);
-        Bytes value = Bytes.fromUTF8(msgData);
+        Bytes colValue = Bytes.fromUTF8(msgData);
 
         String colFamWaiting = formatWaitingColFamName(qName);
 
         // insert new msg
         Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
-        Column col = m.newColumn(colName, value);
+        Column col = m.newColumn(colName, colValue);
         m.writeColumn(colFamWaiting, Bytes.fromUuid(pipeDesc.getPipeId()), col);
 
+        String rawStatus =
+                pipeStatusFactory.createInstance(new PipeStatus(PipeDescriptorImpl.STATUS_PUSH_ACTIVE, pipeDesc
+                        .getMsgCount()));
+
         // update msg count for this pipe
-        col = m.newColumn(Bytes.fromUuid(pipeDesc.getPipeId()), Bytes.fromInt(pipeDesc.getMsgCount()));
-        m.writeColumn(PUSH_STATS_COLFAM, qName, col);
+        col = m.newColumn(Bytes.fromUuid(pipeDesc.getPipeId()), Bytes.fromUTF8(rawStatus));
+        m.writeColumn(PIPE_STATUS_COLFAM, qName, col);
 
         m.execute(getConsistencyLevel());
     }
@@ -283,10 +285,8 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         ArrayList<CfDef> cfDefList = new ArrayList<CfDef>(2);
         cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_DESCRIPTORS_COLFAM).setComparator_type("BytesType")
                 .setKey_cache_size(0).setRow_cache_size(1000));
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, ACTIVE_PIPES_COLFAM).setComparator_type("TimeUUIDType")
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, PIPE_STATUS_COLFAM).setComparator_type("TimeUUIDType")
                 .setKey_cache_size(0).setRow_cache_size(1000));
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, PUSH_STATS_COLFAM).setComparator_type("TimeUUIDType")
-                .setKey_cache_size(0));
 
         KsDef ksDef = new KsDef(QUEUE_KEYSPACE_NAME, STRATEGY_CLASS_NAME, getReplicationFactor(), cfDefList);
         KeyspaceManager ksMgr = Pelops.createKeyspaceManager(getSystemPool().getCluster());
@@ -361,29 +361,40 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         SlicePredicate pred = Selector.newColumnsPredicateAll(false, maxNumPipeDescs);
         Bytes qNameAsBytes = Bytes.fromUTF8(qName);
 
-        List<Column> statusColList =
-                s.getColumnsFromRow(ACTIVE_PIPES_COLFAM, qNameAsBytes, pred, getConsistencyLevel());
-        List<Column> statsColList = s.getColumnsFromRow(PUSH_STATS_COLFAM, qNameAsBytes, pred, getConsistencyLevel());
+        ArrayList<PipeDescriptorImpl> pipeDescList = new ArrayList<PipeDescriptorImpl>(maxNumPipeDescs + 1);
+        int count = 0;
+        byte[] lastColName = new byte[] {};
+        while (count < maxNumPipeDescs) {
+            pred =
+                    Selector.newColumnsPredicate(Bytes.fromBytes(lastColName), Bytes.fromBytes(new byte[] {}), false,
+                            maxNumPipeDescs + 1);
+            List<Column> colList = s.getColumnsFromRow(PIPE_STATUS_COLFAM, qNameAsBytes, pred, getConsistencyLevel());
 
-        ArrayList<PipeDescriptorImpl> pipeDescList = new ArrayList<PipeDescriptorImpl>(maxNumPipeDescs);
+            Iterator<Column> iter = colList.iterator();
+            boolean skipFirst = 0 < lastColName.length;
+            while (iter.hasNext() && count < maxNumPipeDescs) {
+                Column col = iter.next();
+                if (skipFirst) {
+                    skipFirst = false;
+                    lastColName = null;
+                    continue;
+                }
 
-        if (statusColList.size() != statsColList.size()) {
-            logger.error("active pipes count doesn't equal stats count - continuing using active pipes as reference");
+                PipeDescriptorImpl pipeDesc = pipeDescFactory.createInstance(qName, col);
+                if (!pipeDesc.isFinishedAndEmpty()) {
+                    pipeDescList.add(pipeDesc);
+                    count++;
+                }
+
+                lastColName = col.getName();
+            }
+
+            if (null == lastColName || 0 == lastColName.length) {
+                break;
+            }
         }
 
-        Iterator<Column> statsIter = statsColList.iterator();
-        for (Column activeCol : statusColList) {
-            Column statCol = null;
-            if (statsIter.hasNext()) {
-                statCol = statsIter.next();
-            }
-            PipeDescriptorImpl pipeDesc = pipeDescFactory.createInstance(qName, activeCol, statCol);
-            if (!pipeDesc.isFinishedAndEmpty()) {
-                pipeDescList.add(pipeDesc);
-            }
-        }
         return pipeDescList;
-
     }
     // public List<Column> getDeliveredMessages(String name, long pipeNum, int
     // maxColumns) throws Exception {

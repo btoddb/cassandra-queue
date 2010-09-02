@@ -63,19 +63,6 @@ public class PipeDescriptorImpl {
         return true;
     }
 
-    @Override
-    public String toString() {
-        StringBuilder builder = new StringBuilder();
-        builder.append("PipeDescriptorImpl [qName=");
-        builder.append(qName);
-        builder.append(", pipeIdAsStr=");
-        builder.append(pipeIdAsStr);
-        builder.append(", msgCount=");
-        builder.append(msgCount);
-        builder.append("]");
-        return builder.toString();
-    }
-
     public void setMsgCount(int msgCount) {
         this.msgCount = msgCount;
     }
@@ -98,5 +85,20 @@ public class PipeDescriptorImpl {
 
     public boolean isFinishedAndEmpty() {
         return STATUS_FINISHED_AND_EMPTY.equals(status);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("PipeDescriptorImpl [qName=");
+        builder.append(qName);
+        builder.append(", pipeIdAsStr=");
+        builder.append(pipeIdAsStr);
+        builder.append(", status=");
+        builder.append(status);
+        builder.append(", msgCount=");
+        builder.append(msgCount);
+        builder.append("]");
+        return builder.toString();
     }
 }

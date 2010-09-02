@@ -15,11 +15,14 @@ public class PopperImpl {
     private boolean shutdownInProgress = false;
     private List<PipeDescriptorImpl> pipeDescList;
     private PipeLockerImpl popLocker;
+    private long nextPipeCounter;
+    private int numRetries = 2;
 
-    public PopperImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, PipeLockerImpl popLock) {
+    public PopperImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, PipeLockerImpl popLock) throws Exception {
         this.cq = cq;
         this.qRepos = qRepos;
         this.popLocker = popLock;
+        refreshPipeList();
     }
 
     public CassQMsg pop() {
@@ -28,22 +31,48 @@ public class PopperImpl {
         }
 
         try {
-            pipeDescList = qRepos.getOldestNonEmptyPipes(cq.getName(), cq.getPopWidth());
             PipeDescriptorImpl pipeDesc = null;
-            try {
-                pipeDesc = pickAndLockPipe();
-                if (null == pipeDesc) {
-                    return null;
+
+            for (int i = 0; i < numRetries; i++) {
+                try {
+                    pipeDesc = pickAndLockPipe();
+
+                    // if can't find a pipe to lock, try again
+                    if (null == pipeDesc) {
+                        continue;
+                    }
+
+                    // locked pipe,
+                    CassQMsg qMsg = retrieveOldestMsgFromPipe(pipeDesc);
+
+                    // if no message returned, because pipe is empty and pushing
+                    // has ended, then mark as empty and force retry
+                    if (null == qMsg && PipeDescriptorImpl.STATUS_PUSH_FINISHED.equals(pipeDesc.getStatus())) {
+                        qRepos.setPipeDescriptorStatus(cq.getName(), pipeDesc,
+                                PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY);
+                        refreshPipeList();
+                        i--;
+                        continue;
+                    }
+                    return qMsg;
                 }
-                return retrieveOldestMsgFromPipe(pipeDesc);
+                finally {
+                    if (null != pipeDesc) {
+                        popLocker.release(pipeDesc);
+                    }
+                }
             }
-            finally {
-                popLocker.release(pipeDesc);
-            }
+
+            return null;
         }
         catch (Exception e) {
             throw new CassQueueException("exception while pop'ing", e);
         }
+    }
+
+    private void refreshPipeList() throws Exception {
+        pipeDescList = qRepos.getOldestNonEmptyPipes(cq.getName(), cq.getPopWidth());
+        nextPipeCounter = 0;
     }
 
     private CassQMsg retrieveOldestMsgFromPipe(PipeDescriptorImpl pipeDesc) throws Exception {
@@ -54,8 +83,17 @@ public class PopperImpl {
         return qMsg;
     }
 
-    private PipeDescriptorImpl pickAndLockPipe() {
-        for (PipeDescriptorImpl pipeDesc : pipeDescList) {
+    private PipeDescriptorImpl pickAndLockPipe() throws Exception {
+        if (pipeDescList.isEmpty()) {
+            refreshPipeList();
+            if (pipeDescList.isEmpty()) {
+                return null;
+            }
+        }
+
+        int width = cq.getPopWidth();
+        for (int i = 0; i < width; i++) {
+            PipeDescriptorImpl pipeDesc = pipeDescList.get((int) ((nextPipeCounter++ + i) % width));
             if (popLocker.lock(pipeDesc)) {
                 logger.debug("locked pipe : " + pipeDesc);
                 return pipeDesc;

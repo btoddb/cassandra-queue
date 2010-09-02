@@ -31,8 +31,8 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
             nameSet.add(cfDef.getName());
         }
 
-        assertTrue("didn't create '" + QueueRepositoryImpl.ACTIVE_PIPES_COLFAM + "' column family",
-                nameSet.contains(QueueRepositoryImpl.ACTIVE_PIPES_COLFAM));
+        assertTrue("didn't create '" + QueueRepositoryImpl.PIPE_STATUS_COLFAM + "' column family",
+                nameSet.contains(QueueRepositoryImpl.PIPE_STATUS_COLFAM));
         assertTrue("didn't create '" + QueueRepositoryImpl.QUEUE_DESCRIPTORS_COLFAM + "' column family",
                 nameSet.contains(QueueRepositoryImpl.QUEUE_DESCRIPTORS_COLFAM));
     }
@@ -107,7 +107,8 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
 
         UUID pipeId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
 
-        qRepos.setPipeDescriptorStatus(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
+        qRepos.setPipeDescriptorStatus(qName, new PipeDescriptorImpl(qName, pipeId,
+                PipeDescriptorImpl.STATUS_PUSH_ACTIVE), PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
 
         UUID msgId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
 
@@ -136,7 +137,8 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
 
         UUID pipeId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
-        qRepos.setPipeDescriptorStatus(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
+        qRepos.setPipeDescriptorStatus(qName, new PipeDescriptorImpl(qName, pipeId,
+                PipeDescriptorImpl.STATUS_PUSH_ACTIVE), PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
         PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
         for (int i = 0; i < msgCount; i++) {
             String msgData = "data-" + i;
@@ -167,7 +169,8 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
 
         UUID pipeId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
-        qRepos.setPipeDescriptorStatus(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
+        qRepos.setPipeDescriptorStatus(qName, new PipeDescriptorImpl(qName, pipeId,
+                PipeDescriptorImpl.STATUS_PUSH_ACTIVE), PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
         PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
         for (int i = 0; i < msgCount; i++) {
             String msgData = "data-" + i;
@@ -210,16 +213,40 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
             pipeList.add(pipeId);
         }
 
-        List<PipeDescriptorImpl> pipeListNew = qRepos.getOldestNonEmptyPipes(qName, pipeCount + 1);
+        List<PipeDescriptorImpl> pipeListNew = qRepos.getOldestNonEmptyPipes(qName, pipeCount / 2);
 
         assertEquals("should have returned same number of pipes as created", pipeList.size() / 2, pipeListNew.size());
 
         Iterator<PipeDescriptorImpl> newIter = pipeListNew.iterator();
         for (int i = 0; i < pipeCount; i++) {
             if (0 == i % 2) {
-                UUID pipeId = pipeList.get(i);
-                assertEquals("pipe descriptors are not returned in expected order", pipeId, newIter.next().getPipeId());
+                UUID pipeTargetId = pipeList.get(i);
+                PipeDescriptorImpl pipeDesc = newIter.next();
+                assertEquals("pipe descriptors are not returned in expected order", pipeTargetId, pipeDesc.getPipeId());
             }
         }
+    }
+
+    @Test
+    public void testGetAllNonEmptyPipesAllEmpty() throws Exception {
+        String qName = "test_" + System.currentTimeMillis();
+        long maxPushTimeOfPipe = 20000;
+        int maxPushesPerPipe = 10;
+        int maxPopWidth = 4;
+        int pipeCount = 5;
+
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+
+        ArrayList<UUID> pipeList = new ArrayList<UUID>();
+        for (int i = 0; i < pipeCount; i++) {
+            UUID pipeId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
+            String status = PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY;
+            qRepos.createPipeDescriptor(qName, pipeId, status);
+            pipeList.add(pipeId);
+        }
+
+        List<PipeDescriptorImpl> pipeListNew = qRepos.getOldestNonEmptyPipes(qName, pipeCount + 1);
+
+        assertEquals("all pipes are finished and empty, should not have returned any", 0, pipeListNew.size());
     }
 }

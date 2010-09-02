@@ -19,7 +19,7 @@ public class CassQueueFactoryImpl {
         return cq;
     }
 
-    public PopperImpl createPopper(CassQueueImpl cq) {
+    public PopperImpl createPopper(CassQueueImpl cq) throws Exception {
         PopperImpl popper = new PopperImpl(cq, qRepos, popLocker);
         return popper;
     }
