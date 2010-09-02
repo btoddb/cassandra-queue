@@ -238,10 +238,10 @@ public class TestUtils {
     // }
     // }
     // }
-    //
-    // public String formatMsgValue(String base, int pipeNum) {
-    // return base + "-" + pipeNum;
-    // }
+
+    public static String formatMsgValue(String base, int pipeNum) {
+        return base + "-" + pipeNum;
+    }
 
     public static PelopsPool createQueuePool(String[] hostArr, int thriftPort, boolean useFramedTransport,
             int minCachedConns, int maxConns, int targetConns, boolean killNodeConnsOnException) {

@@ -6,12 +6,28 @@ public class CassQueueImpl extends CassQueueAbstractImpl implements CassQueueImp
     private long maxPushTimeOfPipe;
     private int maxPushesPerPipe;
     private int popWidth;
+    private QueueRepositoryImpl qRepos;
+    private PipeDescriptorFactory pipeDescFactory;
+    private PipeLockerImpl popLocker;
 
-    public CassQueueImpl(String qName, long maxPushTimeOfPipe, int maxPushesPerPipe, int popWidth) {
+    public CassQueueImpl(QueueRepositoryImpl qRepos, PipeDescriptorFactory pipeDescFactory, String qName,
+            long maxPushTimeOfPipe, int maxPushesPerPipe, int popWidth, PipeLockerImpl popLocker) {
         super(qName);
+
+        this.qRepos = qRepos;
+        this.pipeDescFactory = pipeDescFactory;
         this.maxPushTimeOfPipe = maxPushTimeOfPipe;
         this.maxPushesPerPipe = maxPushesPerPipe;
         this.popWidth = popWidth;
+        this.popLocker = popLocker;
+    }
+
+    public PusherImpl createPusher() {
+        return new PusherImpl(this, qRepos, pipeDescFactory);
+    }
+
+    public PopperImpl createPopper() throws Exception {
+        return new PopperImpl(this, qRepos, popLocker);
     }
 
     @Override

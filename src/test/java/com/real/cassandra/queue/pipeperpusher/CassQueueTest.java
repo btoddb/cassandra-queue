@@ -31,7 +31,7 @@ public class CassQueueTest {
 
     @Test
     public void testPush() throws Exception {
-        PusherImpl pusher = cqFactory.createPusher(cq);
+        PusherImpl pusher = cq.createPusher();
         int numMsgs = 10;
         for (int i = 0; i < numMsgs; i++) {
             pusher.push("xxx_" + i);

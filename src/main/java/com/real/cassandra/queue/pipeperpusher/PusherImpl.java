@@ -25,11 +25,13 @@ public class PusherImpl {
     private CassQMsgFactory qMsgFactory = new CassQMsgFactory();
 
     private PipeDescriptorImpl pipeDesc = null;
+    private long start;
 
     public PusherImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, PipeDescriptorFactory pipeDescFactory) {
         this.cq = (CassQueueImpl) cq;
         this.qRepos = qRepos;
         this.pipeDescFactory = pipeDescFactory;
+        this.start = System.currentTimeMillis();
     }
 
     public CassQMsg push(String msgData) throws Exception {
@@ -59,10 +61,12 @@ public class PusherImpl {
         }
 
         pipeDesc = pipeDescFactory.createInstance(cq.getName(), pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE, 0);
+        start = System.currentTimeMillis();
     }
 
     private boolean isNewPipeNeeded() {
-        return null == pipeDesc || pipeDesc.getMsgCount() >= cq.getMaxPushesPerPipe();
+        return null == pipeDesc || pipeDesc.getMsgCount() >= cq.getMaxPushesPerPipe()
+                || System.currentTimeMillis() - start > cq.getMaxPushTimeOfPipe();
     }
 
     public String getQName() {

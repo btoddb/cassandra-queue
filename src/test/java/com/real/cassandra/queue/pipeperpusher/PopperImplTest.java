@@ -18,8 +18,8 @@ public class PopperImplTest extends PipePerPusherTestBase {
     @Test
     public void testSinglePopper() throws Exception {
         CassQueueImpl cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, false);
-        PusherImpl pusher = cqFactory.createPusher(cq);
-        PopperImpl popper = cqFactory.createPopper(cq);
+        PusherImpl pusher = cq.createPusher();
+        PopperImpl popper = cq.createPopper();
 
         String msgData = "the data-" + System.currentTimeMillis();
         CassQMsg qMsgPush = pusher.push(msgData);
@@ -41,9 +41,9 @@ public class PopperImplTest extends PipePerPusherTestBase {
     @Test
     public void testMultiplePoppersSinglePipeNotThreaded() throws Exception {
         CassQueueImpl cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, false);
-        PusherImpl pusher = cqFactory.createPusher(cq);
+        PusherImpl pusher = cq.createPusher();
         PopperImpl[] popperArr = new PopperImpl[] {
-                cqFactory.createPopper(cq), cqFactory.createPopper(cq), cqFactory.createPopper(cq) };
+                cq.createPopper(), cq.createPopper(), cq.createPopper() };
         int msgCount = 6;
         ArrayList<CassQMsg> msgList = new ArrayList<CassQMsg>(msgCount);
 
@@ -80,8 +80,8 @@ public class PopperImplTest extends PipePerPusherTestBase {
         CassQueueImpl cq =
                 cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe,
                         numPopPipes, false);
-        PusherImpl pusher = cqFactory.createPusher(cq);
-        PopperImpl popper = cqFactory.createPopper(cq);
+        PusherImpl pusher = cq.createPusher();
+        PopperImpl popper = cq.createPopper();
 
         int msgCount = maxPushesPerPipe * numPopPipes * 3;
         CassQMsg[] msgArr = new CassQMsg[msgCount];
@@ -122,8 +122,8 @@ public class PopperImplTest extends PipePerPusherTestBase {
     @Test
     public void testMarkingPipeAsFinishedEmpty() throws Exception {
         CassQueueImpl cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, false);
-        PusherImpl pusher = cqFactory.createPusher(cq);
-        PopperImpl popper = cqFactory.createPopper(cq);
+        PusherImpl pusher = cq.createPusher();
+        PopperImpl popper = cq.createPopper();
         int msgCount = 10;
 
         for (int i = 0; i < msgCount; i++) {
@@ -142,7 +142,6 @@ public class PopperImplTest extends PipePerPusherTestBase {
         }
 
         // do one more pop to push over the edge to next pipe
-        popper.pop();
         assertEquals("should have rolled to next pipe and retrieved next msg", "over-to-next", popper.pop()
                 .getMsgData());
 
@@ -155,15 +154,15 @@ public class PopperImplTest extends PipePerPusherTestBase {
     @Test
     public void testNoPipes() throws Exception {
         CassQueueImpl cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, false);
-        PopperImpl popper = cqFactory.createPopper(cq);
+        PopperImpl popper = cq.createPopper();
         assertNull("should return null", popper.pop());
     }
 
     @Test
     public void testShutdownInProgress() throws Exception {
         CassQueueImpl cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, false);
-        PopperImpl popper = cqFactory.createPopper(cq);
-        PusherImpl pusher = cqFactory.createPusher(cq);
+        PopperImpl popper = cq.createPopper();
+        PusherImpl pusher = cq.createPusher();
 
         pusher.push("blah1");
         pusher.push("blah1");

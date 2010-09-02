@@ -18,7 +18,8 @@ public class PusherImplTest extends PipePerPusherTestBase {
 
     @Test
     public void testSinglePusherSingleMsg() throws Exception {
-        PusherImpl pusher = cqFactory.createPusher(cq);
+        cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, false);
+        PusherImpl pusher = cq.createPusher();
         String msgData = "the data-" + System.currentTimeMillis();
 
         CassQMsg qMsg = pusher.push(msgData);
@@ -38,12 +39,13 @@ public class PusherImplTest extends PipePerPusherTestBase {
 
     @Test
     public void testMultiplePushers() throws Exception {
+        cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, false);
         int numMsgs = 10;
         ArrayList<CassQMsg> pushList1 = new ArrayList<CassQMsg>(numMsgs);
         ArrayList<CassQMsg> pushList2 = new ArrayList<CassQMsg>(numMsgs);
 
-        PusherImpl pusher1 = cqFactory.createPusher(cq);
-        PusherImpl pusher2 = cqFactory.createPusher(cq);
+        PusherImpl pusher1 = cq.createPusher();
+        PusherImpl pusher2 = cq.createPusher();
 
         for (int i = 0; i < numMsgs; i++) {
             pushList1.add(pusher1.push("push1-" + System.currentTimeMillis() + i));
@@ -71,10 +73,11 @@ public class PusherImplTest extends PipePerPusherTestBase {
 
     @Test
     public void testRollAfterMaxPushes() throws Exception {
+        cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, false);
         int numMsgs = 30;
         ArrayList<CassQMsg> pushList = new ArrayList<CassQMsg>(numMsgs);
 
-        PusherImpl pusher = cqFactory.createPusher(cq);
+        PusherImpl pusher = cq.createPusher();
 
         for (int i = 0; i < numMsgs; i++) {
             pushList.add(pusher.push("push-" + System.currentTimeMillis() + i));
@@ -90,7 +93,7 @@ public class PusherImplTest extends PipePerPusherTestBase {
             pipeSet.add(lastPipeId);
         }
 
-        assertEquals("should have created exactly " + numMsgs / cq.getMaxPushesPerPipe(),
+        assertEquals("should have created exactly " + numMsgs / cq.getMaxPushesPerPipe() + " pipes",
                 numMsgs / cq.getMaxPushesPerPipe(), pipeSet.size());
 
         for (UUID pipeId : pipeSet) {
@@ -106,13 +109,45 @@ public class PusherImplTest extends PipePerPusherTestBase {
     }
 
     @Test
-    public void testRollAfterTimePasses() {
-        fail("not finished");
+    public void testRollAfterTimePasses() throws Exception {
+        cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 1000, 10, 1, false);
+        PusherImpl pusher = cq.createPusher();
+        int numMsgs = 3;
+        ArrayList<CassQMsg> pushList = new ArrayList<CassQMsg>(numMsgs);
+
+        for (int i = 0; i < numMsgs; i++) {
+            pushList.add(pusher.push("push-" + System.currentTimeMillis() + i));
+            Thread.sleep(1001);
+        }
+
+        Set<UUID> pipeSet = new HashSet<UUID>();
+        UUID lastPipeId = null;
+        for (int i = 0; i < numMsgs; i++) {
+            CassQMsg qMsg = pushList.get(i);
+            CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor().getPipeId(), qMsg.getMsgId());
+            assertEquals(qMsg.getMsgData(), qMsgNew.getMsgData());
+            lastPipeId = qMsg.getPipeDescriptor().getPipeId();
+            pipeSet.add(lastPipeId);
+        }
+
+        assertEquals("should have created exactly " + numMsgs + " pipes", numMsgs, pipeSet.size());
+
+        for (UUID pipeId : pipeSet) {
+            PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(cq.getName(), pipeId);
+            assertEquals(numMsgs / pipeSet.size(), pipeDesc.getMsgCount());
+            if (!pipeDesc.getPipeId().equals(lastPipeId)) {
+                assertFalse("pipe should not be active", pipeDesc.isPushActive());
+            }
+            else {
+                assertTrue("pipe should still be active", pipeDesc.isPushActive());
+            }
+        }
     }
 
     @Test
     public void testShutdownInProgress() throws Exception {
-        PusherImpl pusher = cqFactory.createPusher(cq);
+        cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, false);
+        PusherImpl pusher = cq.createPusher();
         int numMsgs = 45;
         Set<UUID> pipeSet = new HashSet<UUID>();
         for (int i = 0; i < numMsgs; i++) {
@@ -140,8 +175,6 @@ public class PusherImplTest extends PipePerPusherTestBase {
 
     @Before
     public void setupTest() throws Exception {
-        PipeDescriptorFactory pipeDescFactory = new PipeDescriptorFactory();
-        cqFactory = new CassQueueFactoryImpl(qRepos, pipeDescFactory);
-        cq = cqFactory.createQueueInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, false);
+        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory());
     }
 }
