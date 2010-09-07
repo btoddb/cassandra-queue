@@ -1,4 +1,4 @@
-package com.real.cassandra.queue;
+package com.real.cassandra.queue.pipeperpusher.utils;
 
 public interface EnvPropertiesMXBean {
     String JMX_MBEAN_OBJ_NAME = "com.real.cassq:type=EnvProperties";
@@ -11,9 +11,9 @@ public interface EnvPropertiesMXBean {
 
     int getNumPushers();
 
-    int getNumMsgsPerPusher();
+    int getNumMsgs();
 
-    int getNumMsgsPerPopper();
+    // int getNumMsgsPerPopper();
 
     int getNumPoppers();
 
@@ -21,13 +21,13 @@ public interface EnvPropertiesMXBean {
 
     long getPopDelay();
 
-    boolean getNearFifo();
+    // boolean getNearFifo();
 
     boolean getDropKeyspace();
 
     boolean getTruncateQueue();
 
-    int getNumPipes();
+    // int getNumPipes();
 
     int getMinCacheConnsPerHost();
 
@@ -49,12 +49,12 @@ public interface EnvPropertiesMXBean {
 
     void setNumPushers(int value);
 
-    void setNumMsgsPerPopper(int value);
+    // void setNumMsgsPerPopper(int value);
 
-    void setNumMsgsPerPusher(int value);
+    // void setNumMsgsPerPusher(int value);
 
     void setPopDelay(long value);
 
-    void setPushPipeIncrementDelay(long value);
+    // void setPushPipeIncrementDelay(long value);
 
 }

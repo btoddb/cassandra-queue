@@ -43,7 +43,7 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
         int maxPopWidth = 4;
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
         KeyspaceManager ksMgr = Pelops.createKeyspaceManager(qRepos.getSystemPool().getCluster());
         KsDef ksDef = ksMgr.getKeyspaceSchema(QueueRepositoryImpl.QUEUE_KEYSPACE_NAME);
@@ -72,10 +72,10 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
         int maxPopWidth = 4;
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
         QueueDescriptor qDesc =
-                qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+                qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
         assertEquals(maxPushTimeOfPipe, qDesc.getMaxPushTimeOfPipe());
         assertEquals(maxPushesPerPipe, qDesc.getMaxPushesPerPipe());
@@ -89,9 +89,9 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         int maxPushesPerPipe = 23;
         int maxPopWidth = 4;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe * 2, maxPushesPerPipe * 2, maxPopWidth * 2);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe * 2, maxPushesPerPipe * 2, maxPopWidth * 2, 1000);
     }
 
     @Test
@@ -101,7 +101,7 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         int maxPushesPerPipe = 23;
         int maxPopWidth = 4;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
         String msgData = "get the msg";
 
@@ -134,7 +134,7 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         int maxPopWidth = 4;
         int msgCount = 15;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
         UUID pipeId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
         qRepos.setPipeDescriptorStatus(qName, new PipeDescriptorImpl(qName, pipeId,
@@ -166,7 +166,7 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         int maxPopWidth = 4;
         int msgCount = 15;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
         UUID pipeId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
         qRepos.setPipeDescriptorStatus(qName, new PipeDescriptorImpl(qName, pipeId,
@@ -181,14 +181,14 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         // ArrayList<CassQMsg> msgList = new ArrayList<CassQMsg>(msgCount);
         CassQMsg qMsg;
         while (null != (qMsg = qRepos.getOldestMsgFromWaitingPipe(pipeDesc))) {
-            qRepos.moveMsgFromWaitingToDeliveredPipe(pipeDesc, qMsg);
+            qRepos.moveMsgFromWaitingToDeliveredPipe(qMsg);
         }
 
         int i = 0;
         while (null != (qMsg = qRepos.getOldestMsgFromDeliveredPipe(pipeDesc))) {
             assertEquals("data was not retrieved (or inserted) in the proper order, or too much data found", "data-"
                     + i, qMsg.getMsgData());
-            qRepos.removeMsgFromDeliveredPipe(pipeDesc, qMsg);
+            qRepos.removeMsgFromDeliveredPipe(qMsg);
             i++;
         }
         assertEquals("should have retrieve exactly " + msgCount + " msgs", msgCount, i);
@@ -202,7 +202,7 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         int maxPopWidth = 4;
         int pipeCount = 20;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
         ArrayList<UUID> pipeList = new ArrayList<UUID>();
         for (int i = 0; i < pipeCount; i++) {
@@ -235,7 +235,7 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         int maxPopWidth = 4;
         int pipeCount = 5;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
         ArrayList<UUID> pipeList = new ArrayList<UUID>();
         for (int i = 0; i < pipeCount; i++) {

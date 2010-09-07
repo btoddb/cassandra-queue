@@ -1,4 +1,4 @@
-package com.real.cassandra.queue.roundrobin;
+package com.real.cassandra.queue.pipeperpusher;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -15,9 +15,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.CassQMsg;
-import com.real.cassandra.queue.roundrobin.CassQueueImpl;
-import com.real.cassandra.queue.roundrobin.PipeManagerImpl;
-import com.real.cassandra.queue.roundrobin.QueueRepositoryImpl;
+import com.real.cassandra.queue.pipeperpusher.utils.EnvProperties;
+import com.real.cassandra.queue.pipeperpusher.utils.CassQueueUtils;
 
 /**
  * Unit tests for {@link CassQueueImpl}.
@@ -27,24 +26,17 @@ import com.real.cassandra.queue.roundrobin.QueueRepositoryImpl;
 public class TestMain {
     private static Logger logger = LoggerFactory.getLogger(TestMain.class);
 
-    private static QueueRepositoryImpl qRepository;
+    private static CassQueueFactoryImpl cqFactory;
+    private static QueueRepositoryImpl qRepos;
     private static EnvProperties envProps;
-
-    private static PipeManagerImpl pipeMgr;
     private static CassQueueImpl cq;
 
     public static void main(String[] args) throws Exception {
         logger.info("setting up app properties");
         parseAppProperties();
 
-        logger.info("setting up pelops pool");
-        setupQueueSystemAndPelopsPool();
-
-        logger.info("setting up queue");
-        setupQueue();
-
-        TestUtils testUtils = new TestUtils(cq);
-        cq.setNearFifoOk(envProps.getNearFifo());
+        logger.info("setting queuing system");
+        setupQueueSystem();
 
         //
         // start a set of pushers and poppers
@@ -57,10 +49,10 @@ public class TestMain {
         Thread.sleep(2000);
 
         Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
-        List<PushPopAbstractBase> pusherSet = testUtils.startPushers(cq, "test", envProps);
-        List<PushPopAbstractBase> popperSet = testUtils.startPoppers(cq, "test", popQ, envProps);
+        List<PushPopAbstractBase> pusherSet = CassQueueUtils.startPushers(cq, envProps);
+        List<PushPopAbstractBase> popperSet = CassQueueUtils.startPoppers(cq, popQ, envProps);
 
-        testUtils.monitorPushersPoppers(popQ, pusherSet, popperSet, null, null);
+        CassQueueUtils.monitorPushersPoppers(popQ, pusherSet, popperSet, null, null);
 
         shutdownQueueMgrAndPool();
     }
@@ -77,13 +69,13 @@ public class TestMain {
         logger.info("using thrift port : " + props.getProperty("thriftPort"));
     }
 
-    private static void setupQueue() throws Exception {
-        pipeMgr = new PipeManagerImpl(TestUtils.QUEUE_NAME);
-        cq = TestUtils.setupQueue(qRepository, TestUtils.QUEUE_NAME, envProps, true, false, pipeMgr);
-    }
-
-    private static void setupQueueSystemAndPelopsPool() throws Exception {
-        qRepository = TestUtils.setupQueueSystemAndPelopsPool(envProps, ConsistencyLevel.QUORUM);
+    private static void setupQueueSystem() throws Exception {
+        qRepos = CassQueueUtils.createQueueRepository(envProps, ConsistencyLevel.QUORUM);
+        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new PipeLockerImpl());
+        cq =
+                cqFactory.createInstance(envProps.getQName(), envProps.getMaxPushTimePerPipe(),
+                        envProps.getMaxPushesPerPipe(), envProps.getMaxPopWidth(), envProps.getPopPipeRefreshDelay(),
+                        false);
     }
 
     private static void shutdownQueueMgrAndPool() {

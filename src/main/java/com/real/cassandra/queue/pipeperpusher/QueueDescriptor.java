@@ -5,6 +5,7 @@ public class QueueDescriptor {
     private long maxPushTimeOfPipe;
     private int maxPushesPerPipe;
     private int maxPopWidth;
+    private long popPipeRefreshDelay;
 
     public QueueDescriptor(String name) {
         this.name = name;
@@ -36,6 +37,14 @@ public class QueueDescriptor {
 
     public int getMaxPopWidth() {
         return maxPopWidth;
+    }
+
+    public long getPopPipeRefreshDelay() {
+        return popPipeRefreshDelay;
+    }
+
+    public void setPopPipeRefreshDelay(long popPipeRefreshDelay) {
+        this.popPipeRefreshDelay = popPipeRefreshDelay;
     }
 
 }

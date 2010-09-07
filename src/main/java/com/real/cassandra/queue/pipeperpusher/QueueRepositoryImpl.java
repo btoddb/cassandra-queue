@@ -1,8 +1,10 @@
 package com.real.cassandra.queue.pipeperpusher;
 
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -43,11 +45,13 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     public static final Bytes QDESC_COLNAME_MAX_PUSH_TIME_OF_PIPE = Bytes.fromUTF8("maxPushTimeOfPipe");
     public static final Bytes QDESC_COLNAME_MAX_PUSHES_PER_PIPE = Bytes.fromUTF8("maxPushesPerPipe");
     public static final Bytes QDESC_COLNAME_MAX_POP_WIDTH = Bytes.fromUTF8("maxPopWidth");
+    public static final Bytes QDESC_COLNAME_POP_PIPE_REFRESH_DELAY = Bytes.fromUTF8("popPipeRefreshDelay");
 
     public static final String PIPE_STATUS_COLFAM = "PipeStatus";
 
     public static final String WAITING_COLFAM_SUFFIX = "_Waiting";
     public static final String DELIVERED_COLFAM_SUFFIX = "_Delivered";
+    public static final int GC_GRACE_SECS = 86400; // one day
 
     private static final int MAX_QUEUE_DESCRIPTOR_COLUMNS = 100;
 
@@ -101,44 +105,75 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
      * @param cq
      * @throws Exception
      */
-    public QueueDescriptor createQueueIfDoesntExist(String qName, long maxPushTimeOfPipe, int maxPushesPerPipe,
-            int maxPopWidth) throws Exception {
+    public QueueDescriptor createQueueIfDoesntExist(String qName, long maxPushTimePerPipe, int maxPushesPerPipe,
+            int maxPopWidth, long popPipeRefreshDelay) throws Exception {
         ColumnFamilyManager colFamMgr =
                 Pelops.createColumnFamilyManager(getSystemPool().getCluster(), QUEUE_KEYSPACE_NAME);
 
         CfDef colFamDef =
                 new CfDef(QUEUE_KEYSPACE_NAME, formatWaitingColFamName(qName)).setComparator_type("TimeUUIDType")
-                        .setKey_cache_size(0).setRow_cache_size(1000);
+                        .setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(GC_GRACE_SECS);
         try {
             colFamMgr.addColumnFamily(colFamDef);
         }
         catch (Exception e) {
-            logger.info("Column family already exists, continuing : " + colFamDef.getName());
+            logger.info("exception while trying to create column family, " + colFamDef.getName()
+                    + " - possibly already exists and is OK");
         }
 
         colFamDef =
                 new CfDef(QUEUE_KEYSPACE_NAME, formatDeliveredColFamName(qName)).setComparator_type("TimeUUIDType")
-                        .setKey_cache_size(0);
+                        .setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(GC_GRACE_SECS);
         try {
             colFamMgr.addColumnFamily(colFamDef);
         }
         catch (Exception e) {
-            logger.info("Column family already exists, continuing : " + colFamDef.getName());
+            logger.info("exception while trying to create column family, " + colFamDef.getName()
+                    + " - possibly already exists and is OK");
         }
 
         QueueDescriptor qDesc = getQueueDescriptor(qName);
         if (null != qDesc) {
-            if (qDesc.getMaxPushesPerPipe() != maxPushesPerPipe || qDesc.getMaxPushTimeOfPipe() != maxPushTimeOfPipe
+            if (qDesc.getMaxPushesPerPipe() != maxPushesPerPipe || qDesc.getMaxPushTimeOfPipe() != maxPushTimePerPipe
                     || qDesc.getMaxPopWidth() != maxPopWidth) {
                 throw new IllegalArgumentException(
                         "Queue Descriptor already exists and you passed in maxPushesPerPipe and/or maxPushTimeOfPipe that does not match what is already there");
             }
         }
         else {
-            qDesc = createQueueDescriptor(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth);
+            qDesc =
+                    createQueueDescriptor(qName, maxPushTimePerPipe, maxPushesPerPipe, maxPopWidth, popPipeRefreshDelay);
         }
 
         return qDesc;
+    }
+
+    public void removeQueue(CassQueueImpl cq) throws Exception {
+        String qName = cq.getName();
+
+        ColumnFamilyManager colFamMgr =
+                Pelops.createColumnFamilyManager(getSystemPool().getCluster(), QUEUE_KEYSPACE_NAME);
+        try {
+            colFamMgr.dropColumnFamily(formatWaitingColFamName(qName));
+        }
+        catch (Exception e) {
+            logger.info("exception while trying to drop column family, " + formatWaitingColFamName(qName));
+        }
+
+        try {
+            colFamMgr.dropColumnFamily(formatDeliveredColFamName(qName));
+        }
+        catch (Exception e) {
+            logger.info("exception while trying to drop column family, " + formatDeliveredColFamName(qName));
+        }
+
+        Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
+        m.removeRow(PIPE_STATUS_COLFAM, Bytes.fromUTF8(qName), getConsistencyLevel());
+        m.execute(getConsistencyLevel());
+
+        m = Pelops.createMutator(getQueuePool().getPoolName());
+        m.removeRow(QUEUE_DESCRIPTORS_COLFAM, Bytes.fromUTF8(qName), getConsistencyLevel());
+        m.execute(getConsistencyLevel());
     }
 
     public QueueDescriptor getQueueDescriptor(String qName) throws Exception {
@@ -157,7 +192,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     public QueueDescriptor createQueueDescriptor(String qName, long maxPushTimeOfPipe, int maxPushesPerPipe,
-            int maxPopWidth) throws Exception {
+            int maxPopWidth, long popPipeRefreshDelay) throws Exception {
         Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
 
         Column col = m.newColumn(QDESC_COLNAME_MAX_PUSH_TIME_OF_PIPE, Bytes.fromLong(maxPushTimeOfPipe));
@@ -167,6 +202,9 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         m.writeColumn(QUEUE_DESCRIPTORS_COLFAM, qName, col);
 
         col = m.newColumn(QDESC_COLNAME_MAX_POP_WIDTH, Bytes.fromInt(maxPopWidth));
+        m.writeColumn(QUEUE_DESCRIPTORS_COLFAM, qName, col);
+
+        col = m.newColumn(QDESC_COLNAME_POP_PIPE_REFRESH_DELAY, Bytes.fromLong(popPipeRefreshDelay));
         m.writeColumn(QUEUE_DESCRIPTORS_COLFAM, qName, col);
 
         m.execute(getConsistencyLevel());
@@ -284,9 +322,9 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     private void createKeyspace() throws Exception {
         ArrayList<CfDef> cfDefList = new ArrayList<CfDef>(2);
         cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_DESCRIPTORS_COLFAM).setComparator_type("BytesType")
-                .setKey_cache_size(0).setRow_cache_size(1000));
+                .setKey_cache_size(0).setRow_cache_size(1000).setGc_grace_seconds(GC_GRACE_SECS));
         cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, PIPE_STATUS_COLFAM).setComparator_type("TimeUUIDType")
-                .setKey_cache_size(0).setRow_cache_size(1000));
+                .setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(GC_GRACE_SECS));
 
         KsDef ksDef = new KsDef(QUEUE_KEYSPACE_NAME, STRATEGY_CLASS_NAME, getReplicationFactor(), cfDefList);
         KeyspaceManager ksMgr = Pelops.createKeyspaceManager(getSystemPool().getCluster());
@@ -358,61 +396,106 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         m.execute(getConsistencyLevel());
     }
 
-    // public void moveMsgFromDeliveredToWaitingPipe(CassQMsg qMsg,
-    // PipeDescriptorImpl newPipeDesc) throws Exception {
-    // PipeDescriptorImpl oldPipeDesc = qMsg.getPipeDescriptor();
-    // Bytes colName = Bytes.fromUuid(qMsg.getMsgId());
-    // Bytes colValue = Bytes.fromUTF8(qMsg.getMsgData());
-    //
-    // Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
-    // Column col = m.newColumn(colName, colValue);
-    // m.writeColumn(formatWaitingColFamName(newPipeDesc.getQName()),
-    // Bytes.fromUuid(newPipeDesc.getPipeId()), col);
-    // m.deleteColumn(formatDeliveredColFamName(oldPipeDesc.getQName()),
-    // Bytes.fromUuid(oldPipeDesc.getPipeId()),
-    // colName);
-    // m.execute(getConsistencyLevel());
-    // }
+    public List<PipeDescriptorImpl> getOldestNonEmptyPipes(final String qName, final int maxNumPipeDescs)
+            throws Exception {
+        final List<PipeDescriptorImpl> pipeDescList = new LinkedList<PipeDescriptorImpl>();
+        // final Bytes qNameAsBytes = Bytes.fromUTF8(qName);
 
-    public List<PipeDescriptorImpl> getOldestNonEmptyPipes(String qName, int maxNumPipeDescs) throws Exception {
-        Selector s = Pelops.createSelector(getQueuePool().getPoolName());
-        SlicePredicate pred = Selector.newColumnsPredicateAll(false, maxNumPipeDescs);
-        Bytes qNameAsBytes = Bytes.fromUTF8(qName);
+        ColumnIterator rawMsgColIter = new ColumnIterator();
+        rawMsgColIter.doIt(getQueuePool().getPoolName(), PIPE_STATUS_COLFAM, Bytes.fromUTF8(qName),
+                getConsistencyLevel(), new ColumnIterator.ColumnOperator() {
+                    @Override
+                    public boolean execute(Column col) throws Exception {
+                        PipeDescriptorImpl pipeDesc = pipeDescFactory.createInstance(qName, col);
+                        if (!pipeDesc.isFinishedAndEmpty()) {
+                            pipeDescList.add(pipeDesc);
+                        }
 
-        ArrayList<PipeDescriptorImpl> pipeDescList = new ArrayList<PipeDescriptorImpl>(maxNumPipeDescs + 1);
-        int count = 0;
-        byte[] lastColName = new byte[] {};
-        while (count < maxNumPipeDescs) {
-            pred =
-                    Selector.newColumnsPredicate(Bytes.fromBytes(lastColName), Bytes.fromBytes(new byte[] {}), false,
-                            maxNumPipeDescs + 1);
-            List<Column> colList = s.getColumnsFromRow(PIPE_STATUS_COLFAM, qNameAsBytes, pred, getConsistencyLevel());
-
-            Iterator<Column> iter = colList.iterator();
-            boolean skipFirst = 0 < lastColName.length;
-            while (iter.hasNext() && count < maxNumPipeDescs) {
-                Column col = iter.next();
-                if (skipFirst) {
-                    skipFirst = false;
-                    lastColName = null;
-                    continue;
-                }
-
-                PipeDescriptorImpl pipeDesc = pipeDescFactory.createInstance(qName, col);
-                if (!pipeDesc.isFinishedAndEmpty()) {
-                    pipeDescList.add(pipeDesc);
-                    count++;
-                }
-
-                lastColName = col.getName();
-            }
-
-            if (null == lastColName || 0 == lastColName.length) {
-                break;
-            }
-        }
+                        return pipeDescList.size() < maxNumPipeDescs;
+                    }
+                });
 
         return pipeDescList;
+    }
+
+    // public List<PipeDescriptorImpl> getAllPipes(String qName, int
+    // maxNumPipeDescs) throws Exception {
+    // final GetAllPipesResult res = new GetAllPipesResult();
+    // KeyRowIterator krIter = new KeyRowIterator();
+    // krIter.doIt(getQueuePool().getPoolName(), PIPE_STATUS_COLFAM, 1000,
+    // getConsistencyLevel(),
+    // new KeyRowIterator.KeyOperator() {
+    // @Override
+    // public void execute(Bytes key, List<Column> colList) throws Exception {
+    // res.addStatus(col.getValue());
+    // }
+    // });
+    //
+    // Selector s = Pelops.createSelector(getQueuePool().getPoolName());
+    // SlicePredicate pred = Selector.newColumnsPredicateAll(false,
+    // maxNumPipeDescs);
+    // List<Column> colList =
+    // s.getColumnsFromRow(PIPE_STATUS_COLFAM, Bytes.fromUTF8(qName), pred,
+    // getConsistencyLevel());
+    //
+    // List<PipeDescriptorImpl> pipeDescList = new
+    // ArrayList<PipeDescriptorImpl>(colList.size());
+    // for (Column col : colList) {
+    // pipeDescList.add(pipeDescFactory.createInstance(qName, col));
+    // }
+    // return pipeDescList;
+    // }
+
+    private CountResult getCountOfMsgsAndStatus(String qName, final String colFamName) throws Exception {
+        final CountResult result = new CountResult();
+        final SlicePredicate pred = Selector.newColumnsPredicateAll(false, 10000);
+
+        // TODO:BTB currently not removing columns from this CF, which would
+        // speed this up after compaction
+
+        ColumnIterator rawMsgColIter = new ColumnIterator();
+        rawMsgColIter.doIt(getQueuePool().getPoolName(), PIPE_STATUS_COLFAM, Bytes.fromUTF8(qName),
+                getConsistencyLevel(), new ColumnIterator.ColumnOperator() {
+                    @Override
+                    public boolean execute(Column col) throws Exception {
+                        logger.info("working on pipe descriptor : " + UUID.nameUUIDFromBytes(col.getName()));
+                        String status = new String(col.getValue());
+                        result.addStatus(status);
+                        Selector s = Pelops.createSelector(getQueuePool().getPoolName());
+                        int msgCount =
+                                s.getColumnCount(colFamName, Bytes.fromBytes(col.getName()), pred,
+                                        getConsistencyLevel());
+                        result.totalMsgCount += msgCount;
+                        logger.info(result.numPipeDescriptors + " : status = " + status + ", msgCount = " + msgCount);
+                        return true;
+                    }
+                });
+
+        return result;
+    }
+
+    public CountResult getCountOfWaitingMsgs(String qName) throws Exception {
+        return getCountOfMsgsAndStatus(qName, formatWaitingColFamName(qName));
+    }
+
+    public CountResult getCountOfDeliveredMsgs(String qName) throws Exception {
+        return getCountOfMsgsAndStatus(qName, formatDeliveredColFamName(qName));
+    }
+
+    public class CountResult {
+        public int numPipeDescriptors;
+        public int totalMsgCount;
+        public Map<String, Integer> statusCounts = new HashMap<String, Integer>();
+
+        public void addStatus(String status) {
+            numPipeDescriptors++;
+            Integer count = statusCounts.get(status);
+            if (null == count) {
+                count = new Integer(0);
+            }
+            statusCounts.put(status, Integer.valueOf(count + 1));
+        }
+
     }
 
     // public List<Column> getDeliveredMessages(String name, long pipeNum, int
@@ -425,25 +508,6 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
     // public boolean isQueueExists(String qName) throws Exception {
     // return null != getQueueDescriptor(qName);
-    // }
-
-    // public int getCount(String qName) throws Exception {
-    // QueueDescriptor qDesc = getQueueDescriptor(qName);
-    // return getCount(qName, qDesc.getPopStartPipe(), qDesc.getPushStartPipe()
-    // + qDesc.getNumPipes());
-    // }
-
-    // public int getCount(String qName, long startPipe, long endPipe) throws
-    // Exception {
-    // int count = 0;
-    // for (long pipeNum = startPipe; pipeNum <= endPipe; pipeNum++) {
-    // Selector s = Pelops.createSelector(queuePool.getPoolName());
-    // SlicePredicate predicate = Selector.newColumnsPredicateAll(false,
-    // 1000000);
-    // count += s.getColumnCount(WAITING_COL_FAM, formatKey(qName, pipeNum),
-    // predicate, consistencyLevel);
-    // }
-    // return count;
     // }
 
     // /**

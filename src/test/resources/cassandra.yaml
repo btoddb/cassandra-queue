@@ -52,8 +52,8 @@ disk_access_mode: standard
 # concurrent reads per processor core.  Increase ConcurrentWrites to
 # the number of clients writing at once if you enable CommitLogSync +
 # CommitLogSyncDelay. -->
-concurrent_reads: 8
-concurrent_writes: 32
+concurrent_reads: 4
+concurrent_writes: 8
 
 # This sets the amount of memtable flush writer threads.  These will
 # be blocked by disk io, and each one will hold a memtable in memory

@@ -3,14 +3,13 @@ package com.real.cassandra.queue.pipeperpusher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.EnvProperties;
+import com.real.cassandra.queue.pipeperpusher.utils.EnvProperties;
 
 public abstract class PushPopAbstractBase implements Runnable {
     private static Logger logger = LoggerFactory.getLogger(PushPopAbstractBase.class);
 
     private EnvProperties envProps;
     private String delayPropName;
-    private String baseValue;
     private int numMsgsToProcess;
     private int msgsProcessed;
     private boolean stopProcessing = false;
@@ -19,8 +18,7 @@ public abstract class PushPopAbstractBase implements Runnable {
     long start;
     long end = -1;
 
-    public PushPopAbstractBase(String baseValue, EnvProperties envProps, String delayPropName) {
-        this.baseValue = baseValue;
+    public PushPopAbstractBase(EnvProperties envProps, String delayPropName) {
         this.envProps = envProps;
         this.delayPropName = delayPropName;
     }
@@ -33,7 +31,9 @@ public abstract class PushPopAbstractBase implements Runnable {
         theThread.start();
     }
 
-    protected abstract boolean processMsg(String value) throws Exception;
+    protected abstract boolean processMsg() throws Exception;
+
+    protected abstract void shutdown() throws Exception;
 
     @Override
     public void run() {
@@ -42,7 +42,7 @@ public abstract class PushPopAbstractBase implements Runnable {
         msgsProcessed = 0;
         while (msgsProcessed < numMsgsToProcess && !stopProcessing) {
             try {
-                if (processMsg(TestUtils.formatMsgValue(baseValue, msgsProcessed))) {
+                if (processMsg()) {
                     msgsProcessed++;
                 }
             }
@@ -60,6 +60,13 @@ public abstract class PushPopAbstractBase implements Runnable {
                 }
             }
 
+        }
+
+        try {
+            shutdown();
+        }
+        catch (Exception e) {
+            logger.error("exception while shutting down " + this.getClass().getSimpleName(), e);
         }
 
         end = System.currentTimeMillis();
@@ -86,10 +93,6 @@ public abstract class PushPopAbstractBase implements Runnable {
 
     public boolean isFinished() {
         return msgsProcessed == numMsgsToProcess;
-    }
-
-    public String getBaseValue() {
-        return baseValue;
     }
 
     public void setStopProcessing(boolean stopProcessing) {

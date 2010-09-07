@@ -1,8 +1,13 @@
-package com.real.cassandra.queue.pipeperpusher;
+package com.real.cassandra.queue.pipeperpusher.utils;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.contrib.utils.service.CassandraServiceDataCleaner;
 import org.apache.cassandra.service.EmbeddedCassandraService;
@@ -14,11 +19,16 @@ import org.scale7.cassandra.pelops.OperandPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.EnvProperties;
+import com.real.cassandra.queue.CassQMsg;
+import com.real.cassandra.queue.pipeperpusher.CassQueueImpl;
+import com.real.cassandra.queue.pipeperpusher.CassQueuePopper;
+import com.real.cassandra.queue.pipeperpusher.CassQueuePusher;
+import com.real.cassandra.queue.pipeperpusher.PushPopAbstractBase;
+import com.real.cassandra.queue.pipeperpusher.QueueRepositoryImpl;
 import com.real.cassandra.queue.repository.PelopsPool;
 
-public class TestUtils {
-    private static Logger logger = LoggerFactory.getLogger(TestUtils.class);
+public class CassQueueUtils {
+    private static Logger logger = LoggerFactory.getLogger(CassQueueUtils.class);
 
     public static final String QUEUE_POOL_NAME = "myTestPool";
     public static final String SYSTEM_POOL_NAME = "mySystemPool";
@@ -28,59 +38,57 @@ public class TestUtils {
     private static PelopsPool systemPool;
     private static PelopsPool queuePool;
 
-    public TestUtils() {
+    public CassQueueUtils() {
     }
 
-    // public boolean monitorPushersPoppers(Queue<CassQMsg> popQ,
-    // List<PushPopAbstractBase> pusherSet,
-    // List<PushPopAbstractBase> popperSet, Set<CassQMsg> msgSet, Set<String>
-    // valueSet) {
-    // //
-    // // process popped messages and wait until finished - make sure a message
-    // // is only processed once
-    // //
-    //
-    // logger.info("start monitoring for end-of-test conditions");
-    //
-    // // long start = System.currentTimeMillis();
-    // long interval = System.currentTimeMillis();
-    // while (!popQ.isEmpty() || !isPushPopOpFinished(popperSet) ||
-    // !isPushPopOpFinished(pusherSet)) {
-    // CassQMsg qMsg = !popQ.isEmpty() ? popQ.remove() : null;
-    // if (null != qMsg) {
-    // if (null != msgSet && !msgSet.add(qMsg)) {
-    // fail("msg already popped - either message pushed twice or popped twice : "
-    // + qMsg.toString());
-    // }
-    // if (null != valueSet && !valueSet.add(qMsg.getValue())) {
-    // fail("value of message pushed more than once : " + qMsg.toString());
-    // }
-    // }
-    // else {
-    // try {
-    // Thread.sleep(200);
-    // }
-    // catch (InterruptedException e) {
-    // // do nothing
-    // }
-    // }
-    //
-    // if (1000 < (System.currentTimeMillis() - interval)) {
-    // reportPopStatus(popperSet, popQ);
-    // interval = System.currentTimeMillis();
-    // }
-    // }
-    //
-    // logger.info("final pop stats");
-    // reportPopStatus(popperSet, popQ);
-    //
-    // return true;
-    // }
-    //
-    // private static void fail(String msg) {
-    // throw new RuntimeException(msg);
-    // }
-    //
+    public static boolean monitorPushersPoppers(Queue<CassQMsg> popQ, List<PushPopAbstractBase> pusherSet,
+            List<PushPopAbstractBase> popperSet, Set<CassQMsg> msgSet, Set<String> valueSet) {
+        //
+        // process popped messages and wait until finished - make sure a message
+        // is only processed once
+        //
+
+        logger.info("start monitoring for end-of-test conditions");
+
+        // long start = System.currentTimeMillis();
+        long interval = System.currentTimeMillis();
+        int lastPopCount = 0;
+        while (!popQ.isEmpty() || !isPushPopOpFinished(pusherSet)
+                || (!isPushPopOpFinished(popperSet) && lastPopCount != countPops(popperSet))) {
+            CassQMsg qMsg = !popQ.isEmpty() ? popQ.remove() : null;
+            if (null != qMsg) {
+                if (null != msgSet && (msgSet.contains(qMsg) || !msgSet.add(qMsg))) {
+                    fail("msg already popped - either message pushed twice or popped twice : " + qMsg.toString());
+                }
+                if (null != valueSet && (valueSet.contains(qMsg) || !valueSet.add(qMsg.getMsgData()))) {
+                    fail("value of message pushed more than once : " + qMsg.toString());
+                }
+            }
+            else {
+                try {
+                    Thread.sleep(200);
+                }
+                catch (InterruptedException e) {
+                    // do nothing
+                }
+            }
+
+            if (1000 < (System.currentTimeMillis() - interval)) {
+                reportPopStatus(popperSet, popQ);
+                interval = System.currentTimeMillis();
+            }
+        }
+
+        logger.info("final pop stats");
+        reportPopStatus(popperSet, popQ);
+
+        return popQ.isEmpty() && isPushPopOpFinished(pusherSet) && isPushPopOpFinished(popperSet);
+    }
+
+    private static void fail(String msg) {
+        throw new RuntimeException(msg);
+    }
+
     // public String outputEventsAsCommaDelim(Collection<CassQMsg> collection) {
     // if (null == collection) {
     // return null;
@@ -264,7 +272,7 @@ public class TestUtils {
         pool.setKeyspaceName(QueueRepositoryImpl.QUEUE_KEYSPACE_NAME);
         pool.setNodeDiscovery(false);
         pool.setPolicy(policy);
-        pool.setPoolName(TestUtils.QUEUE_POOL_NAME);
+        pool.setPoolName(CassQueueUtils.QUEUE_POOL_NAME);
 
         pool.initPool();
         return pool;
@@ -289,42 +297,48 @@ public class TestUtils {
         pool.setKeyspaceName(QueueRepositoryImpl.SYSTEM_KEYSPACE_NAME);
         pool.setNodeDiscovery(false);
         pool.setPolicy(policy);
-        pool.setPoolName(TestUtils.SYSTEM_POOL_NAME);
+        pool.setPoolName(CassQueueUtils.SYSTEM_POOL_NAME);
 
         pool.initPool();
         return pool;
     }
 
-    // public boolean isPushPopOpFinished(List<PushPopAbstractBase> opList) {
-    // if (opList.isEmpty()) {
-    // // assume watcher thread hasn't started any yet
-    // return false;
-    // }
-    //
-    // for (PushPopAbstractBase cqOp : opList) {
-    // if (!cqOp.isFinished()) {
-    // return false;
-    // }
-    // }
-    // return true;
-    // }
-    //
-    // public void reportPopStatus(List<PushPopAbstractBase> popperSet,
-    // Queue<CassQMsg> popQueue) {
-    // long elapsed = 0;
-    // int totalPopped = 0;
-    // for (PushPopAbstractBase popper : popperSet) {
-    // totalPopped += popper.getMsgsProcessed();
-    // long tmp = popper.getElapsedTime();
-    // if (tmp > elapsed) {
-    // elapsed = tmp;
-    // }
-    // }
-    //
-    // double secs = elapsed / 1000.0;
-    // logger.info("current elapsed pop time : " + secs + " (" + totalPopped +
-    // " : " + totalPopped / secs + " pop/s)");
-    // }
+    public static boolean isPushPopOpFinished(List<PushPopAbstractBase> opList) {
+        if (opList.isEmpty()) {
+            // assume watcher thread hasn't started any yet
+            return false;
+        }
+
+        for (PushPopAbstractBase cqOp : opList) {
+            if (!cqOp.isFinished()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static void reportPopStatus(List<PushPopAbstractBase> popperSet, Queue<CassQMsg> popQueue) {
+        long elapsed = 0;
+        int totalPopped = 0;
+        for (PushPopAbstractBase popper : popperSet) {
+            totalPopped += popper.getMsgsProcessed();
+            long tmp = popper.getElapsedTime();
+            if (tmp > elapsed) {
+                elapsed = tmp;
+            }
+        }
+
+        double secs = elapsed / 1000.0;
+        logger.info("current elapsed pop time : " + secs + " (" + totalPopped + " : " + totalPopped / secs + " pop/s)");
+    }
+
+    private static int countPops(List<PushPopAbstractBase> popperSet) {
+        int totalPopped = 0;
+        for (PushPopAbstractBase popper : popperSet) {
+            totalPopped += popper.getMsgsProcessed();
+        }
+        return totalPopped;
+    }
 
     public static void startCassandraInstance() throws TTransportException, IOException, InterruptedException,
             SecurityException, IllegalArgumentException, NoSuchMethodException, IllegalAccessException,
@@ -351,13 +365,13 @@ public class TestUtils {
             throws Exception {
         // must create system pool first and initialize cassandra
         systemPool =
-                TestUtils.createSystemPool(envProps.getHostArr(), envProps.getThriftPort(),
+                CassQueueUtils.createSystemPool(envProps.getHostArr(), envProps.getThriftPort(),
                         envProps.getUseFramedTransport());
 
         // pelops will produce errors after creating this pool if keyspace
         // doesn't exist
         queuePool =
-                TestUtils.createQueuePool(envProps.getHostArr(), envProps.getThriftPort(),
+                CassQueueUtils.createQueuePool(envProps.getHostArr(), envProps.getThriftPort(),
                         envProps.getUseFramedTransport(), envProps.getMinCacheConnsPerHost(),
                         envProps.getMaxConnectionsPerHost(), envProps.getTargetConnectionsPerHost(),
                         envProps.getKillNodeConnectionsOnException());
@@ -371,7 +385,8 @@ public class TestUtils {
     public static EnvProperties createEnvPropertiesWithDefaults() {
         Properties rawProps = new Properties();
         rawProps.setProperty(EnvProperties.ENV_numPipes, "4");
-        rawProps.setProperty(EnvProperties.ENV_pushPipeIncrementDelay, "20000");
+        // rawProps.setProperty(EnvProperties.ENV_pushPipeIncrementDelay,
+        // "20000");
         rawProps.setProperty(EnvProperties.ENV_hosts, "localhost");
         rawProps.setProperty(EnvProperties.ENV_thriftPort, "9161");
         rawProps.setProperty(EnvProperties.ENV_useFramedTransport, "false");
@@ -396,126 +411,122 @@ public class TestUtils {
     // return cq;
     // }
 
-    // public List<PushPopAbstractBase> startPushers(CassQueueImpl cq, String
-    // baseValue, EnvProperties envProps) {
-    // List<PushPopAbstractBase> retList = new
-    // ArrayList<PushPopAbstractBase>(envProps.getNumPushers());
-    // WorkerThreadWatcher ptw = new PusherThreadWatcher(envProps, retList,
-    // baseValue);
-    // ptw.start();
-    // return retList;
-    // }
-    //
-    // public List<PushPopAbstractBase> startPoppers(CassQueueImpl cq, String
-    // baseValue, Queue<CassQMsg> popQ,
-    // EnvProperties envProps) {
-    // List<PushPopAbstractBase> retList = new
-    // ArrayList<PushPopAbstractBase>(envProps.getNumPoppers());
-    // WorkerThreadWatcher ptw = new PopperThreadWatcher(envProps, retList,
-    // baseValue, popQ);
-    // ptw.start();
-    // return retList;
-    // }
-    //
-    // abstract class WorkerThreadWatcher implements Runnable {
-    // protected EnvProperties envProps;
-    // protected List<PushPopAbstractBase> workerList;
-    // protected String baseValue;
-    //
-    // private Thread theThread;
-    //
-    // public WorkerThreadWatcher(EnvProperties envProps,
-    // List<PushPopAbstractBase> workerList, String baseValue) {
-    // this.envProps = envProps;
-    // this.workerList = workerList;
-    // this.baseValue = baseValue;
-    // }
-    //
-    // public void start() {
-    // theThread = new Thread(this);
-    // theThread.setDaemon(true);
-    // theThread.setName(getClass().getSimpleName());
-    // theThread.start();
-    // }
-    //
-    // @Override
-    // public void run() {
-    // for (;;) {
-    // if (getTargetSize() != workerList.size()) {
-    // adjustWorkers();
-    // }
-    // try {
-    // Thread.sleep(1000);
-    // }
-    // catch (InterruptedException e) {
-    // logger.error("exception while sleeping - ignoring", e);
-    // Thread.interrupted();
-    // }
-    // }
-    // }
-    //
-    // private void adjustWorkers() {
-    // while (getTargetSize() != workerList.size()) {
-    // int newSize = getTargetSize();
-    // int currSize = workerList.size();
-    // if (newSize < currSize) {
-    // PushPopAbstractBase popper = workerList.remove(newSize);
-    // popper.setStopProcessing(true);
-    // }
-    // else if (newSize > currSize) {
-    // addWorker();
-    // }
-    // }
-    // }
-    //
-    // protected abstract int getTargetSize();
-    //
-    // protected abstract void addWorker();
-    // }
-    //
-    // class PusherThreadWatcher extends WorkerThreadWatcher {
-    // public PusherThreadWatcher(EnvProperties envProps,
-    // List<PushPopAbstractBase> workerList, String baseValue) {
-    // super(envProps, workerList, baseValue);
-    // }
-    //
-    // @Override
-    // protected void addWorker() {
-    // CassQueuePusher cqPusher = new CassQueuePusher(cq, baseValue + "-" +
-    // workerList.size(), envProps);
-    // workerList.add(cqPusher);
-    // cqPusher.start(envProps.getNumMsgsPerPusher());
-    //
-    // }
-    //
-    // @Override
-    // protected int getTargetSize() {
-    // return envProps.getNumPushers();
-    // }
-    // }
-    //
-    // class PopperThreadWatcher extends WorkerThreadWatcher {
-    // private Queue<CassQMsg> popQ;
-    //
-    // public PopperThreadWatcher(EnvProperties envProps,
-    // List<PushPopAbstractBase> workerList, String baseValue,
-    // Queue<CassQMsg> popQ) {
-    // super(envProps, workerList, baseValue);
-    // this.popQ = popQ;
-    // }
-    //
-    // @Override
-    // protected void addWorker() {
-    // CassQueuePopper cqPopper = new CassQueuePopper(cq, baseValue, envProps,
-    // popQ);
-    // workerList.add(cqPopper);
-    // cqPopper.start(envProps.getNumMsgsPerPopper());
-    //
-    // }
-    //
-    // @Override
-    // protected int getTargetSize() {
-    // return envProps.getNumPoppers();
-    // }
-    // }
+    public static List<PushPopAbstractBase> startPushers(CassQueueImpl cq, EnvProperties envProps) {
+        List<PushPopAbstractBase> retList = new ArrayList<PushPopAbstractBase>(envProps.getNumPushers());
+        WorkerThreadWatcher ptw = new PusherThreadWatcher(envProps, cq, retList);
+        ptw.start();
+        return retList;
+    }
+
+    public static List<PushPopAbstractBase> startPoppers(CassQueueImpl cq, Queue<CassQMsg> popQ, EnvProperties envProps) {
+        List<PushPopAbstractBase> retList = new ArrayList<PushPopAbstractBase>(envProps.getNumPoppers());
+        WorkerThreadWatcher ptw = new PopperThreadWatcher(envProps, cq, retList, popQ);
+        ptw.start();
+        return retList;
+    }
+
+    static abstract class WorkerThreadWatcher implements Runnable {
+        protected EnvProperties envProps;
+        protected List<PushPopAbstractBase> workerList;
+        protected CassQueueImpl cq;
+
+        private Thread theThread;
+
+        public WorkerThreadWatcher(EnvProperties envProps, CassQueueImpl cq, List<PushPopAbstractBase> workerList) {
+            this.envProps = envProps;
+            this.cq = cq;
+            this.workerList = workerList;
+        }
+
+        public void start() {
+            theThread = new Thread(this);
+            theThread.setDaemon(true);
+            theThread.setName(getClass().getSimpleName());
+            theThread.start();
+        }
+
+        @Override
+        public void run() {
+            for (;;) {
+                if (getTargetSize() != workerList.size()) {
+                    try {
+                        adjustWorkers();
+                    }
+                    catch (Exception e) {
+                        logger.error("exception while adjusting workers", e);
+                    }
+                }
+                try {
+                    Thread.sleep(1000);
+                }
+                catch (InterruptedException e) {
+                    logger.error("exception while sleeping - ignoring", e);
+                    Thread.interrupted();
+                }
+            }
+        }
+
+        private void adjustWorkers() throws Exception {
+            while (getTargetSize() != workerList.size()) {
+                int newSize = getTargetSize();
+                int currSize = workerList.size();
+                if (newSize < currSize) {
+                    PushPopAbstractBase popper = workerList.remove(newSize);
+                    popper.setStopProcessing(true);
+                }
+                else if (newSize > currSize) {
+                    addWorker();
+                }
+            }
+        }
+
+        protected abstract int getTargetSize();
+
+        protected abstract void addWorker() throws Exception;
+    }
+
+    static class PusherThreadWatcher extends WorkerThreadWatcher {
+        private int pusherId = 0;
+        private AtomicLong numGen = new AtomicLong();
+
+        public PusherThreadWatcher(EnvProperties envProps, CassQueueImpl cq, List<PushPopAbstractBase> workerList) {
+            super(envProps, cq, workerList);
+        }
+
+        @Override
+        protected void addWorker() throws IOException {
+            CassQueuePusher cqPusher = new CassQueuePusher(pusherId++, cq, numGen, envProps);
+            workerList.add(cqPusher);
+            cqPusher.start(envProps.getNumMsgs() / envProps.getNumPushers());
+        }
+
+        @Override
+        protected int getTargetSize() {
+            return envProps.getNumPushers();
+        }
+    }
+
+    static class PopperThreadWatcher extends WorkerThreadWatcher {
+        private Queue<CassQMsg> popQ;
+        private int popperId = 0;
+
+        public PopperThreadWatcher(EnvProperties envProps, CassQueueImpl cq, List<PushPopAbstractBase> workerList,
+                Queue<CassQMsg> popQ) {
+            super(envProps, cq, workerList);
+            this.popQ = popQ;
+        }
+
+        @Override
+        protected void addWorker() throws Exception {
+            CassQueuePopper cqPopper = new CassQueuePopper(popperId++, cq, envProps, popQ);
+            workerList.add(cqPopper);
+            cqPopper.start(envProps.getNumMsgs() / envProps.getNumPoppers());
+
+        }
+
+        @Override
+        protected int getTargetSize() {
+            return envProps.getNumPoppers();
+        }
+    }
 }

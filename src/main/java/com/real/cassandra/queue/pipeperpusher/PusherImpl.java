@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.apache.cassandra.utils.UUIDGen;
 
 import com.real.cassandra.queue.CassQMsg;
+import com.real.cassandra.queue.RollingStat;
 
 /**
  * An instance of {@link Pusher} that implements a "pipe per pusher thread"
@@ -27,11 +28,17 @@ public class PusherImpl {
     private PipeDescriptorImpl pipeDesc = null;
     private long start;
 
-    public PusherImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, PipeDescriptorFactory pipeDescFactory) {
+    private int pushCount;
+
+    private RollingStat pushStat;
+
+    public PusherImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, PipeDescriptorFactory pipeDescFactory,
+            RollingStat pushStat) {
         this.cq = (CassQueueImpl) cq;
         this.qRepos = qRepos;
         this.pipeDescFactory = pipeDescFactory;
         this.start = System.currentTimeMillis();
+        this.pushStat = pushStat;
     }
 
     public CassQMsg push(String msgData) throws Exception {
@@ -43,6 +50,8 @@ public class PusherImpl {
     }
 
     private CassQMsg insertInternal(UUID msgId, String msgData) throws Exception {
+        long start = System.currentTimeMillis();
+
         if (shutdownInProgress) {
             throw new IllegalStateException("cannot push messages when shutdown in progress");
         }
@@ -52,9 +61,12 @@ public class PusherImpl {
         }
 
         pipeDesc.incMsgCount();
+        pushCount++;
 
         CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
         qRepos.insert(getQName(), pipeDesc, qMsg.getMsgId(), qMsg.getMsgData());
+
+        pushStat.addSample(System.currentTimeMillis() - start);
         return qMsg;
 
     }
@@ -75,7 +87,7 @@ public class PusherImpl {
 
     private boolean isNewPipeNeeded() {
         return null == pipeDesc || pipeDesc.getMsgCount() >= cq.getMaxPushesPerPipe()
-                || System.currentTimeMillis() - start > cq.getMaxPushTimeOfPipe();
+                || System.currentTimeMillis() - start > cq.getMaxPushTimePerPipe();
     }
 
     public String getQName() {
@@ -88,7 +100,7 @@ public class PusherImpl {
     }
 
     public long getMaxPushTimeOfPipe() {
-        return cq.getMaxPushTimeOfPipe();
+        return cq.getMaxPushTimePerPipe();
     }
 
     public int getMaxPushesPerPipe() {
@@ -101,6 +113,10 @@ public class PusherImpl {
 
     public PipeDescriptorImpl getPipeDesc() {
         return pipeDesc;
+    }
+
+    public int getPushCount() {
+        return pushCount;
     }
 
 }
