@@ -58,7 +58,7 @@ public class CassQueueApp {
 
     private static void setupQueueSystem() throws Exception {
         qRepos = CassQueueUtils.createQueueRepository(envProps, ConsistencyLevel.QUORUM);
-        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new PipeLockerImpl());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new PipeLockerImpl());
         cq = cqFactory.createInstance(envProps.getQName());
     }
 

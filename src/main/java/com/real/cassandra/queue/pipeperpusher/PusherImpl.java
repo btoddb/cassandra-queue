@@ -2,8 +2,6 @@ package com.real.cassandra.queue.pipeperpusher;
 
 import java.util.UUID;
 
-import org.apache.cassandra.utils.UUIDGen;
-
 import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.RollingStat;
 
@@ -16,8 +14,6 @@ import com.real.cassandra.queue.RollingStat;
  * @author Todd Burruss
  */
 public class PusherImpl {
-    private static MyInetAddress inetAddr = new MyInetAddress();
-
     // injected objects
     private QueueRepositoryImpl qRepos;
     private boolean shutdownInProgress = false;
@@ -72,8 +68,8 @@ public class PusherImpl {
     }
 
     private void createNewPipe() throws Exception {
-        UUID pipeId = UUIDGen.makeType1UUIDFromHost(inetAddr.get());
-        qRepos.createPipeDescriptor(cq.getName(), pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
+        PipeDescriptorImpl newPipeDesc =
+                pipeDescFactory.createInstance(cq.getName(), PipeDescriptorImpl.STATUS_PUSH_ACTIVE, 0);
 
         // TODO:BTB optimize by combining setting each pipe's active status
         // set old pipeDesc as inactive
@@ -81,7 +77,7 @@ public class PusherImpl {
             qRepos.setPipeDescriptorStatus(cq.getName(), pipeDesc, PipeDescriptorImpl.STATUS_PUSH_FINISHED);
         }
 
-        pipeDesc = pipeDescFactory.createInstance(cq.getName(), pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE, 0);
+        pipeDesc = newPipeDesc;
         start = System.currentTimeMillis();
     }
 

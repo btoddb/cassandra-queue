@@ -71,8 +71,7 @@ public class CassQueueImpl implements CassQueueImplMXBean {
     }
 
     public void truncate() throws Exception {
-        qRepos.removeQueue(this);
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimePerPipe, maxPushesPerPipe, maxPopWidth, popPipeRefreshDelay);
+        qRepos.truncateQueueData(this);
     }
 
     @Override

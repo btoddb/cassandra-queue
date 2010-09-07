@@ -175,6 +175,6 @@ public class PusherImplTest extends PipePerPusherTestBase {
 
     @Before
     public void setupTest() throws Exception {
-        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new PipeLockerImpl());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new PipeLockerImpl());
     }
 }

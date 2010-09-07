@@ -45,9 +45,6 @@ public class TestMain {
         logger.info("starting pushers/poppers after 2 sec pause : " + envProps.getNumPushers() + "/"
                 + envProps.getNumPoppers());
 
-        // must wait for keyspace creation to propagate
-        Thread.sleep(2000);
-
         Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
         List<PushPopAbstractBase> pusherSet = CassQueueUtils.startPushers(cq, envProps);
         List<PushPopAbstractBase> popperSet = CassQueueUtils.startPoppers(cq, popQ, envProps);
@@ -71,11 +68,15 @@ public class TestMain {
 
     private static void setupQueueSystem() throws Exception {
         qRepos = CassQueueUtils.createQueueRepository(envProps, ConsistencyLevel.QUORUM);
-        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new PipeLockerImpl());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new PipeLockerImpl());
         cq =
                 cqFactory.createInstance(envProps.getQName(), envProps.getMaxPushTimePerPipe(),
                         envProps.getMaxPushesPerPipe(), envProps.getMaxPopWidth(), envProps.getPopPipeRefreshDelay(),
                         false);
+        if (envProps.getTruncateQueue()) {
+            cq.truncate();
+            Thread.sleep(2000);
+        }
     }
 
     private static void shutdownQueueMgrAndPool() {

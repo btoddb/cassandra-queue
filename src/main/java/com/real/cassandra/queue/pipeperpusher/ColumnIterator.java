@@ -43,10 +43,6 @@ public class ColumnIterator {
 
                 lastColName = col.getName();
             }
-            //
-            // if (null == lastColName || 0 == lastColName.length) {
-            // break;
-            // }
         }
     }
 

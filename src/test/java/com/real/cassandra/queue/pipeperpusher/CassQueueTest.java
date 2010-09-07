@@ -46,7 +46,7 @@ public class CassQueueTest extends PipePerPusherTestBase {
         }
 
         cq.truncate();
-        popper = cq.createPopper(false);
+        // popper = cq.createPopper(false);
 
         assertEquals("all data should have been truncated", 0, qRepos.getCountOfWaitingMsgs(cq.getName()).totalMsgCount);
         assertEquals("all data should have been truncated", 0,
@@ -76,6 +76,11 @@ public class CassQueueTest extends PipePerPusherTestBase {
 
     @Test
     public void testFinishedPipeRemoval() {
+        fail("not implemented yet");
+    }
+
+    @Test
+    public void testPusherDiesCleanupPipes() {
         fail("not implemented yet");
     }
 
@@ -238,7 +243,7 @@ public class CassQueueTest extends PipePerPusherTestBase {
 
     @Before
     public void setupTest() throws Exception {
-        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new PipeLockerImpl());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new PipeLockerImpl());
     }
 
 }

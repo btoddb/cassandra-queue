@@ -56,13 +56,14 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     private static final int MAX_QUEUE_DESCRIPTOR_COLUMNS = 100;
 
     private QueueDescriptorFactory qDescFactory = new QueueDescriptorFactory();
-    private PipeDescriptorFactory pipeDescFactory = new PipeDescriptorFactory();
+    private PipeDescriptorFactory pipeDescFactory;
     private CassQMsgFactory qMsgFactory = new CassQMsgFactory();
     private PipeStatusFactory pipeStatusFactory = new PipeStatusFactory();
 
     public QueueRepositoryImpl(PelopsPool systemPool, PelopsPool queuePool, int replicationFactor,
             ConsistencyLevel consistencyLevel) {
         super(systemPool, queuePool, replicationFactor, consistencyLevel);
+        pipeDescFactory = new PipeDescriptorFactory(this);
     }
 
     /**
@@ -91,6 +92,8 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
                 dropKeyspace();
             }
         }
+
+        Thread.sleep(2000);
 
         createKeyspace();
 
@@ -132,36 +135,24 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
                     + " - possibly already exists and is OK");
         }
 
-        QueueDescriptor qDesc = getQueueDescriptor(qName);
-        if (null != qDesc) {
-            if (qDesc.getMaxPushesPerPipe() != maxPushesPerPipe || qDesc.getMaxPushTimeOfPipe() != maxPushTimePerPipe
-                    || qDesc.getMaxPopWidth() != maxPopWidth) {
-                throw new IllegalArgumentException(
-                        "Queue Descriptor already exists and you passed in maxPushesPerPipe and/or maxPushTimeOfPipe that does not match what is already there");
-            }
-        }
-        else {
-            qDesc =
-                    createQueueDescriptor(qName, maxPushTimePerPipe, maxPushesPerPipe, maxPopWidth, popPipeRefreshDelay);
-        }
-
-        return qDesc;
+        return createQueueDescriptor(qName, maxPushTimePerPipe, maxPushesPerPipe, maxPopWidth, popPipeRefreshDelay);
     }
 
-    public void removeQueue(CassQueueImpl cq) throws Exception {
+    public void truncateQueueData(CassQueueImpl cq) throws Exception {
         String qName = cq.getName();
 
         ColumnFamilyManager colFamMgr =
                 Pelops.createColumnFamilyManager(getSystemPool().getCluster(), QUEUE_KEYSPACE_NAME);
+
         try {
-            colFamMgr.dropColumnFamily(formatWaitingColFamName(qName));
+            colFamMgr.truncateColumnFamily(formatWaitingColFamName(qName));
         }
         catch (Exception e) {
             logger.info("exception while trying to drop column family, " + formatWaitingColFamName(qName));
         }
 
         try {
-            colFamMgr.dropColumnFamily(formatDeliveredColFamName(qName));
+            colFamMgr.truncateColumnFamily(formatDeliveredColFamName(qName));
         }
         catch (Exception e) {
             logger.info("exception while trying to drop column family, " + formatDeliveredColFamName(qName));
@@ -169,11 +160,10 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
         Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
         m.removeRow(PIPE_STATUS_COLFAM, Bytes.fromUTF8(qName), getConsistencyLevel());
-        m.execute(getConsistencyLevel());
 
-        m = Pelops.createMutator(getQueuePool().getPoolName());
-        m.removeRow(QUEUE_DESCRIPTORS_COLFAM, Bytes.fromUTF8(qName), getConsistencyLevel());
-        m.execute(getConsistencyLevel());
+        // createQueueDescriptor(cq.getName(), cq.getMaxPushTimePerPipe(),
+        // cq.getMaxPushesPerPipe(), cq.getMaxPopWidth(),
+        // cq.getPopPipeRefreshDelay());
     }
 
     public QueueDescriptor getQueueDescriptor(String qName) throws Exception {
@@ -191,11 +181,21 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
     }
 
-    public QueueDescriptor createQueueDescriptor(String qName, long maxPushTimeOfPipe, int maxPushesPerPipe,
+    public QueueDescriptor createQueueDescriptor(String qName, long maxPushTimePerPipe, int maxPushesPerPipe,
             int maxPopWidth, long popPipeRefreshDelay) throws Exception {
+        QueueDescriptor qDesc = getQueueDescriptor(qName);
+        if (null != qDesc) {
+            if (qDesc.getMaxPushesPerPipe() != maxPushesPerPipe || qDesc.getMaxPushTimeOfPipe() != maxPushTimePerPipe
+                    || qDesc.getMaxPopWidth() != maxPopWidth) {
+                throw new IllegalArgumentException(
+                        "Queue Descriptor already exists and you passed in maxPushesPerPipe and/or maxPushTimeOfPipe that does not match what is already there");
+            }
+            return qDesc;
+        }
+
         Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
 
-        Column col = m.newColumn(QDESC_COLNAME_MAX_PUSH_TIME_OF_PIPE, Bytes.fromLong(maxPushTimeOfPipe));
+        Column col = m.newColumn(QDESC_COLNAME_MAX_PUSH_TIME_OF_PIPE, Bytes.fromLong(maxPushTimePerPipe));
         m.writeColumn(QUEUE_DESCRIPTORS_COLFAM, qName, col);
 
         col = m.newColumn(QDESC_COLNAME_MAX_PUSHES_PER_PIPE, Bytes.fromInt(maxPushesPerPipe));
@@ -209,7 +209,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
         m.execute(getConsistencyLevel());
 
-        return qDescFactory.createInstance(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        return qDescFactory.createInstance(qName, maxPushTimePerPipe, maxPushesPerPipe);
     }
 
     /**

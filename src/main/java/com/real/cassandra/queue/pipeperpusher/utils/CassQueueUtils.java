@@ -7,11 +7,13 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.contrib.utils.service.CassandraServiceDataCleaner;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.transport.TTransportException;
 import org.scale7.cassandra.pelops.CachePerNodePool.Policy;
 import org.scale7.cassandra.pelops.Cluster;
@@ -23,12 +25,15 @@ import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.pipeperpusher.CassQueueImpl;
 import com.real.cassandra.queue.pipeperpusher.CassQueuePopper;
 import com.real.cassandra.queue.pipeperpusher.CassQueuePusher;
+import com.real.cassandra.queue.pipeperpusher.MyInetAddress;
 import com.real.cassandra.queue.pipeperpusher.PushPopAbstractBase;
 import com.real.cassandra.queue.pipeperpusher.QueueRepositoryImpl;
 import com.real.cassandra.queue.repository.PelopsPool;
 
 public class CassQueueUtils {
     private static Logger logger = LoggerFactory.getLogger(CassQueueUtils.class);
+
+    private static MyInetAddress inetAddr = new MyInetAddress();
 
     public static final String QUEUE_POOL_NAME = "myTestPool";
     public static final String SYSTEM_POOL_NAME = "mySystemPool";
@@ -249,6 +254,10 @@ public class CassQueueUtils {
 
     public static String formatMsgValue(String base, int pipeNum) {
         return base + "-" + pipeNum;
+    }
+
+    public static UUID generateTimeUuid() {
+        return UUIDGen.makeType1UUIDFromHost(inetAddr.get());
     }
 
     public static PelopsPool createQueuePool(String[] hostArr, int thriftPort, boolean useFramedTransport,
