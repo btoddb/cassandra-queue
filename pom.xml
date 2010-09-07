@@ -38,17 +38,12 @@
 	</developers>
 
 	<dependencies>
-<!--        <dependency>-->
-<!--            <groupId>org.apache.cassandra</groupId>-->
-<!--            <artifactId>apache-cassandra</artifactId>-->
-<!--            <version>0.7.0</version>-->
-<!--        </dependency>-->
         <dependency>
             <groupId>com.real.maps</groupId>
             <artifactId>cassandra-pelops</artifactId>
             <version>0.903-0.7.0-00-SNAPSHOT</version>
         </dependency>
-
+        
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
