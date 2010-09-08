@@ -16,8 +16,14 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.real.cassandra.queue.CassQMsg;
-import com.real.cassandra.queue.pipeperpusher.utils.CassQueueUtils;
-import com.real.cassandra.queue.pipeperpusher.utils.EnvProperties;
+import com.real.cassandra.queue.CassQueueFactoryImpl;
+import com.real.cassandra.queue.CassQueueImpl;
+import com.real.cassandra.queue.PopperImpl;
+import com.real.cassandra.queue.PusherImpl;
+import com.real.cassandra.queue.app.CassQueueUtils;
+import com.real.cassandra.queue.app.EnvProperties;
+import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
+import com.real.cassandra.queue.pipes.PipeLockerImpl;
 
 /**
  * Unit tests for {@link CassQueueImpl}.
@@ -50,7 +56,7 @@ public class CassQueueTest extends PipePerPusherTestBase {
 
         assertEquals("all data should have been truncated", 0, qRepos.getCountOfWaitingMsgs(cq.getName()).totalMsgCount);
         assertEquals("all data should have been truncated", 0,
-                qRepos.getCountOfDeliveredMsgs(cq.getName()).totalMsgCount);
+                qRepos.getCountOfPendingCommitMsgs(cq.getName()).totalMsgCount);
 
         for (int i = 0; i < numMsgs; i++) {
             CassQMsg qMsg = popper.pop();
@@ -148,98 +154,9 @@ public class CassQueueTest extends PipePerPusherTestBase {
         assertEquals("expected to have a total of " + numMsgs + " values in set", numMsgs, valueSet.size());
 
         assertEquals("waiting queue should be empty", 0, qRepos.getCountOfWaitingMsgs(cq.getName()).totalMsgCount);
-        assertEquals("delivered queue should be empty", 0, qRepos.getCountOfDeliveredMsgs(cq.getName()).totalMsgCount);
+        assertEquals("delivered queue should be empty", 0,
+                qRepos.getCountOfPendingCommitMsgs(cq.getName()).totalMsgCount);
     }
-
-    // private void verifyExistsInDeliveredQueue(int index, int numMsgs, boolean
-    // wantExists) throws Exception {
-    // List<Column> colList = cq.getDeliveredMessages(index % cq.getNumPipes(),
-    // numMsgs + 1);
-    // if (wantExists) {
-    // boolean found = false;
-    // for (Column col : colList) {
-    // if (new String(col.getValue()).equals("xxx_" + index)) {
-    // found = true;
-    // break;
-    // }
-    // }
-    // assertTrue("should have found value, xxx_" + index +
-    // " in delivered queue", found);
-    // }
-    // else {
-    // for (Column col : colList) {
-    // assertNotSame(new String(col.getValue()), "xxx_" + index);
-    // }
-    // }
-    //
-    // }
-    //
-    // private void verifyExistsInWaitingQueue(int pipeNum, int numMsgs, boolean
-    // wantExists) throws Exception {
-    // List<Column> colList =
-    // cq.getWaitingMessages(pipeMgr.getPipeDescriptor(pipeNum %
-    // cq.getNumPipes()), numMsgs + 1);
-    // if (wantExists) {
-    // boolean found = false;
-    // for (Column col : colList) {
-    // if (new String(col.getValue()).equals("xxx_" + pipeNum)) {
-    // found = true;
-    // break;
-    // }
-    // }
-    // assertTrue("should have found value, xxx_" + pipeNum +
-    // " in waiting queue", found);
-    // }
-    // else {
-    // for (Column col : colList) {
-    // assertNotSame(new String(col.getValue()), "xxx_" + pipeNum);
-    // }
-    // }
-    //
-    // }
-    //
-    // private void verifyDeliveredQueue(int numMsgs) throws Exception {
-    // QueueDescriptor qDesc = qRep.getQueueDescriptor(TestUtils.QUEUE_NAME);
-    //
-    // long startPipe = qDesc.getPopStartPipe();
-    // int min = numMsgs / cq.getNumPipes();
-    // int mod = numMsgs % cq.getNumPipes();
-    //
-    // for (int i = 0; i < cq.getNumPipes(); i++) {
-    // List<Column> colList = cq.getDeliveredMessages(startPipe + i, numMsgs +
-    // 1);
-    // assertEquals("count on queue index " + (startPipe + i) + " is incorrect",
-    // i < mod ? min + 1 : min,
-    // colList.size());
-    //
-    // for (int j = 0; j < colList.size(); j++) {
-    // String value = new String(colList.get(j).getValue());
-    // assertEquals("xxx_" + (i + (j * cq.getNumPipes())), value);
-    // }
-    // }
-    // }
-    //
-    // private void verifyWaitingQueue(int numMsgs) throws Exception {
-    // QueueDescriptor qDesc = qRep.getQueueDescriptor(TestUtils.QUEUE_NAME);
-    //
-    // long startPipe = qDesc.getPushStartPipe();
-    // long min = numMsgs / cq.getNumPipes();
-    // long mod = numMsgs % cq.getNumPipes();
-    //
-    // for (int i = 0; i < cq.getNumPipes(); i++) {
-    // List<Column> colList =
-    // cq.getWaitingMessages(pipeMgr.getPipeDescriptor(startPipe + i), numMsgs +
-    // 1);
-    // assertEquals("count on queue index " + (startPipe + i) + " is incorrect",
-    // i < mod ? min + 1 : min,
-    // colList.size());
-    //
-    // for (int j = 0; j < colList.size(); j++) {
-    // String value = new String(colList.get(j).getValue());
-    // assertEquals("xxx_" + (i + (j * cq.getNumPipes())), value);
-    // }
-    // }
-    // }
 
     @Before
     public void setupTest() throws Exception {

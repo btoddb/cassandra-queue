@@ -11,6 +11,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.real.cassandra.queue.CassQMsg;
+import com.real.cassandra.queue.CassQueueFactoryImpl;
+import com.real.cassandra.queue.CassQueueImpl;
+import com.real.cassandra.queue.PusherImpl;
+import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
+import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
+import com.real.cassandra.queue.pipes.PipeLockerImpl;
 
 public class PusherImplTest extends PipePerPusherTestBase {
     private CassQueueImpl cq;

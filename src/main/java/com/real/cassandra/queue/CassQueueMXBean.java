@@ -1,53 +1,37 @@
 package com.real.cassandra.queue;
 
 public interface CassQueueMXBean {
-    String JMX_MBEAN_OBJ_NAME = "com.real.cassq:type=CassQueueImpl";
-
-    boolean isNearFifoOk();
+    String JMX_MBEAN_OBJ_NAME_PREFIX = "com.real.cassq:type=Queue-";
 
     String getName();
 
-    int getNumPipes();
+    int getNumPoppers();
 
-    long getMsgCountCurrent();
+    int getNumPushers();
 
-    long getPushCountTotal();
+    long getMaxPushTimePerPipe();
 
-    long getPopCountTotal();
+    void setMaxPushTimePerPipe(long maxPushTimePerPipe);
 
-    long getCommitTotal();
+    int getMaxPushesPerPipe();
 
-    long getRollbackTotal();
+    void setMaxPushesPerPipe(int maxPushesPerPipe);
 
-    double getPopsPerSecond();
+    int getMaxPopWidth();
 
-    double getPopAvgTime();
+    void setMaxPopWidth(int maxPopWidth);
 
-    double getPushesPerSecond();
+    long getPopCountNotEmpty();
+
+    long getPopCountEmpty();
+
+    double getPopAvgTime_NotEmpty();
+
+    double getPopPerSecond_NotEmpty();
+
+    long getPushCount();
 
     double getPushAvgTime();
 
-    double getRollbacksPerSecond();
-
-    double getRollbackAvgTime();
-
-    double getCommitsPerSecond();
-
-    double getCommitAvgTime();
-
-    String[] getPipeCounts();
-
-    double getMoveToDeliveredAvgTime();
-
-    double getWaitingMsgAvgTime();
-
-    double getPopLockWaitAvgTime();
-
-    long getPopStartPipe();
-
-    long getPushStartPipe();
-
-    double getGetNextPushPipeAvgTime();
-
-    double getGetNextPopPipeAvgTime();
+    double getPushPerSecond();
 }

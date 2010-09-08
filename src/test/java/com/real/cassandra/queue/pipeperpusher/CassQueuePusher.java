@@ -5,7 +5,9 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.real.cassandra.queue.pipeperpusher.utils.EnvProperties;
+import com.real.cassandra.queue.CassQueueImpl;
+import com.real.cassandra.queue.PusherImpl;
+import com.real.cassandra.queue.app.EnvProperties;
 
 public class CassQueuePusher extends PushPopAbstractBase {
     private PusherImpl pusher;

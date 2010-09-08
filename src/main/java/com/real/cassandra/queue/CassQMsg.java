@@ -2,7 +2,8 @@ package com.real.cassandra.queue;
 
 import java.util.UUID;
 
-import com.real.cassandra.queue.pipeperpusher.PipeDescriptorImpl;
+import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
+
 
 /**
  * Model object for a message in the Cassandra queue

@@ -15,8 +15,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.CassQMsg;
-import com.real.cassandra.queue.pipeperpusher.utils.EnvProperties;
-import com.real.cassandra.queue.pipeperpusher.utils.CassQueueUtils;
+import com.real.cassandra.queue.CassQueueFactoryImpl;
+import com.real.cassandra.queue.CassQueueImpl;
+import com.real.cassandra.queue.app.CassQueueUtils;
+import com.real.cassandra.queue.app.EnvProperties;
+import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
+import com.real.cassandra.queue.pipes.PipeLockerImpl;
+import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
+import com.real.cassandra.queue.repository.RepositoryFactoryImpl;
 
 /**
  * Unit tests for {@link CassQueueImpl}.
@@ -27,7 +33,7 @@ public class TestMain {
     private static Logger logger = LoggerFactory.getLogger(TestMain.class);
 
     private static CassQueueFactoryImpl cqFactory;
-    private static QueueRepositoryImpl qRepos;
+    private static QueueRepositoryAbstractImpl qRepos;
     private static EnvProperties envProps;
     private static CassQueueImpl cq;
 
@@ -62,12 +68,12 @@ public class TestMain {
         props.load(new FileReader(appPropsFile));
         envProps = new EnvProperties(props);
 
-        logger.info("using hosts : " + props.getProperty("hosts"));
-        logger.info("using thrift port : " + props.getProperty("thriftPort"));
+        logger.info("using hosts : " + envProps.getHostArr());
+        logger.info("using thrift port : " + envProps.getRpcPort());
     }
 
     private static void setupQueueSystem() throws Exception {
-        qRepos = CassQueueUtils.createQueueRepository(envProps, ConsistencyLevel.QUORUM);
+        qRepos = new RepositoryFactoryImpl().createInstance(envProps, ConsistencyLevel.QUORUM);
         cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new PipeLockerImpl());
         cq =
                 cqFactory.createInstance(envProps.getQName(), envProps.getMaxPushTimePerPipe(),

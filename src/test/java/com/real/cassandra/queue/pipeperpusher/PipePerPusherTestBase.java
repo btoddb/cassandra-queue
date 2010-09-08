@@ -5,8 +5,12 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.scale7.cassandra.pelops.Pelops;
 
-import com.real.cassandra.queue.pipeperpusher.utils.EnvProperties;
-import com.real.cassandra.queue.pipeperpusher.utils.CassQueueUtils;
+import com.real.cassandra.queue.CassQMsgFactory;
+import com.real.cassandra.queue.app.CassQueueUtils;
+import com.real.cassandra.queue.app.EnvProperties;
+import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
+import com.real.cassandra.queue.repository.RepositoryFactoryImpl;
+import com.real.cassandra.queue.utils.MyInetAddress;
 
 public class PipePerPusherTestBase {
 
@@ -14,7 +18,7 @@ public class PipePerPusherTestBase {
 
     protected static EnvProperties baseEnvProps;
     protected static MyInetAddress inetAddr = new MyInetAddress();
-    protected static QueueRepositoryImpl qRepos;
+    protected static QueueRepositoryAbstractImpl qRepos;
     protected static CassQMsgFactory qMsgFactory = new CassQMsgFactory();
 
     public PipePerPusherTestBase() {
@@ -25,7 +29,7 @@ public class PipePerPusherTestBase {
     public static void setupTestClass() throws Exception {
         baseEnvProps = CassQueueUtils.createEnvPropertiesWithDefaults();
         CassQueueUtils.startCassandraInstance();
-        qRepos = CassQueueUtils.createQueueRepository(baseEnvProps, consistencyLevel);
+        qRepos = new RepositoryFactoryImpl().createInstance(baseEnvProps, consistencyLevel);
     }
 
     @AfterClass

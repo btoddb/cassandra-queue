@@ -4,6 +4,9 @@ import static org.junit.Assert.*;
 
 import org.junit.Test;
 
+import com.real.cassandra.queue.pipes.PipeStatus;
+import com.real.cassandra.queue.pipes.PipeStatusFactory;
+
 public class PipeStatusFactoryTest {
 
     @Test
