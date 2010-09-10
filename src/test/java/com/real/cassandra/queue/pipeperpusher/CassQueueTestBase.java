@@ -12,7 +12,7 @@ import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
 import com.real.cassandra.queue.repository.RepositoryFactoryImpl;
 import com.real.cassandra.queue.utils.MyInetAddress;
 
-public class PipePerPusherTestBase {
+public class CassQueueTestBase {
 
     private static ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
 
@@ -21,7 +21,7 @@ public class PipePerPusherTestBase {
     protected static QueueRepositoryAbstractImpl qRepos;
     protected static CassQMsgFactory qMsgFactory = new CassQMsgFactory();
 
-    public PipePerPusherTestBase() {
+    public CassQueueTestBase() {
         super();
     }
 

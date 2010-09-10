@@ -6,18 +6,17 @@ import org.scale7.cassandra.pelops.Cluster;
 import org.scale7.cassandra.pelops.OperandPolicy;
 
 import com.real.cassandra.queue.app.EnvProperties;
+import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
 
 public class PelopsUtils {
     // private static Logger logger =
     // LoggerFactory.getLogger(CassQueueUtils.class);
 
-    public static final String QUEUE_POOL_NAME = "myTestPool";
-    public static final String SYSTEM_POOL_NAME = "mySystemPool";
-    public static final String QUEUE_NAME = "myTestQueue";
-    public static final ConsistencyLevel CONSISTENCY_LEVEL = ConsistencyLevel.QUORUM;
-
-    private static PelopsPool systemPool;
-    private static PelopsPool queuePool;
+    // public static final String QUEUE_POOL_NAME = "myTestPool";
+    // public static final String SYSTEM_POOL_NAME = "mySystemPool";
+    // public static final String QUEUE_NAME = "myTestQueue";
+    // public static final ConsistencyLevel CONSISTENCY_LEVEL =
+    // ConsistencyLevel.QUORUM;
 
     public static PelopsPool createQueuePool(String[] hostArr, int rpcPort, boolean useFramedTransport,
             int minCachedConns, int maxConns, int targetConns, boolean killNodeConnsOnException) {
@@ -40,7 +39,7 @@ public class PelopsUtils {
         pool.setKeyspaceName(QueueRepositoryImpl.QUEUE_KEYSPACE_NAME);
         pool.setNodeDiscovery(false);
         pool.setPolicy(policy);
-        pool.setPoolName(PelopsUtils.QUEUE_POOL_NAME);
+        pool.setPoolName(QueueRepositoryAbstractImpl.QUEUE_POOL_NAME);
 
         pool.initPool();
         return pool;
@@ -65,7 +64,7 @@ public class PelopsUtils {
         pool.setKeyspaceName(QueueRepositoryImpl.SYSTEM_KEYSPACE_NAME);
         pool.setNodeDiscovery(false);
         pool.setPolicy(policy);
-        pool.setPoolName(PelopsUtils.SYSTEM_POOL_NAME);
+        pool.setPoolName(QueueRepositoryAbstractImpl.SYSTEM_POOL_NAME);
 
         pool.initPool();
         return pool;
@@ -74,13 +73,13 @@ public class PelopsUtils {
     public static QueueRepositoryImpl createQueueRepository(EnvProperties envProps, ConsistencyLevel consistencyLevel)
             throws Exception {
         // must create system pool first and initialize cassandra
-        systemPool =
+        PelopsPool systemPool =
                 PelopsUtils.createSystemPool(envProps.getHostArr(), envProps.getRpcPort(),
                         envProps.getUseFramedTransport());
 
         // pelops will produce errors after creating this pool if keyspace
         // doesn't exist
-        queuePool =
+        PelopsPool queuePool =
                 PelopsUtils.createQueuePool(envProps.getHostArr(), envProps.getRpcPort(),
                         envProps.getUseFramedTransport(), envProps.getMinCacheConnsPerHost(),
                         envProps.getMaxConnectionsPerHost(), envProps.getTargetConnectionsPerHost(),

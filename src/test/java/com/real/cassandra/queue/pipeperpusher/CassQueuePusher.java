@@ -26,7 +26,7 @@ public class CassQueuePusher extends PushPopAbstractBase {
     protected boolean processMsg() throws Exception {
         String msgData = String.format("%012d", numGen.incrementAndGet());
         pusher.push(msgData);
-        fWriter.println(msgData);
+        fWriter.println(System.currentTimeMillis() + "," + msgData);
         fWriter.flush();
         return true;
     }

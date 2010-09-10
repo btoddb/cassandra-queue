@@ -30,7 +30,7 @@ import com.real.cassandra.queue.pipes.PipeLockerImpl;
  * 
  * @author Todd Burruss
  */
-public class CassQueueTest extends PipePerPusherTestBase {
+public class CassQueueTest extends CassQueueTestBase {
     // private static Logger logger =
     // LoggerFactory.getLogger(CassQueueTest.class);
 

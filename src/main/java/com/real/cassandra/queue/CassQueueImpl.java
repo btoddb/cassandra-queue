@@ -73,6 +73,10 @@ public class CassQueueImpl implements CassQueueMXBean {
         return popper;
     }
 
+    public void drop() throws Exception {
+        qRepos.dropQueue(this);
+    }
+
     public void truncate() throws Exception {
         qRepos.truncateQueueData(this);
     }

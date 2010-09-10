@@ -19,7 +19,7 @@ import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeLockerImpl;
 
-public class PopperImplTest extends PipePerPusherTestBase {
+public class PopperImplTest extends CassQueueTestBase {
     private CassQueueFactoryImpl cqFactory;
 
     @Test
@@ -79,7 +79,7 @@ public class PopperImplTest extends PipePerPusherTestBase {
         for (int i = 0; i < msgCount; i++) {
             CassQMsg qPushMsg = msgList.get(i);
             CassQMsg qDelivMsg = qRepos.getOldestMsgFromDeliveredPipe(pipeDesc);
-            qRepos.removeMsgFromDeliveredPipe(qDelivMsg);
+            qRepos.removeMsgFromCommitPendingPipe(qDelivMsg);
             assertEquals("pushed msg not same as popped", qPushMsg, qDelivMsg);
             assertEquals("pushed msg data not same as popped data", qPushMsg.getMsgData(), qDelivMsg.getMsgData());
         }

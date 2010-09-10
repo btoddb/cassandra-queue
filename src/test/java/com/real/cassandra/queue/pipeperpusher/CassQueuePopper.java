@@ -30,7 +30,7 @@ public class CassQueuePopper extends PushPopAbstractBase {
             if (null != popQ) {
                 popQ.add(qMsg);
             }
-            fWriter.println(qMsg.getMsgData());
+            fWriter.println(System.currentTimeMillis() + "," + qMsg.getMsgData());
             fWriter.flush();
             return true;
         }

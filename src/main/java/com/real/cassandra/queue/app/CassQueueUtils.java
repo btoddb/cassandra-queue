@@ -153,9 +153,9 @@ public class CassQueueUtils {
     public static EnvProperties createEnvPropertiesWithDefaults() {
         Properties rawProps = new Properties();
         rawProps.setProperty(EnvProperties.ENV_numPipes, "4");
-        rawProps.setProperty(EnvProperties.ENV_API_NAME, RepositoryFactoryImpl.API_PELOPS);
         // rawProps.setProperty(EnvProperties.ENV_API_NAME,
-        // RepositoryFactoryImpl.API_HECTOR);
+        // RepositoryFactoryImpl.API_PELOPS);
+        rawProps.setProperty(EnvProperties.ENV_API_NAME, RepositoryFactoryImpl.API_HECTOR);
         rawProps.setProperty(EnvProperties.ENV_hosts, "localhost");
         rawProps.setProperty(EnvProperties.ENV_RPC_PORT, "9161");
         rawProps.setProperty(EnvProperties.ENV_useFramedTransport, "false");
@@ -169,16 +169,6 @@ public class CassQueueUtils {
         rawProps.setProperty(EnvProperties.ENV_truncateQueue, "true");
         return new EnvProperties(rawProps);
     }
-
-    // public static CassQueueImpl createQueue(QueueRepositoryImpl qRep, String
-    // name, EnvProperties envProps,
-    // boolean popLocks, boolean distributed) throws Exception {
-    // CassQueueFactoryImpl cqf = new CassQueueFactoryImpl(qRep);
-    // CassQueueImpl cq =
-    // cqf.createQueueInstance(name, envProps.getMaxPushTimeOfPipe(),
-    // envProps.getMaxPushesPerPipe(), false);
-    // return cq;
-    // }
 
     public static List<PushPopAbstractBase> startPushers(CassQueueImpl cq, EnvProperties envProps) {
         List<PushPopAbstractBase> retList = new ArrayList<PushPopAbstractBase>(envProps.getNumPushers());

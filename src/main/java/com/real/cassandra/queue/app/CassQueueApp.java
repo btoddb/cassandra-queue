@@ -33,6 +33,7 @@ public class CassQueueApp {
 
     private static final String OPT_COUNT = "count";
     private static final String OPT_DUMP_PIPE = "dump-pipe";
+    private static final String OPT_OLDEST_PIPES = "oldest-pipes";
 
     private static CassQueueFactoryImpl cqFactory;
     private static QueueRepositoryAbstractImpl qRepos;
@@ -50,6 +51,7 @@ public class CassQueueApp {
 
         options.addOption("c", OPT_COUNT, false, "count msgs in queue");
         options.addOption("p", OPT_DUMP_PIPE, true, "dump contents of pipe");
+        options.addOption("o", OPT_OLDEST_PIPES, false, "dump UUIDs of oldest pipes");
 
         CommandLine cmdLine = parser.parse(options, args);
         if (cmdLine.hasOption(OPT_COUNT)) {
@@ -57,6 +59,9 @@ public class CassQueueApp {
         }
         else if (cmdLine.hasOption(OPT_DUMP_PIPE)) {
             dumpPipe(cmdLine);
+        }
+        else if (cmdLine.hasOption(OPT_OLDEST_PIPES)) {
+            dumpOldestPipes(cmdLine);
         }
         else {
             logger.error("missing cmd parameter");
@@ -68,14 +73,26 @@ public class CassQueueApp {
     private static void dumpPipe(CommandLine cmdLine) throws Exception {
         String pipeIdAsStr = cmdLine.getOptionValue(OPT_DUMP_PIPE);
         PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(envProps.getQName(), UUID.fromString(pipeIdAsStr));
+        outputPipeDescription(pipeDesc);
+    }
+
+    private static void outputPipeDescription(PipeDescriptorImpl pipeDesc) throws Exception {
         System.out.println("pipeId : " + pipeDesc.getPipeId() + " : " + pipeDesc.getStatus() + ", "
                 + pipeDesc.getMsgCount());
-        List<CassQMsg> msgList = qRepos.getWaitingMessagesFromPipe(pipeDesc, 4000);
+        List<CassQMsg> msgList = qRepos.getWaitingMessagesFromPipe(pipeDesc, envProps.getMaxPushesPerPipe() + 1);
         if (msgList.isEmpty()) {
             System.out.println("<pipe is empty>");
         }
         for (CassQMsg qMsg : msgList) {
             System.out.println("msg : " + qMsg.toString());
+        }
+    }
+
+    private static void dumpOldestPipes(CommandLine cmdLine) throws Exception {
+        List<PipeDescriptorImpl> pdList = qRepos.getOldestNonEmptyPipes(envProps.getQName(), envProps.getMaxPopWidth());
+        for (PipeDescriptorImpl pipeDesc : pdList) {
+            System.out.println(pipeDesc.toString() + " = "
+                    + qRepos.getWaitingMessagesFromPipe(pipeDesc, envProps.getMaxPushesPerPipe()).size());
         }
     }
 

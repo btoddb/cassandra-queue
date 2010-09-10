@@ -18,7 +18,7 @@ import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeLockerImpl;
 
-public class PusherImplTest extends PipePerPusherTestBase {
+public class PusherImplTest extends CassQueueTestBase {
     private CassQueueImpl cq;
     private CassQueueFactoryImpl cqFactory;
 

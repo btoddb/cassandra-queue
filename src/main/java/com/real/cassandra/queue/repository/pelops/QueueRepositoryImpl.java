@@ -1,7 +1,6 @@
 package com.real.cassandra.queue.repository.pelops;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +27,7 @@ import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.CassQMsgFactory;
 import com.real.cassandra.queue.CassQueueImpl;
 import com.real.cassandra.queue.QueueDescriptor;
-import com.real.cassandra.queue.QueueDescriptorFactory;
+import com.real.cassandra.queue.QueueDescriptorFactoryAbstractImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
@@ -51,17 +50,18 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     private final PelopsPool systemPool;
     private PelopsPool queuePool;
 
-    private QueueDescriptorFactory qDescFactory = new QueueDescriptorFactory();
     private PipeDescriptorFactory pipeDescFactory;
     private CassQMsgFactory qMsgFactory = new CassQMsgFactory();
     private PipeStatusFactory pipeStatusFactory = new PipeStatusFactory();
+    private QueueDescriptorFactoryImpl qDescFactory;
 
     public QueueRepositoryImpl(PelopsPool systemPool, PelopsPool queuePool, int replicationFactor,
             ConsistencyLevel consistencyLevel) {
         super(replicationFactor, consistencyLevel);
         this.systemPool = systemPool;
         this.queuePool = queuePool;
-        pipeDescFactory = new PipeDescriptorFactory(this);
+        this.pipeDescFactory = new PipeDescriptorFactory(this);
+        this.qDescFactory = new QueueDescriptorFactoryImpl();
     }
 
     /**
@@ -73,42 +73,55 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         initKeyspace(false);
     }
 
-    /**
-     * Create required column families for this new queue and initialize
-     * descriptor.
-     * 
-     * @param cq
-     * @throws Exception
-     */
+    // /**
+    // * Create required column families for this new queue and initialize
+    // * descriptor.
+    // *
+    // * @param cq
+    // * @throws Exception
+    // */
+    // @Override
+    // public QueueDescriptor createQueueIfDoesntExist(String qName, long
+    // maxPushTimePerPipe, int maxPushesPerPipe,
+    // int maxPopWidth, long popPipeRefreshDelay) throws Exception {
+    // ColumnFamilyManager colFamMgr =
+    // Pelops.createColumnFamilyManager(getSystemPool().getCluster(),
+    // QUEUE_KEYSPACE_NAME);
+    //
+    // CfDef colFamDef =
+    // new CfDef(QUEUE_KEYSPACE_NAME,
+    // formatWaitingColFamName(qName)).setComparator_type("TimeUUIDType")
+    // .setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(GC_GRACE_SECS);
+    // try {
+    // colFamMgr.addColumnFamily(colFamDef);
+    // }
+    // catch (Exception e) {
+    // logger.info("exception while trying to create column family, " +
+    // colFamDef.getName()
+    // + " - possibly already exists and is OK");
+    // }
+    //
+    // colFamDef =
+    // new CfDef(QUEUE_KEYSPACE_NAME,
+    // formatCommitPendingColFamName(qName)).setComparator_type("TimeUUIDType")
+    // .setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(GC_GRACE_SECS);
+    // try {
+    // colFamMgr.addColumnFamily(colFamDef);
+    // }
+    // catch (Exception e) {
+    // logger.info("exception while trying to create column family, " +
+    // colFamDef.getName()
+    // + " - possibly already exists and is OK");
+    // }
+    //
+    // return createQueueDescriptor(qName, maxPushTimePerPipe, maxPushesPerPipe,
+    // maxPopWidth, popPipeRefreshDelay);
+    // }
     @Override
-    public QueueDescriptor createQueueIfDoesntExist(String qName, long maxPushTimePerPipe, int maxPushesPerPipe,
-            int maxPopWidth, long popPipeRefreshDelay) throws Exception {
+    public void createColumnFamily(CfDef colFamDef) throws Exception {
         ColumnFamilyManager colFamMgr =
                 Pelops.createColumnFamilyManager(getSystemPool().getCluster(), QUEUE_KEYSPACE_NAME);
-
-        CfDef colFamDef =
-                new CfDef(QUEUE_KEYSPACE_NAME, formatWaitingColFamName(qName)).setComparator_type("TimeUUIDType")
-                        .setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(GC_GRACE_SECS);
-        try {
-            colFamMgr.addColumnFamily(colFamDef);
-        }
-        catch (Exception e) {
-            logger.info("exception while trying to create column family, " + colFamDef.getName()
-                    + " - possibly already exists and is OK");
-        }
-
-        colFamDef =
-                new CfDef(QUEUE_KEYSPACE_NAME, formatDeliveredColFamName(qName)).setComparator_type("TimeUUIDType")
-                        .setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(GC_GRACE_SECS);
-        try {
-            colFamMgr.addColumnFamily(colFamDef);
-        }
-        catch (Exception e) {
-            logger.info("exception while trying to create column family, " + colFamDef.getName()
-                    + " - possibly already exists and is OK");
-        }
-
-        return createQueueDescriptor(qName, maxPushTimePerPipe, maxPushesPerPipe, maxPopWidth, popPipeRefreshDelay);
+        colFamMgr.addColumnFamily(colFamDef);
     }
 
     @Override
@@ -122,22 +135,18 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
             colFamMgr.truncateColumnFamily(formatWaitingColFamName(qName));
         }
         catch (Exception e) {
-            logger.info("exception while trying to drop column family, " + formatWaitingColFamName(qName));
+            logger.info("exception while trying to truncate column family, " + formatWaitingColFamName(qName), e);
         }
 
         try {
-            colFamMgr.truncateColumnFamily(formatDeliveredColFamName(qName));
+            colFamMgr.truncateColumnFamily(formatCommitPendingColFamName(qName));
         }
         catch (Exception e) {
-            logger.info("exception while trying to drop column family, " + formatDeliveredColFamName(qName));
+            logger.info("exception while trying to truncate column family, " + formatCommitPendingColFamName(qName));
         }
 
         Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
         m.removeRow(PIPE_STATUS_COLFAM, Bytes.fromUTF8(qName), getConsistencyLevel());
-
-        // createQueueDescriptor(cq.getName(), cq.getMaxPushTimePerPipe(),
-        // cq.getMaxPushesPerPipe(), cq.getMaxPopWidth(),
-        // cq.getPopPipeRefreshDelay());
     }
 
     @Override
@@ -156,18 +165,9 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
     }
 
-    private QueueDescriptor createQueueDescriptor(String qName, long maxPushTimePerPipe, int maxPushesPerPipe,
-            int maxPopWidth, long popPipeRefreshDelay) throws Exception {
-        QueueDescriptor qDesc = getQueueDescriptor(qName);
-        if (null != qDesc) {
-            if (qDesc.getMaxPushesPerPipe() != maxPushesPerPipe || qDesc.getMaxPushTimeOfPipe() != maxPushTimePerPipe
-                    || qDesc.getMaxPopWidth() != maxPopWidth) {
-                throw new IllegalArgumentException(
-                        "Queue Descriptor already exists and you passed in maxPushesPerPipe and/or maxPushTimeOfPipe that does not match what is already there");
-            }
-            return qDesc;
-        }
-
+    @Override
+    protected void createQueueDescriptor(String qName, long maxPushTimePerPipe, int maxPushesPerPipe, int maxPopWidth,
+            long popPipeRefreshDelay) throws Exception {
         Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
 
         Column col = m.newColumn(QDESC_COLNAME_MAX_PUSH_TIME_OF_PIPE, Bytes.fromLong(maxPushTimePerPipe));
@@ -183,8 +183,6 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         m.writeColumn(QUEUE_DESCRIPTORS_COLFAM, qName, col);
 
         m.execute(getConsistencyLevel());
-
-        return qDescFactory.createInstance(qName, maxPushTimePerPipe, maxPushesPerPipe);
     }
 
     /**
@@ -263,29 +261,21 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         Bytes colValue = Bytes.fromUTF8(msgData);
 
         String colFamWaiting = formatWaitingColFamName(qName);
-
-        // insert new msg
-        Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
-        Column col = m.newColumn(colName, colValue);
-        m.writeColumn(colFamWaiting, Bytes.fromUuid(pipeDesc.getPipeId()), col);
-
         String rawStatus =
                 pipeStatusFactory.createInstance(new PipeStatus(PipeDescriptorImpl.STATUS_PUSH_ACTIVE, pipeDesc
                         .getMsgCount()));
+
+        Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
+
+        // insert new msg
+        Column col = m.newColumn(colName, colValue);
+        m.writeColumn(colFamWaiting, Bytes.fromUuid(pipeDesc.getPipeId()), col);
 
         // update msg count for this pipe
         col = m.newColumn(Bytes.fromUuid(pipeDesc.getPipeId()), Bytes.fromUTF8(rawStatus));
         m.writeColumn(PIPE_STATUS_COLFAM, qName, col);
 
         m.execute(getConsistencyLevel());
-    }
-
-    static String formatWaitingColFamName(String qName) {
-        return qName + WAITING_COLFAM_SUFFIX;
-    }
-
-    static String formatDeliveredColFamName(String qName) {
-        return qName + PENDING_COMMIT_COLFAM_SUFFIX;
     }
 
     @Override
@@ -316,7 +306,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
     @Override
     public CassQMsg getOldestMsgFromDeliveredPipe(PipeDescriptorImpl pipeDesc) throws Exception {
-        return getOldestMsgFromPipe(formatDeliveredColFamName(pipeDesc.getQName()), pipeDesc);
+        return getOldestMsgFromPipe(formatCommitPendingColFamName(pipeDesc.getQName()), pipeDesc);
     }
 
     @Override
@@ -336,7 +326,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
     @Override
     public List<CassQMsg> getDeliveredMessagesFromPipe(PipeDescriptorImpl pipeDesc, int maxMsgs) throws Exception {
-        return getMessagesFromPipe(formatDeliveredColFamName(pipeDesc.getQName()), pipeDesc, maxMsgs);
+        return getMessagesFromPipe(formatCommitPendingColFamName(pipeDesc.getQName()), pipeDesc, maxMsgs);
     }
 
     @Override
@@ -358,9 +348,9 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    public void removeMsgFromDeliveredPipe(CassQMsg qMsg) throws Exception {
+    public void removeMsgFromCommitPendingPipe(CassQMsg qMsg) throws Exception {
         PipeDescriptorImpl pipeDesc = qMsg.getPipeDescriptor();
-        removeMsgFromPipe(formatDeliveredColFamName(pipeDesc.getQName()), pipeDesc, qMsg);
+        removeMsgFromPipe(formatCommitPendingColFamName(pipeDesc.getQName()), pipeDesc, qMsg);
     }
 
     @Override
@@ -375,13 +365,13 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    public void moveMsgFromWaitingToDeliveredPipe(CassQMsg qMsg) throws Exception {
+    public void moveMsgFromWaitingToCommitPendingPipe(CassQMsg qMsg) throws Exception {
         PipeDescriptorImpl pipeDesc = qMsg.getPipeDescriptor();
         Mutator m = Pelops.createMutator(getQueuePool().getPoolName());
         Bytes colName = Bytes.fromUuid(qMsg.getMsgId());
         Bytes colValue = Bytes.fromUTF8(qMsg.getMsgData());
         Bytes pipeId = Bytes.fromUuid(pipeDesc.getPipeId());
-        m.writeColumn(formatDeliveredColFamName(pipeDesc.getQName()), pipeId, m.newColumn(colName, colValue));
+        m.writeColumn(formatCommitPendingColFamName(pipeDesc.getQName()), pipeId, m.newColumn(colName, colValue));
         m.deleteColumn(formatWaitingColFamName(pipeDesc.getQName()), pipeId, colName);
         m.execute(getConsistencyLevel());
     }
@@ -390,7 +380,6 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     public List<PipeDescriptorImpl> getOldestNonEmptyPipes(final String qName, final int maxNumPipeDescs)
             throws Exception {
         final List<PipeDescriptorImpl> pipeDescList = new LinkedList<PipeDescriptorImpl>();
-        // final Bytes qNameAsBytes = Bytes.fromUTF8(qName);
 
         ColumnIterator rawMsgColIter = new ColumnIterator();
         rawMsgColIter.doIt(getQueuePool().getPoolName(), PIPE_STATUS_COLFAM, Bytes.fromUTF8(qName),
@@ -444,23 +433,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
     @Override
     public CountResult getCountOfPendingCommitMsgs(String qName) throws Exception {
-        return getCountOfMsgsAndStatus(qName, formatDeliveredColFamName(qName));
-    }
-
-    public class CountResult {
-        public int numPipeDescriptors;
-        public int totalMsgCount;
-        public Map<String, Integer> statusCounts = new HashMap<String, Integer>();
-
-        public void addStatus(String status) {
-            numPipeDescriptors++;
-            Integer count = statusCounts.get(status);
-            if (null == count) {
-                count = new Integer(0);
-            }
-            statusCounts.put(status, Integer.valueOf(count + 1));
-        }
-
+        return getCountOfMsgsAndStatus(qName, formatCommitPendingColFamName(qName));
     }
 
     public PelopsPool getSystemPool() {
@@ -472,7 +445,13 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    protected String getSchemaVersion() throws Exception {
+    protected Map<String, List<String>> getSchemaVersionMap() throws Exception {
         return null;
     }
+
+    @Override
+    protected QueueDescriptorFactoryAbstractImpl getQueueDescriptorFactory() {
+        return this.qDescFactory;
+    }
+
 }

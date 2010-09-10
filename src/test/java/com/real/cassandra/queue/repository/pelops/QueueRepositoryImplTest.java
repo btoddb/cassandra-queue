@@ -17,10 +17,10 @@ import org.junit.Test;
 
 import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.QueueDescriptor;
-import com.real.cassandra.queue.pipeperpusher.PipePerPusherTestBase;
+import com.real.cassandra.queue.pipeperpusher.CassQueueTestBase;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 
-public class QueueRepositoryImplTest extends PipePerPusherTestBase {
+public class QueueRepositoryImplTest extends CassQueueTestBase {
 
     @Test
     public void testInitCassandra() throws Exception {
@@ -53,8 +53,8 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
             nameSet.add(cfDef.getName());
         }
 
-        assertTrue("didn't create '" + QueueRepositoryImpl.formatDeliveredColFamName(qName) + "' column family",
-                nameSet.contains(QueueRepositoryImpl.formatDeliveredColFamName(qName)));
+        assertTrue("didn't create '" + QueueRepositoryImpl.formatCommitPendingColFamName(qName) + "' column family",
+                nameSet.contains(QueueRepositoryImpl.formatCommitPendingColFamName(qName)));
         assertTrue("didn't create '" + QueueRepositoryImpl.formatWaitingColFamName(qName) + "' column family",
                 nameSet.contains(QueueRepositoryImpl.formatWaitingColFamName(qName)));
 
@@ -180,14 +180,14 @@ public class QueueRepositoryImplTest extends PipePerPusherTestBase {
         // ArrayList<CassQMsg> msgList = new ArrayList<CassQMsg>(msgCount);
         CassQMsg qMsg;
         while (null != (qMsg = qRepos.getOldestMsgFromWaitingPipe(pipeDesc))) {
-            qRepos.moveMsgFromWaitingToDeliveredPipe(qMsg);
+            qRepos.moveMsgFromWaitingToCommitPendingPipe(qMsg);
         }
 
         int i = 0;
         while (null != (qMsg = qRepos.getOldestMsgFromDeliveredPipe(pipeDesc))) {
             assertEquals("data was not retrieved (or inserted) in the proper order, or too much data found", "data-"
                     + i, qMsg.getMsgData());
-            qRepos.removeMsgFromDeliveredPipe(qMsg);
+            qRepos.removeMsgFromCommitPendingPipe(qMsg);
             i++;
         }
         assertEquals("should have retrieve exactly " + msgCount + " msgs", msgCount, i);
