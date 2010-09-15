@@ -87,32 +87,42 @@ public class PopperImplTest extends CassQueueTestBase {
     }
 
     @Test
-    public void testSinglePopperMultipePipes() throws Exception {
+    public void testSinglePusherSinglePopperMultiplePipes() throws Exception {
         int maxPushesPerPipe = 5;
-        int numPopPipes = 3;
+        int popWidth = 3;
+        int numIterations = 3;
+
         CassQueueImpl cq =
-                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, numPopPipes,
-                        5000, false);
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, popWidth, 5000,
+                        false);
         PusherImpl pusher = cq.createPusher();
         PopperImpl popper = cq.createPopper(false);
 
-        int msgCount = maxPushesPerPipe * numPopPipes * 3;
-        CassQMsg[] msgArr = new CassQMsg[msgCount];
+        CassQMsg[][][] msgArr = new CassQMsg[numIterations][popWidth][maxPushesPerPipe];
 
-        int numPerBlock = maxPushesPerPipe * numPopPipes;
-        for (int i = 0; i < msgCount; i++) {
-            int baseBlockIndex = i / numPerBlock * numPerBlock;
-            int baseRowIndex = (i - baseBlockIndex) / maxPushesPerPipe;
-            int index = baseBlockIndex + baseRowIndex + i % maxPushesPerPipe * numPopPipes;
-            msgArr[index] = pusher.push("data-" + System.currentTimeMillis() + "-" + i);
+        for (int iter = 0; iter < numIterations; iter++) {
+            for (int pipe = 0; pipe < popWidth; pipe++) {
+                for (int push = 0; push < maxPushesPerPipe; push++) {
+                    msgArr[iter][pipe][push] =
+                            pusher.push("data-" + System.currentTimeMillis() + "-" + iter + "." + pipe + "." + push);
+                }
+            }
         }
 
-        for (int i = 0; i < msgCount; i++) {
-            popper.forceRefresh();
-            CassQMsg qPushMsg = msgArr[i];
-            CassQMsg qPopMsg = popper.pop();
-            assertEquals("pushed msg not same as popped, i = " + i, qPushMsg, qPopMsg);
-            assertEquals("pushed msg data not same as popped data", qPushMsg.getMsgData(), qPopMsg.getMsgData());
+        for (int iter = 0; iter < numIterations; iter++) {
+            for (int push = 0; push < maxPushesPerPipe; push++) {
+                for (int pipe = 0; pipe < popWidth; pipe++) {
+                    CassQMsg qPushMsg = msgArr[iter][pipe][push];
+                    CassQMsg qPopMsg = popper.pop();
+                    assertEquals("pushed msg data not same as popped data", qPushMsg.getMsgData(), qPopMsg.getMsgData());
+                }
+            }
+
+            // since our data is crafted nicely, we do one pop between
+            // interations to reload popper's list of pipe descriptors. this
+            // works because all pipes in the popper's view of the world were
+            // completely exhausted.
+            // assertNull(popper.pop());
         }
     }
 
@@ -131,7 +141,6 @@ public class PopperImplTest extends CassQueueTestBase {
         PipeDescriptorImpl pipeDesc = pipeDescList.get(0);
         qRepos.setPipeDescriptorStatus(pipeDesc, PipeDescriptorImpl.STATUS_PUSH_FINISHED);
 
-        popper.forceRefresh();
         for (int i = 0; i < msgCount; i++) {
             popper.pop();
             pipeDesc = qRepos.getPipeDescriptor(cq.getName(), pipeDesc.getPipeId());
@@ -139,8 +148,12 @@ public class PopperImplTest extends CassQueueTestBase {
                     PipeDescriptorImpl.STATUS_PUSH_FINISHED, pipeDesc.getStatus());
         }
 
+        // this pop will return null, but will force marking of pipe as
+        // "finished empty"
+        // assertNull(popper.pop());
+
         // do one more pop to push over the edge to next pipe
-        popper.forceRefresh();
+        // popper.forceRefresh();
         assertEquals("should have rolled to next pipe and retrieved next msg", "over-to-next", popper.pop()
                 .getMsgData());
 

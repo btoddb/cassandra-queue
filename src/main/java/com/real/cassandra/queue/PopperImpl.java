@@ -53,8 +53,10 @@ public class PopperImpl {
         try {
             PipeDescriptorImpl pipeDesc = null;
 
-            // make sure we try all pipes to get a msg
-            for (int i = 0; i < cq.getMaxPopWidth(); i++) {
+            // make sure we try all pipes to get a msg. we go +1 for the case
+            // where only maxPopPipeWidth = 1 and haven't loaded any pipe
+            // descriptors yet
+            for (int i = 0; i < cq.getMaxPopWidth() + 1; i++) {
                 try {
                     pipeDesc = pickAndLockPipe();
 
@@ -103,6 +105,9 @@ public class PopperImpl {
         // has no more msgs
         if (PipeDescriptorImpl.STATUS_PUSH_FINISHED.equals(pipeDesc.getStatus())) {
             qRepos.setPipeDescriptorStatus(pipeDesc, PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY);
+            // assuming only one pipe was removed during this refresh we can
+            // perform better by reducing the counter so a "retry" occurs
+            nextPipeCounter--;
             forceRefresh();
         }
     }
