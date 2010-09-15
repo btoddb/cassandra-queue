@@ -26,7 +26,7 @@ import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeLockerImpl;
 
 /**
- * Unit tests for {@link CassQueueImpl}.
+ * Tests for {@link CassQueueImpl}.
  * 
  * @author Todd Burruss
  */
@@ -52,7 +52,6 @@ public class CassQueueTest extends CassQueueTestBase {
         }
 
         cq.truncate();
-        // popper = cq.createPopper(false);
 
         assertEquals("all data should have been truncated", 0, qRepos.getCountOfWaitingMsgs(cq.getName()).totalMsgCount);
         assertEquals("all data should have been truncated", 0,

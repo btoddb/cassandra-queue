@@ -79,7 +79,7 @@ public class PopperImplTest extends CassQueueTestBase {
         for (int i = 0; i < msgCount; i++) {
             CassQMsg qPushMsg = msgList.get(i);
             CassQMsg qDelivMsg = qRepos.getOldestMsgFromDeliveredPipe(pipeDesc);
-            qRepos.removeMsgFromCommitPendingPipe(qDelivMsg);
+            qRepos.removeMsgFromPendingPipe(qDelivMsg);
             assertEquals("pushed msg not same as popped", qPushMsg, qDelivMsg);
             assertEquals("pushed msg data not same as popped data", qPushMsg.getMsgData(), qDelivMsg.getMsgData());
         }
@@ -129,7 +129,7 @@ public class PopperImplTest extends CassQueueTestBase {
         pusher.push("over-to-next");
         List<PipeDescriptorImpl> pipeDescList = qRepos.getOldestNonEmptyPipes(cq.getName(), 1);
         PipeDescriptorImpl pipeDesc = pipeDescList.get(0);
-        qRepos.setPipeDescriptorStatus(cq.getName(), pipeDesc, PipeDescriptorImpl.STATUS_PUSH_FINISHED);
+        qRepos.setPipeDescriptorStatus(pipeDesc, PipeDescriptorImpl.STATUS_PUSH_FINISHED);
 
         popper.forceRefresh();
         for (int i = 0; i < msgCount; i++) {

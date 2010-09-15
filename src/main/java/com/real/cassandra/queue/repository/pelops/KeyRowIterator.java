@@ -1,4 +1,4 @@
-package com.real.cassandra.queue.repository;
+package com.real.cassandra.queue.repository.pelops;
 
 import java.util.Iterator;
 import java.util.List;

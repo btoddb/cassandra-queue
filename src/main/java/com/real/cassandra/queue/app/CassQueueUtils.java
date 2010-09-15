@@ -7,13 +7,11 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.contrib.utils.service.CassandraServiceDataCleaner;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.transport.TTransportException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,12 +22,9 @@ import com.real.cassandra.queue.pipeperpusher.CassQueuePopper;
 import com.real.cassandra.queue.pipeperpusher.CassQueuePusher;
 import com.real.cassandra.queue.pipeperpusher.PushPopAbstractBase;
 import com.real.cassandra.queue.repository.RepositoryFactoryImpl;
-import com.real.cassandra.queue.utils.MyInetAddress;
 
 public class CassQueueUtils {
     private static Logger logger = LoggerFactory.getLogger(CassQueueUtils.class);
-
-    private static MyInetAddress inetAddr = new MyInetAddress();
 
     public static final String QUEUE_POOL_NAME = "myTestPool";
     public static final String SYSTEM_POOL_NAME = "mySystemPool";
@@ -86,10 +81,6 @@ public class CassQueueUtils {
 
     public static String formatMsgValue(String base, int pipeNum) {
         return base + "-" + pipeNum;
-    }
-
-    public static UUID generateTimeUuid() {
-        return UUIDGen.makeType1UUIDFromHost(inetAddr.get());
     }
 
     public static boolean isPushPopOpFinished(List<PushPopAbstractBase> opList) {

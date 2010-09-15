@@ -102,18 +102,18 @@ public class PopperImpl {
         // if this pipe is finished then mark as empty since it
         // has no more msgs
         if (PipeDescriptorImpl.STATUS_PUSH_FINISHED.equals(pipeDesc.getStatus())) {
-            qRepos.setPipeDescriptorStatus(cq.getName(), pipeDesc, PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY);
+            qRepos.setPipeDescriptorStatus(pipeDesc, PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY);
             forceRefresh();
         }
     }
 
     public void commit(CassQMsg qMsg) throws Exception {
-        qRepos.removeMsgFromCommitPendingPipe(qMsg);
+        qRepos.removeMsgFromPendingPipe(qMsg);
     }
 
     public CassQMsg rollback(CassQMsg qMsg) throws Exception {
         CassQMsg qNewMsg = rollbackPusher.push(qMsg.getMsgData());
-        qRepos.removeMsgFromCommitPendingPipe(qMsg);
+        qRepos.removeMsgFromPendingPipe(qMsg);
         return qNewMsg;
     }
 
@@ -134,7 +134,7 @@ public class PopperImpl {
     private CassQMsg retrieveOldestMsgFromPipe(PipeDescriptorImpl pipeDesc) throws Exception {
         CassQMsg qMsg = qRepos.getOldestMsgFromWaitingPipe(pipeDesc);
         if (null != qMsg) {
-            qRepos.moveMsgFromWaitingToCommitPendingPipe(qMsg);
+            qRepos.moveMsgFromWaitingToPendingPipe(qMsg);
         }
         return qMsg;
     }

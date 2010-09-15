@@ -1,38 +1,57 @@
 package com.real.cassandra.queue.repository.hector;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import me.prettyprint.cassandra.model.ColumnSlice;
+import me.prettyprint.cassandra.model.CountQuery;
+import me.prettyprint.cassandra.model.HColumn;
 import me.prettyprint.cassandra.model.KeyspaceOperator;
 import me.prettyprint.cassandra.model.Mutator;
 import me.prettyprint.cassandra.model.QuorumAllConsistencyLevelPolicy;
 import me.prettyprint.cassandra.model.Result;
 import me.prettyprint.cassandra.model.SliceQuery;
+import me.prettyprint.cassandra.serializers.BytesSerializer;
 import me.prettyprint.cassandra.serializers.IntegerSerializer;
 import me.prettyprint.cassandra.serializers.LongSerializer;
 import me.prettyprint.cassandra.serializers.StringSerializer;
+import me.prettyprint.cassandra.serializers.UUIDSerializer;
 import me.prettyprint.cassandra.service.CassandraClient;
 import me.prettyprint.cassandra.service.Cluster;
 import me.prettyprint.hector.api.factory.HFactory;
+import me.prettyprint.hector.api.query.ColumnQuery;
 
 import org.apache.cassandra.thrift.Cassandra.Client;
 import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.KsDef;
+import org.apache.cassandra.utils.UUIDGen;
+import org.scale7.cassandra.pelops.Bytes;
+import org.scale7.cassandra.pelops.Pelops;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.CassQueueImpl;
 import com.real.cassandra.queue.QueueDescriptor;
 import com.real.cassandra.queue.QueueDescriptorFactoryAbstractImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
+import com.real.cassandra.queue.pipes.PipeStatus;
 import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
+import com.real.cassandra.queue.utils.UuidGenerator;
 
 public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
+    private static Logger logger = LoggerFactory.getLogger(QueueRepositoryImpl.class);
+
     private Cluster cluster;
     private QuorumAllConsistencyLevelPolicy consistencyLevelPolicy = new QuorumAllConsistencyLevelPolicy();
     private QueueDescriptorFactoryImpl qDescFactory;
+    private UUIDSerializer uuidSerializer = UUIDSerializer.get();
+    private BytesSerializer bytesSerializer = BytesSerializer.get();
 
     public QueueRepositoryImpl(Cluster cluster, int replicationFactor, ConsistencyLevel consistencyLevel) {
         super(replicationFactor, consistencyLevel);
@@ -43,15 +62,14 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     @Override
     public QueueDescriptor getQueueDescriptor(String qName) throws Exception {
         StringSerializer se = StringSerializer.get();
-        IntegerSerializer ie = IntegerSerializer.get();
-        LongSerializer le = LongSerializer.get();
+        BytesSerializer be = BytesSerializer.get();
 
         KeyspaceOperator ko = createKeyspaceOperator();
-        SliceQuery<String, String, String> q = HFactory.createSliceQuery(ko, se, se, se);
-        q.setRange(null, null, false, 100);
+        SliceQuery<String, String, byte[]> q = HFactory.createSliceQuery(ko, se, se, be);
+        q.setRange("", "", false, 100);
         q.setColumnFamily(QUEUE_DESCRIPTORS_COLFAM);
         q.setKey(qName);
-        Result<ColumnSlice<String, String>> r = q.execute();
+        Result<ColumnSlice<String, byte[]>> r = q.execute();
         return qDescFactory.createInstance(qName, r);
     }
 
@@ -99,7 +117,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         CassandraClient client = cluster.borrowClient();
         try {
             Client thriftClient = client.getCassandra();
-            schemaMap = thriftClient.check_schema_agreement();
+            schemaMap = thriftClient.describe_schema_versions();
         }
         finally {
             cluster.releaseClient(client);
@@ -135,45 +153,89 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
     @Override
     public void insert(String qName, PipeDescriptorImpl pipeDesc, UUID msgId, String msgData) throws Exception {
-        // TODO Auto-generated method stub
+        Mutator<byte[]> m = HFactory.createMutator(createKeyspaceOperator(), bytesSerializer);
 
+        // add insert into waiting
+        HColumn<UUID, byte[]> col = HFactory.createColumn(msgId, msgData.getBytes(), uuidSerializer, bytesSerializer);
+        m.addInsertion(uuidSerializer.toBytes(pipeDesc.getPipeId()), formatWaitingColFamName(qName), col);
+
+        // update msg count
+        String rawStatus =
+                pipeStatusFactory.createInstance(new PipeStatus(PipeDescriptorImpl.STATUS_PUSH_ACTIVE, pipeDesc
+                        .getMsgCount()));
+        col = HFactory.createColumn(pipeDesc.getPipeId(), rawStatus.getBytes(), uuidSerializer, bytesSerializer);
+        m.addInsertion(pipeDesc.getQName().getBytes(), PIPE_STATUS_COLFAM, col);
+
+        m.execute();
     }
 
     @Override
-    public void setPipeDescriptorStatus(String name, PipeDescriptorImpl pipeDesc, String statusPushFinished)
+    public void setPipeDescriptorStatus(PipeDescriptorImpl pipeDesc, String pipeStatus) throws Exception {
+        String rawStatus = pipeStatusFactory.createInstance(new PipeStatus(pipeStatus, pipeDesc.getMsgCount()));
+        KeyspaceOperator ko = HFactory.createKeyspaceOperator(QUEUE_KEYSPACE_NAME, cluster);
+        Mutator<String> m = HFactory.createMutator(ko, StringSerializer.get());
+        m.insert(pipeDesc.getQName(), PIPE_STATUS_COLFAM,
+                HFactory.createColumn(pipeDesc.getPipeId(), rawStatus, UUIDSerializer.get(), StringSerializer.get()));
+    }
+
+    @Override
+    protected void removeMsgFromPipe(String colFamName, PipeDescriptorImpl pipeDesc, CassQMsg qMsg) throws Exception {
+        Mutator<UUID> m = HFactory.createMutator(createKeyspaceOperator(), uuidSerializer);
+        m.delete(pipeDesc.getPipeId(), colFamName, qMsg.getMsgId(), uuidSerializer);
+    }
+
+    @Override
+    public List<PipeDescriptorImpl> getOldestNonEmptyPipes(final String qName, final int maxNumPipeDescs)
             throws Exception {
-        // TODO Auto-generated method stub
+        final List<PipeDescriptorImpl> pipeDescList = new LinkedList<PipeDescriptorImpl>();
 
+        ColumnIterator rawMsgColIter = new ColumnIterator();
+        rawMsgColIter.doIt(cluster, QUEUE_KEYSPACE_NAME, PIPE_STATUS_COLFAM, qName.getBytes(),
+                new ColumnIterator.ColumnOperator() {
+                    @Override
+                    public boolean execute(HColumn<byte[], byte[]> col) throws Exception {
+                        PipeStatus ps = pipeStatusFactory.createInstance(new String(col.getValue()));
+                        PipeDescriptorImpl pipeDesc =
+                                pipeDescFactory.createInstance(qName, UuidGenerator.createInstance(col.getName()),
+                                        ps.getStatus(), ps.getPushCount());
+                        if (!pipeDesc.isFinishedAndEmpty()) {
+                            pipeDescList.add(pipeDesc);
+                        }
+
+                        return pipeDescList.size() < maxNumPipeDescs;
+                    }
+                });
+
+        return pipeDescList;
     }
 
     @Override
-    public void removeMsgFromCommitPendingPipe(CassQMsg qMsg) throws Exception {
-        // TODO Auto-generated method stub
+    protected List<CassQMsg> getOldestMsgsFromPipe(String colFameName, PipeDescriptorImpl pipeDesc, int maxMsgs)
+            throws Exception {
+        SliceQuery<UUID, UUID, byte[]> q =
+                HFactory.createSliceQuery(createKeyspaceOperator(), uuidSerializer, uuidSerializer, bytesSerializer);
+        q.setColumnFamily(colFameName);
+        q.setKey(pipeDesc.getPipeId());
+        q.setRange(null, null, false, maxMsgs);
+        Result<ColumnSlice<UUID, byte[]>> res = q.execute();
 
+        ArrayList<CassQMsg> msgList = new ArrayList<CassQMsg>(maxMsgs);
+        for (HColumn<UUID, byte[]> col : res.get().getColumns()) {
+            msgList.add(qMsgFactory.createInstance(pipeDesc, col));
+        }
+        return msgList;
     }
 
     @Override
-    public void removeMsgFromWaitingPipe(PipeDescriptorImpl pipeDesc, CassQMsg qMsg) throws Exception {
-        // TODO Auto-generated method stub
-
-    }
-
-    @Override
-    public List<PipeDescriptorImpl> getOldestNonEmptyPipes(String name, int maxPopWidth) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public CassQMsg getOldestMsgFromWaitingPipe(PipeDescriptorImpl pipeDesc) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public void moveMsgFromWaitingToCommitPendingPipe(CassQMsg qMsg) throws Exception {
-        // TODO Auto-generated method stub
-
+    public void moveMsgFromWaitingToPendingPipe(CassQMsg qMsg) throws Exception {
+        PipeDescriptorImpl pipeDesc = qMsg.getPipeDescriptor();
+        String qName = qMsg.getPipeDescriptor().getQName();
+        Mutator<UUID> m = HFactory.createMutator(createKeyspaceOperator(), uuidSerializer);
+        HColumn<UUID, byte[]> col =
+                HFactory.createColumn(qMsg.getMsgId(), qMsg.getMsgData().getBytes(), uuidSerializer, bytesSerializer);
+        m.addInsertion(pipeDesc.getPipeId(), formatPendingColFamName(qName), col);
+        m.addDeletion(pipeDesc.getPipeId(), formatWaitingColFamName(qName), qMsg.getMsgId(), uuidSerializer);
+        m.execute();
     }
 
     @Override
@@ -183,65 +245,91 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    public CassQMsg getMsg(String qName, UUID pipeId, UUID msgId) throws Exception {
+    public void dropQueue(CassQueueImpl cassQueueImpl) throws Exception {
         // TODO Auto-generated method stub
-        return null;
+
+    }
+
+    @Override
+    public CassQMsg getMsg(String qName, PipeDescriptorImpl pipeDesc, UUID msgId) throws Exception {
+        ColumnQuery<UUID, UUID, byte[]> q =
+                HFactory.createColumnQuery(createKeyspaceOperator(), uuidSerializer, uuidSerializer, bytesSerializer);
+        q.setColumnFamily(formatWaitingColFamName(qName));
+        q.setKey(pipeDesc.getPipeId());
+        q.setName(msgId);
+        Result<HColumn<UUID, byte[]>> result = q.execute();
+        return qMsgFactory.createInstance(pipeDesc, result.get());
     }
 
     @Override
     public void createPipeDescriptor(String qName, UUID pipeId, String pipeStatus) throws Exception {
-        // TODO Auto-generated method stub
-
+        String rawStatus = pipeStatusFactory.createInstance(new PipeStatus(pipeStatus, 0));
+        Mutator<String> m = HFactory.createMutator(createKeyspaceOperator(), StringSerializer.get());
+        HColumn<UUID, String> col = HFactory.createColumn(pipeId, rawStatus, uuidSerializer, StringSerializer.get());
+        m.insert(qName, PIPE_STATUS_COLFAM, col);
     }
 
     @Override
     public PipeDescriptorImpl getPipeDescriptor(String qName, UUID pipeId) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
+        ColumnQuery<byte[], UUID, String> q =
+                HFactory.createColumnQuery(createKeyspaceOperator(), bytesSerializer, uuidSerializer,
+                        StringSerializer.get());
+        q.setColumnFamily(PIPE_STATUS_COLFAM);
+        q.setKey(qName.getBytes());
+        q.setName(pipeId);
+        Result<HColumn<UUID, String>> result = q.execute();
+        if (null != result && null != result.get()) {
+            return pipeDescFactory.createInstance(qName, result.get());
+        }
+        else {
+            return pipeDescFactory.createInstance(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE, 0);
+        }
     }
 
     @Override
-    public CountResult getCountOfWaitingMsgs(String qName) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
-    }
+    protected CountResult getCountOfMsgsAndStatus(String qName, final String colFamName) throws Exception {
+        final CountResult result = new CountResult();
+        final BytesSerializer bs = BytesSerializer.get();
+        KeyspaceOperator ko = HFactory.createKeyspaceOperator(QUEUE_KEYSPACE_NAME, cluster);
+        final CountQuery<byte[], byte[]> countQuery = HFactory.createCountQuery(ko, bs, bs);
+        countQuery.setColumnFamily(colFamName);
 
-    @Override
-    public CountResult getCountOfPendingCommitMsgs(String qName) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
-    }
+        // TODO:BTB currently not removing columns from this CF, which would
+        // speed this up after compaction
 
-    @Override
-    public List<CassQMsg> getDeliveredMessagesFromPipe(PipeDescriptorImpl pipeDesc, int maxMsgs) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
-    }
+        ColumnIterator rawMsgColIter = new ColumnIterator();
+        rawMsgColIter.doIt(cluster, QUEUE_KEYSPACE_NAME, PIPE_STATUS_COLFAM, qName.getBytes(),
+                new ColumnIterator.ColumnOperator() {
+                    @Override
+                    public boolean execute(HColumn<byte[], byte[]> col) throws Exception {
+                        logger.info("working on pipe descriptor : " + UUIDGen.makeType1UUID(col.getName()));
+                        String status = new String(col.getValue());
+                        result.addStatus(status);
 
-    @Override
-    public List<CassQMsg> getWaitingMessagesFromPipe(PipeDescriptorImpl pipeDesc, int maxColumns) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
-    }
+                        int msgCount = countQuery.setKey(col.getValue()).execute().get();
 
-    @Override
-    public CassQMsg getOldestMsgFromDeliveredPipe(PipeDescriptorImpl pipeDesc) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
+                        result.totalMsgCount += msgCount;
+                        logger.info(result.numPipeDescriptors + " : status = " + status + ", msgCount = " + msgCount);
+                        return true;
+                    }
+                });
+
+        return result;
     }
 
     @Override
     public KsDef getKeyspaceDefinition() throws Exception {
-        // TODO Auto-generated method stub
-        return null;
+        KsDef ksDef = cluster.describeKeyspace(QUEUE_KEYSPACE_NAME);
+        return ksDef;
     }
 
     @Override
-    public void createColumnFamily(CfDef colFamDef) throws Exception {
+    public String createColumnFamily(CfDef colFamDef) throws Exception {
         CassandraClient client = cluster.borrowClient();
         try {
             Client thriftClient = client.getCassandra();
-            thriftClient.system_add_column_family(colFamDef);
+            thriftClient.set_keyspace(QUEUE_KEYSPACE_NAME);
+            return thriftClient.system_add_column_family(colFamDef);
         }
         finally {
             cluster.releaseClient(client);
@@ -251,5 +339,10 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     @Override
     protected QueueDescriptorFactoryAbstractImpl getQueueDescriptorFactory() {
         return this.qDescFactory;
+    }
+
+    @Override
+    public void shutdown() {
+        // do nothing
     }
 }

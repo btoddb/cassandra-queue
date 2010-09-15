@@ -36,7 +36,7 @@ public class PusherImplTest extends CassQueueTestBase {
         assertNotNull(cq.getName(), qMsg.getPipeDescriptor().getQName());
         assertEquals(msgData, qMsg.getMsgData());
 
-        CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor().getPipeId(), qMsg.getMsgId());
+        CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor(), qMsg.getMsgId());
 
         assertNotNull("should have created new message in the expected queue and pipe", qMsgNew);
         assertEquals("didn't seem to write the correct data to the correct place", qMsg.getMsgData(),
@@ -66,13 +66,13 @@ public class PusherImplTest extends CassQueueTestBase {
 
         for (int i = 0; i < numMsgs; i++) {
             CassQMsg qMsg = pushList1.get(i);
-            CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor().getPipeId(), qMsg.getMsgId());
+            CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor(), qMsg.getMsgId());
             assertEquals(qMsg.getMsgData(), qMsgNew.getMsgData());
         }
 
         for (int i = 0; i < numMsgs; i++) {
             CassQMsg qMsg = pushList2.get(i);
-            CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor().getPipeId(), qMsg.getMsgId());
+            CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor(), qMsg.getMsgId());
             assertEquals(qMsg.getMsgData(), qMsgNew.getMsgData());
         }
     }
@@ -93,7 +93,7 @@ public class PusherImplTest extends CassQueueTestBase {
         UUID lastPipeId = null;
         for (int i = 0; i < numMsgs; i++) {
             CassQMsg qMsg = pushList.get(i);
-            CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor().getPipeId(), qMsg.getMsgId());
+            CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor(), qMsg.getMsgId());
             assertEquals(qMsg.getMsgData(), qMsgNew.getMsgData());
             lastPipeId = qMsg.getPipeDescriptor().getPipeId();
             pipeSet.add(lastPipeId);
@@ -130,7 +130,7 @@ public class PusherImplTest extends CassQueueTestBase {
         UUID lastPipeId = null;
         for (int i = 0; i < numMsgs; i++) {
             CassQMsg qMsg = pushList.get(i);
-            CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor().getPipeId(), qMsg.getMsgId());
+            CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor(), qMsg.getMsgId());
             assertEquals(qMsg.getMsgData(), qMsgNew.getMsgData());
             lastPipeId = qMsg.getPipeDescriptor().getPipeId();
             pipeSet.add(lastPipeId);

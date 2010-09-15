@@ -1,7 +1,10 @@
 package com.real.cassandra.queue.pipes;
 
-import org.apache.cassandra.thrift.Column;
+import java.util.UUID;
 
+import me.prettyprint.cassandra.model.HColumn;
+
+import org.apache.cassandra.thrift.Column;
 
 public class PipeStatusFactory {
 
@@ -32,5 +35,9 @@ public class PipeStatusFactory {
 
     public PipeStatus createInstance(Column col) {
         return createInstance(new String(col.getValue()));
+    }
+
+    public PipeStatus createInstance(HColumn<UUID, String> col) {
+        return createInstance(col.getValue());
     }
 }

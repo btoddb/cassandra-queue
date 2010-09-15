@@ -13,10 +13,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.CassQMsg;
+import com.real.cassandra.queue.CassQMsgFactory;
 import com.real.cassandra.queue.CassQueueImpl;
 import com.real.cassandra.queue.QueueDescriptor;
 import com.real.cassandra.queue.QueueDescriptorFactoryAbstractImpl;
+import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
+import com.real.cassandra.queue.pipes.PipeStatusFactory;
+import com.real.cassandra.queue.repository.pelops.QueueDescriptorFactoryImpl;
 
 /**
  * Responsible for the raw I/O for Cassandra queues. Uses Pelops library for
@@ -46,7 +50,7 @@ public abstract class QueueRepositoryAbstractImpl {
     public static final String PIPE_STATUS_COLFAM = "PipeStatus";
 
     protected static final String WAITING_COLFAM_SUFFIX = "_Waiting";
-    protected static final String PENDING_COMMIT_COLFAM_SUFFIX = "_PendingCommit";
+    protected static final String PENDING_COLFAM_SUFFIX = "_Pending";
     protected static final int GC_GRACE_SECS = 86400; // one day
 
     protected static final int MAX_QUEUE_DESCRIPTOR_COLUMNS = 100;
@@ -54,12 +58,22 @@ public abstract class QueueRepositoryAbstractImpl {
     public static final String SYSTEM_KEYSPACE_NAME = "system";
     public static final String STRATEGY_CLASS_NAME = "org.apache.cassandra.locator.SimpleStrategy";
 
+    private static final long MAX_WAIT_SCHEMA_SYNC = 10000;
+
+    protected PipeDescriptorFactory pipeDescFactory;
+    protected QueueDescriptorFactoryImpl qDescFactory;
+    protected PipeStatusFactory pipeStatusFactory = new PipeStatusFactory();
+    protected CassQMsgFactory qMsgFactory = new CassQMsgFactory();
+
     private final int replicationFactor;
     private final ConsistencyLevel consistencyLevel;
 
     public QueueRepositoryAbstractImpl(int replicationFactor, ConsistencyLevel consistencyLevel) {
         this.replicationFactor = replicationFactor;
         this.consistencyLevel = consistencyLevel;
+        this.pipeDescFactory = new PipeDescriptorFactory(this);
+        this.qDescFactory = new QueueDescriptorFactoryImpl();
+
     }
 
     public ConsistencyLevel getConsistencyLevel() {
@@ -107,6 +121,19 @@ public abstract class QueueRepositoryAbstractImpl {
         }
     }
 
+    /**
+     * Creates the queue descriptor if doesn't exists, otherwise uses values
+     * from database disregarding the parameters passed from client. Issues
+     * warning if parameters don't match database.
+     * 
+     * @param qName
+     * @param maxPushTimePerPipe
+     * @param maxPushesPerPipe
+     * @param maxPopWidth
+     * @param popPipeRefreshDelay
+     * @return
+     * @throws Exception
+     */
     public QueueDescriptor createQueueIfDoesntExist(String qName, long maxPushTimePerPipe, int maxPushesPerPipe,
             int maxPopWidth, long popPipeRefreshDelay) throws Exception {
         CfDef colFamDef =
@@ -121,18 +148,34 @@ public abstract class QueueRepositoryAbstractImpl {
         }
 
         colFamDef =
-                new CfDef(QUEUE_KEYSPACE_NAME, formatCommitPendingColFamName(qName)).setComparator_type("TimeUUIDType")
+                new CfDef(QUEUE_KEYSPACE_NAME, formatPendingColFamName(qName)).setComparator_type("TimeUUIDType")
                         .setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(GC_GRACE_SECS);
+        String ver = null;
         try {
-            createColumnFamily(colFamDef);
+            ver = createColumnFamily(colFamDef);
         }
         catch (Exception e) {
             logger.info("exception while trying to create column family, " + colFamDef.getName()
                     + " - possibly already exists and is OK");
         }
 
+        waitForSchemaSync(ver);
+
         return createQueueDescriptorIfNotExists(qName, maxPushTimePerPipe, maxPushesPerPipe, maxPopWidth,
                 popPipeRefreshDelay);
+    }
+
+    private void waitForSchemaSync(String newVer) throws Exception {
+        long start = System.currentTimeMillis();
+
+        while (null != newVer && !isSchemaInSync(newVer) && (System.currentTimeMillis() - start < MAX_WAIT_SCHEMA_SYNC)) {
+            try {
+                Thread.sleep(200);
+            }
+            catch (InterruptedException e) {
+                Thread.interrupted();
+            }
+        }
     }
 
     private QueueDescriptor createQueueDescriptorIfNotExists(String qName, long maxPushTimePerPipe,
@@ -141,8 +184,6 @@ public abstract class QueueRepositoryAbstractImpl {
         if (null != qDesc) {
             if (qDesc.getMaxPushesPerPipe() != maxPushesPerPipe || qDesc.getMaxPushTimeOfPipe() != maxPushTimePerPipe
                     || qDesc.getMaxPopWidth() != maxPopWidth) {
-                // throw new IllegalArgumentException(
-                // "Queue Descriptor already exists and you passed in parameters that do not match what is already there");
                 logger.warn("Queue Descriptor already exists and you passed in parameters that do not match what is already there - using parameters from database");
             }
             return qDesc;
@@ -172,13 +213,61 @@ public abstract class QueueRepositoryAbstractImpl {
         return qName + WAITING_COLFAM_SUFFIX;
     }
 
-    public static String formatCommitPendingColFamName(String qName) {
-        return qName + PENDING_COMMIT_COLFAM_SUFFIX;
+    public static String formatPendingColFamName(String qName) {
+        return qName + PENDING_COLFAM_SUFFIX;
+    }
+
+    public CountResult getCountOfWaitingMsgs(String qName) throws Exception {
+        return getCountOfMsgsAndStatus(qName, formatWaitingColFamName(qName));
+    }
+
+    public CountResult getCountOfPendingCommitMsgs(String qName) throws Exception {
+        return getCountOfMsgsAndStatus(qName, formatPendingColFamName(qName));
+    }
+
+    public CassQMsg getOldestMsgFromDeliveredPipe(PipeDescriptorImpl pipeDesc) throws Exception {
+        return getOldestMsgFromPipe(formatPendingColFamName(pipeDesc.getQName()), pipeDesc);
+    }
+
+    public CassQMsg getOldestMsgFromWaitingPipe(PipeDescriptorImpl pipeDesc) throws Exception {
+        return getOldestMsgFromPipe(formatWaitingColFamName(pipeDesc.getQName()), pipeDesc);
+    }
+
+    private CassQMsg getOldestMsgFromPipe(String colFamName, PipeDescriptorImpl pipeDesc) throws Exception {
+        List<CassQMsg> msgList = getOldestMsgsFromPipe(colFamName, pipeDesc, 1);
+        if (null != msgList && !msgList.isEmpty()) {
+            return msgList.get(0);
+        }
+        else {
+            return null;
+        }
+    }
+
+    public List<CassQMsg> getDeliveredMessagesFromPipe(PipeDescriptorImpl pipeDesc, int maxMsgs) throws Exception {
+        return getOldestMsgsFromPipe(formatPendingColFamName(pipeDesc.getQName()), pipeDesc, maxMsgs);
+    }
+
+    public List<CassQMsg> getWaitingMessagesFromPipe(PipeDescriptorImpl pipeDesc, int maxMsgs) throws Exception {
+        return getOldestMsgsFromPipe(formatWaitingColFamName(pipeDesc.getQName()), pipeDesc, maxMsgs);
+    }
+
+    public void removeMsgFromPendingPipe(CassQMsg qMsg) throws Exception {
+        PipeDescriptorImpl pipeDesc = qMsg.getPipeDescriptor();
+        removeMsgFromPipe(formatPendingColFamName(pipeDesc.getQName()), pipeDesc, qMsg);
+    }
+
+    public void removeMsgFromWaitingPipe(CassQMsg qMsg) throws Exception {
+        PipeDescriptorImpl pipeDesc = qMsg.getPipeDescriptor();
+        removeMsgFromPipe(formatWaitingColFamName(pipeDesc.getQName()), pipeDesc, qMsg);
     }
 
     //
     // - override these methods
     //
+
+    public abstract void shutdown();
+
+    protected abstract CountResult getCountOfMsgsAndStatus(String qName, final String colFamName) throws Exception;
 
     protected abstract QueueDescriptorFactoryAbstractImpl getQueueDescriptorFactory();
 
@@ -194,47 +283,34 @@ public abstract class QueueRepositoryAbstractImpl {
 
     public abstract void insert(String qName, PipeDescriptorImpl pipeDesc, UUID msgId, String msgData) throws Exception;
 
-    public abstract void setPipeDescriptorStatus(String name, PipeDescriptorImpl pipeDesc, String statusPushFinished)
-            throws Exception;
+    public abstract void setPipeDescriptorStatus(PipeDescriptorImpl pipeDesc, String pipeStatus) throws Exception;
 
-    public abstract void removeMsgFromCommitPendingPipe(CassQMsg qMsg) throws Exception;
+    public abstract List<PipeDescriptorImpl> getOldestNonEmptyPipes(String name, int maxNumPipeDescs) throws Exception;
 
-    public abstract void removeMsgFromWaitingPipe(PipeDescriptorImpl pipeDesc, CassQMsg qMsg) throws Exception;
-
-    public abstract List<PipeDescriptorImpl> getOldestNonEmptyPipes(String name, int maxPopWidth) throws Exception;
-
-    public abstract CassQMsg getOldestMsgFromWaitingPipe(PipeDescriptorImpl pipeDesc) throws Exception;
-
-    public abstract void moveMsgFromWaitingToCommitPendingPipe(CassQMsg qMsg) throws Exception;
+    public abstract void moveMsgFromWaitingToPendingPipe(CassQMsg qMsg) throws Exception;
 
     public abstract void dropQueue(CassQueueImpl cassQueueImpl) throws Exception;
 
     public abstract void truncateQueueData(CassQueueImpl cassQueueImpl) throws Exception;
 
-    public abstract CassQMsg getMsg(String qName, UUID pipeId, UUID msgId) throws Exception;
+    public abstract CassQMsg getMsg(String qName, PipeDescriptorImpl pipeDesc, UUID msgId) throws Exception;
 
     public abstract void createPipeDescriptor(String qName, UUID pipeId, String pipeStatus) throws Exception;
 
     public abstract PipeDescriptorImpl getPipeDescriptor(String qName, UUID pipeId) throws Exception;
 
-    public abstract CountResult getCountOfWaitingMsgs(String qName) throws Exception;
-
-    public abstract CountResult getCountOfPendingCommitMsgs(String qName) throws Exception;
-
-    public abstract List<CassQMsg> getDeliveredMessagesFromPipe(PipeDescriptorImpl pipeDesc, int maxMsgs)
+    protected abstract List<CassQMsg> getOldestMsgsFromPipe(String colFameName, PipeDescriptorImpl pipeDesc, int maxMsgs)
             throws Exception;
-
-    public abstract List<CassQMsg> getWaitingMessagesFromPipe(PipeDescriptorImpl pipeDesc, int maxColumns)
-            throws Exception;
-
-    public abstract CassQMsg getOldestMsgFromDeliveredPipe(PipeDescriptorImpl pipeDesc) throws Exception;
 
     public abstract KsDef getKeyspaceDefinition() throws Exception;
 
-    public abstract void createColumnFamily(CfDef colFamDef) throws Exception;
+    public abstract String createColumnFamily(CfDef colFamDef) throws Exception;
 
     protected abstract void createQueueDescriptor(String qName, long maxPushTimePerPipe, int maxPushesPerPipe,
             int maxPopWidth, long popPipeRefreshDelay) throws Exception;
+
+    protected abstract void removeMsgFromPipe(String colFamName, PipeDescriptorImpl pipeDesc, CassQMsg qMsg)
+            throws Exception;
 
     public class CountResult {
         public int numPipeDescriptors;
