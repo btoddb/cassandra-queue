@@ -30,7 +30,7 @@ public class CassQueueTestBase {
     }
 
     @AfterClass
-    public static void shutdownPelopsPool() throws Exception {
+    public static void shutdown() throws Exception {
         qRepos.shutdown();
     }
 

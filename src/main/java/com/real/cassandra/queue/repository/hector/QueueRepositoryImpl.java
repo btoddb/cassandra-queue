@@ -26,12 +26,9 @@ import me.prettyprint.hector.api.query.ColumnQuery;
 
 import org.apache.cassandra.thrift.Cassandra.Client;
 import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.utils.UUIDGen;
-import org.scale7.cassandra.pelops.Bytes;
-import org.scale7.cassandra.pelops.Pelops;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -239,15 +236,42 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    public void truncateQueueData(CassQueueImpl cassQueueImpl) throws Exception {
-        // TODO Auto-generated method stub
+    public void truncateQueueData(CassQueueImpl cq) throws Exception {
+        String qName = cq.getName();
 
+        CassandraClient client = cluster.borrowClient();
+        try {
+            Client thriftClient = client.getCassandra();
+            thriftClient.truncate(formatWaitingColFamName(qName));
+            thriftClient.truncate(formatPendingColFamName(qName));
+        }
+        finally {
+            cluster.releaseClient(client);
+        }
+
+        Mutator<String> m = HFactory.createMutator(createKeyspaceOperator(), StringSerializer.get());
+        m.delete(qName, PIPE_STATUS_COLFAM, null, uuidSerializer);
+        // TODO : remove QUEUE_STATS when created
     }
 
     @Override
-    public void dropQueue(CassQueueImpl cassQueueImpl) throws Exception {
-        // TODO Auto-generated method stub
+    public void dropQueue(CassQueueImpl cq) throws Exception {
+        String qName = cq.getName();
 
+        CassandraClient client = cluster.borrowClient();
+        try {
+            Client thriftClient = client.getCassandra();
+            thriftClient.system_drop_column_family(formatWaitingColFamName(qName));
+            thriftClient.system_drop_column_family(formatPendingColFamName(qName));
+        }
+        finally {
+            cluster.releaseClient(client);
+        }
+
+        Mutator<String> m = HFactory.createMutator(createKeyspaceOperator(), StringSerializer.get());
+        m.delete(qName, QUEUE_DESCRIPTORS_COLFAM, null, uuidSerializer);
+        m.delete(qName, PIPE_STATUS_COLFAM, null, uuidSerializer);
+        // TODO : remove QUEUE_STATS when created
     }
 
     @Override

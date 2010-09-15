@@ -26,6 +26,8 @@ import com.real.cassandra.queue.repository.RepositoryFactoryImpl;
 public class CassQueueUtils {
     private static Logger logger = LoggerFactory.getLogger(CassQueueUtils.class);
 
+    private static boolean cassandraStarted = false;
+
     public static final String QUEUE_POOL_NAME = "myTestPool";
     public static final String SYSTEM_POOL_NAME = "mySystemPool";
     public static final String QUEUE_NAME = "myTestQueue";
@@ -123,6 +125,10 @@ public class CassQueueUtils {
     public static void startCassandraInstance() throws TTransportException, IOException, InterruptedException,
             SecurityException, IllegalArgumentException, NoSuchMethodException, IllegalAccessException,
             InvocationTargetException {
+        if (cassandraStarted) {
+            return;
+        }
+
         CassandraServiceDataCleaner cleaner = new CassandraServiceDataCleaner();
         cleaner.prepare();
         EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
@@ -133,6 +139,9 @@ public class CassQueueUtils {
             logger.error("exception while initializing cassandra server", e);
             throw e;
         }
+
+        cassandraStarted = true;
+
         Thread t = new Thread(cassandra);
         t.setName(cassandra.getClass().getSimpleName());
         t.setDaemon(true);

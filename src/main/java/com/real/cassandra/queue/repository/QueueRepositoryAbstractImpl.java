@@ -291,7 +291,7 @@ public abstract class QueueRepositoryAbstractImpl {
 
     public abstract void dropQueue(CassQueueImpl cassQueueImpl) throws Exception;
 
-    public abstract void truncateQueueData(CassQueueImpl cassQueueImpl) throws Exception;
+    public abstract void truncateQueueData(CassQueueImpl cq) throws Exception;
 
     public abstract CassQMsg getMsg(String qName, PipeDescriptorImpl pipeDesc, UUID msgId) throws Exception;
 
