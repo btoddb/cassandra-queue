@@ -34,7 +34,7 @@ import com.real.cassandra.queue.repository.pelops.QueueDescriptorFactoryImpl;
 public abstract class QueueRepositoryAbstractImpl {
     private static Logger logger = LoggerFactory.getLogger(QueueRepositoryAbstractImpl.class);
 
-    public static final String QUEUE_POOL_NAME = "myTestPool";
+    public static final String QUEUE_POOL_NAME = "queuePool";
     public static final String SYSTEM_POOL_NAME = "mySystemPool";
     public static final String QUEUE_NAME = "myTestQueue";
     public static final ConsistencyLevel CONSISTENCY_LEVEL = ConsistencyLevel.QUORUM;
