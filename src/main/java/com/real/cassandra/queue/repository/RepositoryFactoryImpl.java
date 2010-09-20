@@ -14,15 +14,14 @@ public class RepositoryFactoryImpl {
     public static final String API_HECTOR = "hector";
     public static final String API_PELOPS = "pelops";
 
-    public QueueRepositoryAbstractImpl createInstance(EnvProperties envProps, ConsistencyLevel consistencyLevel)
-            throws Exception {
+    public QueueRepositoryAbstractImpl createInstance(EnvProperties envProps) throws Exception {
         if ("hector".equals(envProps.getApiName())) {
             logger.info("client API chosen : " + API_HECTOR);
-            return HectorUtils.createQueueRepository(envProps, consistencyLevel);
+            return HectorUtils.createQueueRepository(envProps);
         }
         else {
             logger.info("client API chosen : " + API_PELOPS);
-            return PelopsUtils.createQueueRepository(envProps, consistencyLevel);
+            return PelopsUtils.createQueueRepository(envProps, ConsistencyLevel.QUORUM);
         }
     }
 }

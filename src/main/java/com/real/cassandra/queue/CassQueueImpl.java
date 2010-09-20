@@ -64,22 +64,26 @@ public class CassQueueImpl implements CassQueueMXBean {
     }
 
     public void commit(CassQMsg qMsg) throws Exception {
+        logger.debug("commit {}", qMsg);
         qRepos.removeMsgFromPendingPipe(qMsg);
     }
 
     public CassQMsg rollback(CassQMsg qMsg) throws Exception {
+        logger.debug("rollback {}", qMsg);
         CassQMsg qNewMsg = rollbackPusher.push(qMsg.getMsgData());
         qRepos.removeMsgFromPendingPipe(qMsg);
         return qNewMsg;
     }
 
     public PusherImpl createPusher() {
+        logger.debug("creating pusher for queue {}", qName);
         PusherImpl pusher = new PusherImpl(this, qRepos, pipeDescFactory, pushStat);
         pusherSet.add(pusher);
         return pusher;
     }
 
     public PopperImpl createPopper(boolean startPipeWatcher) {
+        logger.debug("creating popper for queue {}", qName);
         PopperImpl popper = new PopperImpl(this, qRepos, popLocker, popNotEmptyStat, popEmptyStat);
         popperSet.add(popper);
         popper.initialize(startPipeWatcher);
@@ -87,10 +91,12 @@ public class CassQueueImpl implements CassQueueMXBean {
     }
 
     public void drop() throws Exception {
+        logger.debug("dropping queue {}", qName);
         qRepos.dropQueue(this);
     }
 
     public void truncate() throws Exception {
+        logger.debug("truncating queue {}", qName);
         qRepos.truncateQueueData(this);
     }
 

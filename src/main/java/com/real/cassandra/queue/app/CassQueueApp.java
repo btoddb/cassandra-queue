@@ -9,7 +9,6 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.UUID;
 
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -120,7 +119,7 @@ public class CassQueueApp {
     }
 
     private static void setupQueueSystem() throws Exception {
-        qRepos = new RepositoryFactoryImpl().createInstance(envProps, ConsistencyLevel.QUORUM);
+        qRepos = new RepositoryFactoryImpl().createInstance(envProps);
         cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new PipeLockerImpl());
         cq = cqFactory.createInstance(envProps.getQName());
     }

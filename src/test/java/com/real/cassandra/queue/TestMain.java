@@ -9,14 +9,10 @@ import java.util.Properties;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.scale7.cassandra.pelops.Pelops;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.CassQMsg;
-import com.real.cassandra.queue.CassQueueFactoryImpl;
-import com.real.cassandra.queue.CassQueueImpl;
 import com.real.cassandra.queue.app.CassQueueUtils;
 import com.real.cassandra.queue.app.EnvProperties;
 import com.real.cassandra.queue.app.PushPopAbstractBase;
@@ -74,7 +70,7 @@ public class TestMain {
     }
 
     private static void setupQueueSystem() throws Exception {
-        qRepos = new RepositoryFactoryImpl().createInstance(envProps, ConsistencyLevel.QUORUM);
+        qRepos = new RepositoryFactoryImpl().createInstance(envProps);
         cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new PipeLockerImpl());
         cq =
                 cqFactory.createInstance(envProps.getQName(), envProps.getMaxPushTimePerPipe(),

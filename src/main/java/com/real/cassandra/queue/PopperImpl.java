@@ -55,11 +55,14 @@ public class PopperImpl {
             // where only maxPopPipeWidth = 1 and haven't loaded any pipe
             // descriptors yet
             for (int i = 0; i < cq.getMaxPopWidth() + 1; i++) {
+                logger.debug("iteration {} of {}", i, cq.getMaxPopWidth() + 1);
+
                 try {
                     pipeDesc = pickAndLockPipe();
 
                     // if can't find a pipe to lock, try again
                     if (null == pipeDesc) {
+                        logger.debug("could not find a pipe to lock, trying again if retries left");
                         continue;
                     }
 
@@ -68,7 +71,7 @@ public class PopperImpl {
                         qMsg = retrieveOldestMsgFromPipe(pipeDesc);
                     }
                     catch (Exception e) {
-                        logger.error("exception while getting oldest msg from waiting pipe : " + pipeDesc.getPipeId(),
+                        logger.error("exception while getting oldest msg from waiting pipe : {}", pipeDesc.getPipeId(),
                                 e);
                         forceRefresh();
                         continue;
@@ -81,10 +84,11 @@ public class PopperImpl {
 
                     // pipe didn't have unpopped msg so mark it as finished if
                     // needed then try again
-                    markPipeAsFinishedIfNeeded(pipeDesc);
+                    checkIfPipeCanBeRemoved(pipeDesc);
                 }
                 finally {
                     if (null != pipeDesc) {
+                        logger.debug("releasing pipe : {}", pipeDesc.toString());
                         popLocker.release(pipeDesc);
                     }
                 }
@@ -98,21 +102,35 @@ public class PopperImpl {
         }
     }
 
-    private void markPipeAsFinishedIfNeeded(PipeDescriptorImpl pipeDesc) throws Exception {
-        // if this pipe is finished then mark as empty since it
-        // has no more msgs
-        if (PipeDescriptorImpl.STATUS_PUSH_FINISHED.equals(pipeDesc.getStatus()) || pipeTimeoutExpired(pipeDesc)
-
-        ) {
-            qRepos.setPipeDescriptorStatus(pipeDesc, PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY);
-            // assuming only one pipe was removed during this refresh we can
-            // perform better by reducing the counter so a "retry" occurs
-            nextPipeCounter--;
-            forceRefresh();
+    private void checkIfPipeCanBeRemoved(PipeDescriptorImpl pipeDesc) throws Exception {
+        // if this pipe is finished or expired, mark as empty
+        if (PipeDescriptorImpl.STATUS_PUSH_FINISHED.equals(pipeDesc.getStatus())) {
+            markPipeAsFinishedAndRefresh(pipeDesc);
+            logger.debug("pipe is push finished and empty, marked finished and removed pipe from descriptor list : {}",
+                    pipeDesc.toString());
+        }
+        else if (pipeTimeoutExpired(pipeDesc)) {
+            markPipeAsFinishedAndRefresh(pipeDesc);
+            logger.debug("pipe has expired, marked finished and removed pipe from descriptor list : {}",
+                    pipeDesc.toString());
+        }
+        else {
+            logger.debug("pipe is not ready to be removed : {}", pipeDesc);
         }
     }
 
+    private void markPipeAsFinishedAndRefresh(PipeDescriptorImpl pipeDesc) throws Exception {
+        qRepos.setPipeDescriptorStatus(pipeDesc, PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY);
+
+        // assuming only one pipe was removed during this refresh we can
+        // perform better by reducing the counter so a "retry" occurs
+        nextPipeCounter--;
+        forceRefresh();
+    }
+
     private boolean pipeTimeoutExpired(PipeDescriptorImpl pipeDesc) {
+        // TODO BTB:must add pipe start time to pipe descriptor so poppers know
+
         // return System.currentTimeMillis()-pipeDesc.getCreateTime() >
         // cq.getMaxPushTimePerPipe();
         return false;
@@ -143,6 +161,7 @@ public class PopperImpl {
     private CassQMsg retrieveOldestMsgFromPipe(PipeDescriptorImpl pipeDesc) throws Exception {
         CassQMsg qMsg = qRepos.getOldestMsgFromWaitingPipe(pipeDesc);
         if (null != qMsg) {
+            logger.debug("found message, moving it to 'waiting' pipe : {}", qMsg.toString());
             qRepos.moveMsgFromWaitingToPendingPipe(qMsg);
         }
         return qMsg;
@@ -150,8 +169,8 @@ public class PopperImpl {
 
     private PipeDescriptorImpl pickAndLockPipe() throws Exception {
         if (null == pipeDescList || pipeDescList.isEmpty()) {
-            forceRefresh();
             logger.debug("no non-empty non-finished pipe descriptors found - signaled refresh");
+            forceRefresh();
             return null;
         }
 
@@ -165,7 +184,9 @@ public class PopperImpl {
                     return pipeDesc;
                 }
             }
+            logger.debug("no pipe available for locking, num pipes tried = {}", width);
         }
+
         return null;
     }
 

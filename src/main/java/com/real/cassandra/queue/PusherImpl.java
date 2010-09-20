@@ -2,6 +2,9 @@ package com.real.cassandra.queue;
 
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
@@ -16,6 +19,8 @@ import com.real.cassandra.queue.utils.RollingStat;
  * @author Todd Burruss
  */
 public class PusherImpl {
+    private static Logger logger = LoggerFactory.getLogger(PusherImpl.class);
+
     // injected objects
     private QueueRepositoryAbstractImpl qRepos;
     private boolean shutdownInProgress = false;
@@ -55,6 +60,7 @@ public class PusherImpl {
         }
 
         if (isNewPipeNeeded()) {
+            logger.debug("new pipe needed, creating one");
             createNewPipe();
         }
 
@@ -63,6 +69,7 @@ public class PusherImpl {
 
         CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
         qRepos.insert(getQName(), pipeDesc, qMsg.getMsgId(), qMsg.getMsgData());
+        logger.debug("pushed message : {}", qMsg);
 
         pushStat.addSample(System.currentTimeMillis() - start);
         return qMsg;
@@ -80,12 +87,25 @@ public class PusherImpl {
         }
 
         pipeDesc = newPipeDesc;
+        logger.debug("created new pipe : {}", pipeDesc);
         start = System.currentTimeMillis();
     }
 
     private boolean isNewPipeNeeded() {
-        return null == pipeDesc || pipeDesc.getMsgCount() >= cq.getMaxPushesPerPipe()
-                || System.currentTimeMillis() - start > cq.getMaxPushTimePerPipe();
+        if (null == pipeDesc) {
+            logger.debug("new pipe need, none exists");
+            return true;
+        }
+        else if (pipeDesc.getMsgCount() >= cq.getMaxPushesPerPipe()) {
+            logger.debug("new pipe need, msg count exceeds max of {}", cq.getMaxPushesPerPipe());
+            return true;
+        }
+        else if (System.currentTimeMillis() - start > cq.getMaxPushTimePerPipe()) {
+            logger.debug("new pipe need, pipe has exceed expiration of {} ms", cq.getMaxPushTimePerPipe());
+            return true;
+        }
+
+        return false;
     }
 
     public String getQName() {

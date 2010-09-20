@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.KsDef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,8 +36,6 @@ public abstract class QueueRepositoryAbstractImpl {
     public static final String QUEUE_POOL_NAME = "queuePool";
     public static final String SYSTEM_POOL_NAME = "mySystemPool";
     public static final String QUEUE_NAME = "myTestQueue";
-    // public static final ConsistencyLevel CONSISTENCY_LEVEL =
-    // ConsistencyLevel.QUORUM;
 
     public static final String QUEUE_KEYSPACE_NAME = "Queues";
 

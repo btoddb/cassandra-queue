@@ -26,7 +26,6 @@ import me.prettyprint.hector.api.query.ColumnQuery;
 
 import org.apache.cassandra.thrift.Cassandra.Client;
 import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.utils.UUIDGen;
 import org.slf4j.Logger;
@@ -44,16 +43,19 @@ import com.real.cassandra.queue.utils.UuidGenerator;
 public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     private static Logger logger = LoggerFactory.getLogger(QueueRepositoryImpl.class);
 
+    public static final QuorumAllConsistencyLevelPolicy consistencyLevelPolicy = new QuorumAllConsistencyLevelPolicy();
+
     private Cluster cluster;
-    private QuorumAllConsistencyLevelPolicy consistencyLevelPolicy = new QuorumAllConsistencyLevelPolicy();
     private QueueDescriptorFactoryImpl qDescFactory;
     private UUIDSerializer uuidSerializer = UUIDSerializer.get();
     private BytesSerializer bytesSerializer = BytesSerializer.get();
+    private KeyspaceOperator ko;
 
-    public QueueRepositoryImpl(Cluster cluster, int replicationFactor, ConsistencyLevel consistencyLevel) {
+    public QueueRepositoryImpl(Cluster cluster, int replicationFactor, KeyspaceOperator ko) {
         super(replicationFactor);
         this.cluster = cluster;
         this.qDescFactory = new QueueDescriptorFactoryImpl();
+        this.ko = ko;
     }
 
     @Override
@@ -61,7 +63,6 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         StringSerializer se = StringSerializer.get();
         BytesSerializer be = BytesSerializer.get();
 
-        KeyspaceOperator ko = createKeyspaceOperator();
         SliceQuery<String, String, byte[]> q = HFactory.createSliceQuery(ko, se, se, be);
         q.setRange("", "", false, 100);
         q.setColumnFamily(QUEUE_DESCRIPTORS_COLFAM);
@@ -73,7 +74,6 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     @Override
     protected void createQueueDescriptor(String qName, long maxPushTimePerPipe, int maxPushesPerPipe, int maxPopWidth,
             long popPipeRefreshDelay) throws Exception {
-        KeyspaceOperator ko = createKeyspaceOperator();
 
         StringSerializer se = StringSerializer.get();
         IntegerSerializer ie = IntegerSerializer.get();
@@ -90,10 +90,6 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         m.addInsertion(qName, QUEUE_DESCRIPTORS_COLFAM,
                 HFactory.createColumn(QDESC_COLNAME_POP_PIPE_REFRESH_DELAY, popPipeRefreshDelay, se, le));
         m.execute();
-    }
-
-    private KeyspaceOperator createKeyspaceOperator() {
-        return HFactory.createKeyspaceOperator(QUEUE_KEYSPACE_NAME, cluster, consistencyLevelPolicy);
     }
 
     @Override
@@ -150,7 +146,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
     @Override
     public void insert(String qName, PipeDescriptorImpl pipeDesc, UUID msgId, String msgData) throws Exception {
-        Mutator<byte[]> m = HFactory.createMutator(createKeyspaceOperator(), bytesSerializer);
+        Mutator<byte[]> m = HFactory.createMutator(ko, bytesSerializer);
 
         // add insert into waiting
         HColumn<UUID, byte[]> col = HFactory.createColumn(msgId, msgData.getBytes(), uuidSerializer, bytesSerializer);
@@ -177,7 +173,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
     @Override
     protected void removeMsgFromPipe(String colFamName, PipeDescriptorImpl pipeDesc, CassQMsg qMsg) throws Exception {
-        Mutator<UUID> m = HFactory.createMutator(createKeyspaceOperator(), uuidSerializer);
+        Mutator<UUID> m = HFactory.createMutator(ko, uuidSerializer);
         m.delete(pipeDesc.getPipeId(), colFamName, qMsg.getMsgId(), uuidSerializer);
     }
 
@@ -210,7 +206,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     protected List<CassQMsg> getOldestMsgsFromPipe(String colFameName, PipeDescriptorImpl pipeDesc, int maxMsgs)
             throws Exception {
         SliceQuery<UUID, UUID, byte[]> q =
-                HFactory.createSliceQuery(createKeyspaceOperator(), uuidSerializer, uuidSerializer, bytesSerializer);
+                HFactory.createSliceQuery(ko, uuidSerializer, uuidSerializer, bytesSerializer);
         q.setColumnFamily(colFameName);
         q.setKey(pipeDesc.getPipeId());
         q.setRange(null, null, false, maxMsgs);
@@ -227,7 +223,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     public void moveMsgFromWaitingToPendingPipe(CassQMsg qMsg) throws Exception {
         PipeDescriptorImpl pipeDesc = qMsg.getPipeDescriptor();
         String qName = qMsg.getPipeDescriptor().getQName();
-        Mutator<UUID> m = HFactory.createMutator(createKeyspaceOperator(), uuidSerializer);
+        Mutator<UUID> m = HFactory.createMutator(ko, uuidSerializer);
         HColumn<UUID, byte[]> col =
                 HFactory.createColumn(qMsg.getMsgId(), qMsg.getMsgData().getBytes(), uuidSerializer, bytesSerializer);
         m.addInsertion(pipeDesc.getPipeId(), formatPendingColFamName(qName), col);
@@ -250,7 +246,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
             cluster.releaseClient(client);
         }
 
-        Mutator<String> m = HFactory.createMutator(createKeyspaceOperator(), StringSerializer.get());
+        Mutator<String> m = HFactory.createMutator(ko, StringSerializer.get());
         m.delete(qName, PIPE_STATUS_COLFAM, null, uuidSerializer);
         // TODO : remove QUEUE_STATS when created
     }
@@ -269,7 +265,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
             cluster.releaseClient(client);
         }
 
-        Mutator<String> m = HFactory.createMutator(createKeyspaceOperator(), StringSerializer.get());
+        Mutator<String> m = HFactory.createMutator(ko, StringSerializer.get());
         m.delete(qName, QUEUE_DESCRIPTORS_COLFAM, null, uuidSerializer);
         m.delete(qName, PIPE_STATUS_COLFAM, null, uuidSerializer);
         // TODO : remove QUEUE_STATS when created
@@ -278,7 +274,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     @Override
     public CassQMsg getMsg(String qName, PipeDescriptorImpl pipeDesc, UUID msgId) throws Exception {
         ColumnQuery<UUID, UUID, byte[]> q =
-                HFactory.createColumnQuery(createKeyspaceOperator(), uuidSerializer, uuidSerializer, bytesSerializer);
+                HFactory.createColumnQuery(ko, uuidSerializer, uuidSerializer, bytesSerializer);
         q.setColumnFamily(formatWaitingColFamName(qName));
         q.setKey(pipeDesc.getPipeId());
         q.setName(msgId);
@@ -289,7 +285,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     @Override
     public void createPipeDescriptor(String qName, UUID pipeId, String pipeStatus) throws Exception {
         String rawStatus = pipeStatusFactory.createInstance(new PipeStatus(pipeStatus, 0));
-        Mutator<String> m = HFactory.createMutator(createKeyspaceOperator(), StringSerializer.get());
+        Mutator<String> m = HFactory.createMutator(ko, StringSerializer.get());
         HColumn<UUID, String> col = HFactory.createColumn(pipeId, rawStatus, uuidSerializer, StringSerializer.get());
         m.insert(qName, PIPE_STATUS_COLFAM, col);
     }
@@ -297,8 +293,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     @Override
     public PipeDescriptorImpl getPipeDescriptor(String qName, UUID pipeId) throws Exception {
         ColumnQuery<byte[], UUID, String> q =
-                HFactory.createColumnQuery(createKeyspaceOperator(), bytesSerializer, uuidSerializer,
-                        StringSerializer.get());
+                HFactory.createColumnQuery(ko, bytesSerializer, uuidSerializer, StringSerializer.get());
         q.setColumnFamily(PIPE_STATUS_COLFAM);
         q.setKey(qName.getBytes());
         q.setName(pipeId);
@@ -315,7 +310,6 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     protected CountResult getCountOfMsgsAndStatus(String qName, final String colFamName) throws Exception {
         final CountResult result = new CountResult();
         final BytesSerializer bs = BytesSerializer.get();
-        KeyspaceOperator ko = HFactory.createKeyspaceOperator(QUEUE_KEYSPACE_NAME, cluster);
         final CountQuery<byte[], byte[]> countQuery = HFactory.createCountQuery(ko, bs, bs);
         countQuery.setColumnFamily(colFamName);
 
