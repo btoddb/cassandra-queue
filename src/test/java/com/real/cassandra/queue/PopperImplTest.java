@@ -1,4 +1,4 @@
-package com.real.cassandra.queue.pipeperpusher;
+package com.real.cassandra.queue;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;

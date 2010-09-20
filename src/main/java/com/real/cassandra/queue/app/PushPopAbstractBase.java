@@ -1,9 +1,8 @@
-package com.real.cassandra.queue.pipeperpusher;
+package com.real.cassandra.queue.app;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.app.EnvProperties;
 
 public abstract class PushPopAbstractBase implements Runnable {
     private static Logger logger = LoggerFactory.getLogger(PushPopAbstractBase.class);

@@ -45,21 +45,18 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
     private final PelopsPool systemPool;
     private PelopsPool queuePool;
+    private ConsistencyLevel consistencyLevel;
 
     public QueueRepositoryImpl(PelopsPool systemPool, PelopsPool queuePool, int replicationFactor,
             ConsistencyLevel consistencyLevel) {
-        super(replicationFactor, consistencyLevel);
+        super(replicationFactor);
         this.systemPool = systemPool;
         this.queuePool = queuePool;
+        this.consistencyLevel = consistencyLevel;
     }
 
-    /**
-     * Perform default initialization of the repository.
-     * 
-     * @throws Exception
-     */
-    public void init() throws Exception {
-        initKeyspace(false);
+    public ConsistencyLevel getConsistencyLevel() {
+        return consistencyLevel;
     }
 
     // /**

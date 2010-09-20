@@ -15,8 +15,8 @@ import org.apache.cassandra.thrift.KsDef;
 import org.junit.Test;
 
 import com.real.cassandra.queue.CassQMsg;
+import com.real.cassandra.queue.CassQueueTestBase;
 import com.real.cassandra.queue.QueueDescriptor;
-import com.real.cassandra.queue.pipeperpusher.CassQueueTestBase;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.repository.pelops.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.UuidGenerator;

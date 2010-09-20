@@ -37,7 +37,8 @@ public abstract class QueueRepositoryAbstractImpl {
     public static final String QUEUE_POOL_NAME = "queuePool";
     public static final String SYSTEM_POOL_NAME = "mySystemPool";
     public static final String QUEUE_NAME = "myTestQueue";
-    public static final ConsistencyLevel CONSISTENCY_LEVEL = ConsistencyLevel.QUORUM;
+    // public static final ConsistencyLevel CONSISTENCY_LEVEL =
+    // ConsistencyLevel.QUORUM;
 
     public static final String QUEUE_KEYSPACE_NAME = "Queues";
 
@@ -66,18 +67,22 @@ public abstract class QueueRepositoryAbstractImpl {
     protected CassQMsgFactory qMsgFactory = new CassQMsgFactory();
 
     private final int replicationFactor;
-    private final ConsistencyLevel consistencyLevel;
 
-    public QueueRepositoryAbstractImpl(int replicationFactor, ConsistencyLevel consistencyLevel) {
+    public QueueRepositoryAbstractImpl(int replicationFactor) {
         this.replicationFactor = replicationFactor;
-        this.consistencyLevel = consistencyLevel;
         this.pipeDescFactory = new PipeDescriptorFactory(this);
         this.qDescFactory = new QueueDescriptorFactoryImpl();
 
     }
 
-    public ConsistencyLevel getConsistencyLevel() {
-        return consistencyLevel;
+    /**
+     * Perform default initialization of the repository. Intended use is for
+     * spring 'init-method'
+     * 
+     * @throws Exception
+     */
+    public void init() throws Exception {
+        initKeyspace(false);
     }
 
     public int getReplicationFactor() {

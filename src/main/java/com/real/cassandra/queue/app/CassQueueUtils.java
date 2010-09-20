@@ -18,9 +18,6 @@ import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.CassQueueImpl;
-import com.real.cassandra.queue.pipeperpusher.CassQueuePopper;
-import com.real.cassandra.queue.pipeperpusher.CassQueuePusher;
-import com.real.cassandra.queue.pipeperpusher.PushPopAbstractBase;
 import com.real.cassandra.queue.repository.RepositoryFactoryImpl;
 
 public class CassQueueUtils {

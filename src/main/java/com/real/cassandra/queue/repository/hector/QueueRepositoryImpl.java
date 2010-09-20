@@ -51,7 +51,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     private BytesSerializer bytesSerializer = BytesSerializer.get();
 
     public QueueRepositoryImpl(Cluster cluster, int replicationFactor, ConsistencyLevel consistencyLevel) {
-        super(replicationFactor, consistencyLevel);
+        super(replicationFactor);
         this.cluster = cluster;
         this.qDescFactory = new QueueDescriptorFactoryImpl();
     }
@@ -242,6 +242,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         CassandraClient client = cluster.borrowClient();
         try {
             Client thriftClient = client.getCassandra();
+            thriftClient.set_keyspace(QUEUE_KEYSPACE_NAME);
             thriftClient.truncate(formatWaitingColFamName(qName));
             thriftClient.truncate(formatPendingColFamName(qName));
         }

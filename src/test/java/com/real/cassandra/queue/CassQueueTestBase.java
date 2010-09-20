@@ -1,4 +1,4 @@
-package com.real.cassandra.queue.pipeperpusher;
+package com.real.cassandra.queue;
 
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.junit.AfterClass;

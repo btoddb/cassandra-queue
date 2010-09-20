@@ -1,4 +1,4 @@
-package com.real.cassandra.queue.pipeperpusher;
+package com.real.cassandra.queue.app;
 
 import java.io.FileWriter;
 import java.io.PrintWriter;
@@ -7,7 +7,6 @@ import java.util.Queue;
 import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.CassQueueImpl;
 import com.real.cassandra.queue.PopperImpl;
-import com.real.cassandra.queue.app.EnvProperties;
 
 public class CassQueuePopper extends PushPopAbstractBase {
     private Queue<CassQMsg> popQ;

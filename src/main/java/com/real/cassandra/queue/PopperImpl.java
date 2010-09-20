@@ -20,14 +20,13 @@ public class PopperImpl {
     private List<PipeDescriptorImpl> pipeDescList;
     private PipeLockerImpl popLocker;
     private long nextPipeCounter;
-    private PusherImpl rollbackPusher;
     private PipeWatcher pipeWatcher;
 
     private RollingStat popNotEmptyStat;
     private RollingStat popEmptyStat;
 
     public PopperImpl(CassQueueImpl cq, QueueRepositoryAbstractImpl qRepos, PipeLockerImpl popLock,
-            RollingStat popNotEmptyStat, RollingStat popEmptyStat) throws Exception {
+            RollingStat popNotEmptyStat, RollingStat popEmptyStat) {
         this.cq = cq;
         this.qRepos = qRepos;
         this.popLocker = popLock;
@@ -36,7 +35,6 @@ public class PopperImpl {
     }
 
     public void initialize(boolean startPipeWatcher) {
-        rollbackPusher = cq.createPusher();
         if (startPipeWatcher) {
             pipeWatcher = new PipeWatcher();
             pipeWatcher.start();
@@ -103,7 +101,9 @@ public class PopperImpl {
     private void markPipeAsFinishedIfNeeded(PipeDescriptorImpl pipeDesc) throws Exception {
         // if this pipe is finished then mark as empty since it
         // has no more msgs
-        if (PipeDescriptorImpl.STATUS_PUSH_FINISHED.equals(pipeDesc.getStatus())) {
+        if (PipeDescriptorImpl.STATUS_PUSH_FINISHED.equals(pipeDesc.getStatus()) || pipeTimeoutExpired(pipeDesc)
+
+        ) {
             qRepos.setPipeDescriptorStatus(pipeDesc, PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY);
             // assuming only one pipe was removed during this refresh we can
             // perform better by reducing the counter so a "retry" occurs
@@ -112,14 +112,18 @@ public class PopperImpl {
         }
     }
 
+    private boolean pipeTimeoutExpired(PipeDescriptorImpl pipeDesc) {
+        // return System.currentTimeMillis()-pipeDesc.getCreateTime() >
+        // cq.getMaxPushTimePerPipe();
+        return false;
+    }
+
     public void commit(CassQMsg qMsg) throws Exception {
-        qRepos.removeMsgFromPendingPipe(qMsg);
+        cq.commit(qMsg);
     }
 
     public CassQMsg rollback(CassQMsg qMsg) throws Exception {
-        CassQMsg qNewMsg = rollbackPusher.push(qMsg.getMsgData());
-        qRepos.removeMsgFromPendingPipe(qMsg);
-        return qNewMsg;
+        return cq.rollback(qMsg);
     }
 
     private void refreshPipeList() throws Exception {

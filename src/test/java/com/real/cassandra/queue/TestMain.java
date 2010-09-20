@@ -1,4 +1,4 @@
-package com.real.cassandra.queue.pipeperpusher;
+package com.real.cassandra.queue;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -19,6 +19,7 @@ import com.real.cassandra.queue.CassQueueFactoryImpl;
 import com.real.cassandra.queue.CassQueueImpl;
 import com.real.cassandra.queue.app.CassQueueUtils;
 import com.real.cassandra.queue.app.EnvProperties;
+import com.real.cassandra.queue.app.PushPopAbstractBase;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeLockerImpl;
 import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;

@@ -26,6 +26,8 @@ public class CassQueueImpl implements CassQueueMXBean {
     private PipeLockerImpl popLocker;
     private long popPipeRefreshDelay;
 
+    private PusherImpl rollbackPusher;
+
     private Set<PusherImpl> pusherSet = new HashSet<PusherImpl>();
     private Set<PopperImpl> popperSet = new HashSet<PopperImpl>();
 
@@ -44,6 +46,7 @@ public class CassQueueImpl implements CassQueueMXBean {
         this.maxPopWidth = popWidth;
         this.popLocker = popLocker;
         this.popPipeRefreshDelay = popPipeRefreshDelay;
+        this.rollbackPusher = createPusher();
         initJmx();
     }
 
@@ -60,13 +63,23 @@ public class CassQueueImpl implements CassQueueMXBean {
         }
     }
 
+    public void commit(CassQMsg qMsg) throws Exception {
+        qRepos.removeMsgFromPendingPipe(qMsg);
+    }
+
+    public CassQMsg rollback(CassQMsg qMsg) throws Exception {
+        CassQMsg qNewMsg = rollbackPusher.push(qMsg.getMsgData());
+        qRepos.removeMsgFromPendingPipe(qMsg);
+        return qNewMsg;
+    }
+
     public PusherImpl createPusher() {
         PusherImpl pusher = new PusherImpl(this, qRepos, pipeDescFactory, pushStat);
         pusherSet.add(pusher);
         return pusher;
     }
 
-    public PopperImpl createPopper(boolean startPipeWatcher) throws Exception {
+    public PopperImpl createPopper(boolean startPipeWatcher) {
         PopperImpl popper = new PopperImpl(this, qRepos, popLocker, popNotEmptyStat, popEmptyStat);
         popperSet.add(popper);
         popper.initialize(startPipeWatcher);

@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.real</groupId>
 	<artifactId>cassandra-queue</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>0.1.0-SNAPSHOT</version>
 	<name>Cassandra Queue</name>
 	<description>Simple FIFO queue using Cassandra Database</description>
 
@@ -11,6 +11,30 @@
 	   <spring.version>3.0.3.RELEASE</spring.version> 
 		<spring-integration.version>2.0.0.M6</spring-integration.version>
 	</properties>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>maps-snapshot-repository</id>
+            <name>MAPS Snapshot Repository</name>
+            <url>scp://maven@build01.dev.real.com/data/snapshots</url>
+            <uniqueVersion>false</uniqueVersion>
+        </snapshotRepository>
+        <repository>
+            <id>maps-internal-repo</id>
+            <name>MAPS Internal Repository</name>
+            <url>scp://maven@build01.dev.real.com/home/maven/realrepo</url>
+        </repository>
+<!--        <site>-->
+<!--            <id>website</id>-->
+<!--            <url>scp://maven@platform.real.com/var/www/html/mavencaps/cassandra-queue</url>-->
+<!--        </site>-->
+    </distributionManagement>
+
+<!--    <scm>-->
+<!--        <connection>scm:cvs:pserver:@cvs.dev.prognet.com:/home/np:shared/maps/cassandra-pelops</connection>-->
+<!--        <developerConnection>scm:cvs:pserver:@cvs.dev.prognet.com:/home/np:shared/maps/cassandra-pelops</developerConnection>-->
+<!--        <url>https://cvs.dev.prognet.com/np/index.cgi/shared/maps/cassandra-pelops</url>-->
+<!--    </scm>-->
 
 	<build>
 		<plugins>
@@ -47,6 +71,16 @@
             <groupId>me.prettyprint</groupId>
             <artifactId>hector</artifactId>
             <version>0.7.0-17-RN03-SNAPSHOT</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-log4j12</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>jcl-over-slf4j</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
