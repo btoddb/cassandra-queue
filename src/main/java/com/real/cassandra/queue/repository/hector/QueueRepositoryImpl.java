@@ -250,7 +250,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         }
 
         Mutator<String> m = HFactory.createMutator(ko, StringSerializer.get());
-        m.delete(qName, PIPE_STATUS_COLFAM, null, null);
+        m.delete(qName, PIPE_STATUS_COLFAM, null, UUIDSerializer.get());
         // TODO : remove QUEUE_STATS when created
     }
 
@@ -269,8 +269,8 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         }
 
         Mutator<String> m = HFactory.createMutator(ko, StringSerializer.get());
-        m.delete(qName, QUEUE_DESCRIPTORS_COLFAM, null, null);
-        m.delete(qName, PIPE_STATUS_COLFAM, null, null);
+        m.delete(qName, QUEUE_DESCRIPTORS_COLFAM, null, UUIDSerializer.get());
+        m.delete(qName, PIPE_STATUS_COLFAM, null, UUIDSerializer.get());
         // TODO : remove QUEUE_STATS when created
     }
 
