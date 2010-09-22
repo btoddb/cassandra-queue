@@ -57,7 +57,7 @@ public class PusherImpl {
 
         if (isNewPipeNeeded()) {
             logger.debug("new pipe needed, creating one");
-            createNewPipe();
+            createNewPipeAndMarkOldAsFinished();
         }
 
         pipeDesc.incMsgCount();
@@ -71,7 +71,7 @@ public class PusherImpl {
         return qMsg;
     }
 
-    private void createNewPipe() throws Exception {
+    private void createNewPipeAndMarkOldAsFinished() throws Exception {
         PipeDescriptorImpl newPipeDesc =
                 pipeDescFactory.createInstance(cq.getName(), PipeDescriptorImpl.STATUS_PUSH_ACTIVE, 0);
 

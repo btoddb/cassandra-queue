@@ -6,12 +6,12 @@ import java.net.UnknownHostException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class MyInetAddress {
-    private static Logger logger = LoggerFactory.getLogger(MyInetAddress.class);
+public class MyIp {
+    private static Logger logger = LoggerFactory.getLogger(MyIp.class);
 
-    private InetAddress inetAddr;
+    private static InetAddress inetAddr;
 
-    public MyInetAddress() {
+    static {
         try {
             inetAddr = InetAddress.getLocalHost();
         }
@@ -21,7 +21,7 @@ public class MyInetAddress {
         }
     }
 
-    public InetAddress get() {
+    public static InetAddress get() {
         return inetAddr;
     }
 }

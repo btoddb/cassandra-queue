@@ -6,18 +6,16 @@ import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
+import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.real.cassandra.queue.CassQMsg;
-import com.real.cassandra.queue.CassQueueFactoryImpl;
-import com.real.cassandra.queue.CassQueueImpl;
-import com.real.cassandra.queue.PopperImpl;
-import com.real.cassandra.queue.PusherImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeLockerImpl;
+import com.real.cassandra.queue.utils.MyIp;
 
 public class PopperImplTest extends CassQueueTestBase {
     private CassQueueFactoryImpl cqFactory;
@@ -263,6 +261,22 @@ public class PopperImplTest extends CassQueueTestBase {
         for (int i = 0; i < numMsgs / 2; i++) {
             assertEquals(rollbackList.remove(0), popper.pop());
         }
+    }
+
+    @Test
+    public void testPipeDescriptorExpires() throws Exception {
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, 5000, false);
+        UUID pipeId1 = UUIDGen.makeType1UUIDFromHost(MyIp.get());
+        UUID pipeId2 = UUIDGen.makeType1UUIDFromHost(MyIp.get());
+        qRepos.createPipeDescriptor(cq.getName(), pipeId1, PipeDescriptorImpl.STATUS_PUSH_ACTIVE, 1);
+        qRepos.createPipeDescriptor(cq.getName(), pipeId2, PipeDescriptorImpl.STATUS_PUSH_ACTIVE,
+                System.currentTimeMillis());
+        PopperImpl popper = cq.createPopper(false);
+        popper.pop();
+
+        assertEquals(PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY, qRepos.getPipeDescriptor(cq.getName(), pipeId1)
+                .getStatus());
+        assertEquals(PipeDescriptorImpl.STATUS_PUSH_ACTIVE, qRepos.getPipeDescriptor(cq.getName(), pipeId2).getStatus());
     }
 
     // -------------------------

@@ -13,6 +13,7 @@ import com.real.cassandra.queue.utils.RollingStat;
 public class PopperImpl {
     private static Logger logger = LoggerFactory.getLogger(PopperImpl.class);
 
+    private static final int PUSHER_TIMEOUT_DELAY = 10000;
     private Object pipeWatcherMonObj = new Object();
     private CassQueueImpl cq;
     private QueueRepositoryAbstractImpl qRepos;
@@ -129,11 +130,9 @@ public class PopperImpl {
     }
 
     private boolean pipeTimeoutExpired(PipeDescriptorImpl pipeDesc) {
-        // TODO BTB:must add pipe start time to pipe descriptor so poppers know
-
-        // return System.currentTimeMillis()-pipeDesc.getCreateTime() >
-        // cq.getMaxPushTimePerPipe();
-        return false;
+        // give the extra PUSHER_TIMEOUT_DELAY so no contention with pusher
+        return System.currentTimeMillis() - pipeDesc.getStartTimestamp() - PUSHER_TIMEOUT_DELAY > cq
+                .getMaxPushTimePerPipe();
     }
 
     public void commit(CassQMsg qMsg) throws Exception {

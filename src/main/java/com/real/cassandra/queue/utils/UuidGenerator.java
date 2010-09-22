@@ -5,7 +5,7 @@ import java.util.UUID;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class UuidGenerator {
-    private static MyInetAddress inetAddr = new MyInetAddress();
+    private static MyIp inetAddr = new MyIp();
 
     public static UUID generateTimeUuid() {
         return UUIDGen.makeType1UUIDFromHost(inetAddr.get());

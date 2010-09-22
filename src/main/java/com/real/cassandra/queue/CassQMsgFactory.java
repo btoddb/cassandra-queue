@@ -8,10 +8,10 @@ import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.UUIDGen;
 
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
-import com.real.cassandra.queue.utils.MyInetAddress;
+import com.real.cassandra.queue.utils.MyIp;
 
 public class CassQMsgFactory {
-    private static MyInetAddress inetAddr = new MyInetAddress();
+    private static MyIp inetAddr = new MyIp();
 
     public CassQMsg createInstance(PipeDescriptorImpl pipeDesc, UUID msgId, String msgData) {
         return new CassQMsg(pipeDesc, msgId, msgData);

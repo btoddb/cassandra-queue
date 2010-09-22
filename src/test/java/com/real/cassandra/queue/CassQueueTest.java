@@ -85,11 +85,6 @@ public class CassQueueTest extends CassQueueTestBase {
         fail("not implemented yet");
     }
 
-    @Test
-    public void testPusherDiesCleanupPipes() {
-        fail("not implemented yet");
-    }
-
     //
     // @Test
     // public void testSimultaneousMultiplePusherMultiplePopper() {
