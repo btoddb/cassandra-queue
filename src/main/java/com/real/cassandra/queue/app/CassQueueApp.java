@@ -13,7 +13,6 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
 import org.apache.commons.cli.Options;
-import org.scale7.cassandra.pelops.Pelops;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,9 +22,8 @@ import com.real.cassandra.queue.CassQueueImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeLockerImpl;
-import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
 import com.real.cassandra.queue.repository.RepositoryFactoryImpl;
-import com.real.cassandra.queue.repository.pelops.QueueRepositoryImpl;
+import com.real.cassandra.queue.repository.hector.QueueRepositoryImpl;
 
 public class CassQueueApp {
     private static Logger logger = LoggerFactory.getLogger(CassQueueApp.class);
@@ -35,7 +33,7 @@ public class CassQueueApp {
     private static final String OPT_OLDEST_PIPES = "oldest-pipes";
 
     private static CassQueueFactoryImpl cqFactory;
-    private static QueueRepositoryAbstractImpl qRepos;
+    private static QueueRepositoryImpl qRepos;
     private static EnvProperties envProps;
     private static CassQueueImpl cq;
 
@@ -72,18 +70,25 @@ public class CassQueueApp {
     private static void dumpPipe(CommandLine cmdLine) throws Exception {
         String pipeIdAsStr = cmdLine.getOptionValue(OPT_DUMP_PIPE);
         PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(envProps.getQName(), UUID.fromString(pipeIdAsStr));
-        outputPipeDescription(pipeDesc);
+        outputPipeDescription(qRepos, pipeDesc, envProps.getMaxPushesPerPipe());
     }
 
-    private static void outputPipeDescription(PipeDescriptorImpl pipeDesc) throws Exception {
-        System.out.println("pipeId : " + pipeDesc.getPipeId() + " : " + pipeDesc.getStatus() + ", "
-                + pipeDesc.getMsgCount());
-        List<CassQMsg> msgList = qRepos.getWaitingMessagesFromPipe(pipeDesc, envProps.getMaxPushesPerPipe() + 1);
+    public static void outputPipeDescription(QueueRepositoryImpl qRepos, PipeDescriptorImpl pipeDesc,
+            int maxPushesPerPipe) throws Exception {
+        System.out.println(pipeDesc.toString());
+        List<CassQMsg> msgList = qRepos.getWaitingMessagesFromPipe(pipeDesc, maxPushesPerPipe + 1);
         if (msgList.isEmpty()) {
-            System.out.println("<pipe is empty>");
+            System.out.println("waiting: <pipe is empty>");
         }
         for (CassQMsg qMsg : msgList) {
-            System.out.println("msg : " + qMsg.toString());
+            System.out.println("waiting msg : " + qMsg.toString());
+        }
+        msgList = qRepos.getDeliveredMessagesFromPipe(pipeDesc, maxPushesPerPipe + 1);
+        if (msgList.isEmpty()) {
+            System.out.println("pending: <pipe is empty>");
+        }
+        for (CassQMsg qMsg : msgList) {
+            System.out.println("pending msg : " + qMsg.toString());
         }
     }
 
@@ -126,7 +131,6 @@ public class CassQueueApp {
 
     private static void shutdownQueueMgrAndPool() {
         cq.shutdown();
-        Pelops.shutdown();
     }
 
 }

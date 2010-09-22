@@ -145,17 +145,18 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    public void insert(String qName, PipeDescriptorImpl pipeDesc, UUID msgId, String msgData) throws Exception {
+    public void insert(PipeDescriptorImpl pipeDesc, UUID msgId, String msgData) throws Exception {
         Mutator<byte[]> m = HFactory.createMutator(ko, bytesSerializer);
 
         // add insert into waiting
         HColumn<UUID, byte[]> col = HFactory.createColumn(msgId, msgData.getBytes(), uuidSerializer, bytesSerializer);
-        m.addInsertion(uuidSerializer.toBytes(pipeDesc.getPipeId()), formatWaitingColFamName(qName), col);
+        m.addInsertion(uuidSerializer.toBytes(pipeDesc.getPipeId()), formatWaitingColFamName(pipeDesc.getQName()), col);
 
         // update msg count
+        logger.debug("updating pipe descriptor to increase msg count : {}", pipeDesc);
         String rawStatus =
-                pipeStatusFactory.createInstance(new PipeStatus(PipeDescriptorImpl.STATUS_PUSH_ACTIVE, pipeDesc
-                        .getMsgCount()));
+                pipeStatusFactory.createInstance(pipeStatusFactory.createInstance(pipeDesc.getStatus(),
+                        pipeDesc.getMsgCount(), pipeDesc.getStartTimestamp()));
         col = HFactory.createColumn(pipeDesc.getPipeId(), rawStatus.getBytes(), uuidSerializer, bytesSerializer);
         m.addInsertion(pipeDesc.getQName().getBytes(), PIPE_STATUS_COLFAM, col);
 
@@ -164,7 +165,9 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
     @Override
     public void setPipeDescriptorStatus(PipeDescriptorImpl pipeDesc, String pipeStatus) throws Exception {
-        String rawStatus = pipeStatusFactory.createInstance(new PipeStatus(pipeStatus, pipeDesc.getMsgCount()));
+        String rawStatus =
+                pipeStatusFactory.createInstance(pipeStatusFactory.createInstance(pipeStatus, pipeDesc.getMsgCount(),
+                        pipeDesc.getStartTimestamp()));
         KeyspaceOperator ko = HFactory.createKeyspaceOperator(QUEUE_KEYSPACE_NAME, cluster);
         Mutator<String> m = HFactory.createMutator(ko, StringSerializer.get());
         m.insert(pipeDesc.getQName(), PIPE_STATUS_COLFAM,
@@ -190,7 +193,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
                         PipeStatus ps = pipeStatusFactory.createInstance(new String(col.getValue()));
                         PipeDescriptorImpl pipeDesc =
                                 pipeDescFactory.createInstance(qName, UuidGenerator.createInstance(col.getName()),
-                                        ps.getStatus(), ps.getPushCount());
+                                        ps.getStatus(), ps.getPushCount(), ps.getStartTimestamp());
                         if (!pipeDesc.isFinishedAndEmpty()) {
                             pipeDescList.add(pipeDesc);
                         }
@@ -247,7 +250,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         }
 
         Mutator<String> m = HFactory.createMutator(ko, StringSerializer.get());
-        m.delete(qName, PIPE_STATUS_COLFAM, null, uuidSerializer);
+        m.delete(qName, PIPE_STATUS_COLFAM, null, null);
         // TODO : remove QUEUE_STATS when created
     }
 
@@ -266,8 +269,8 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         }
 
         Mutator<String> m = HFactory.createMutator(ko, StringSerializer.get());
-        m.delete(qName, QUEUE_DESCRIPTORS_COLFAM, null, uuidSerializer);
-        m.delete(qName, PIPE_STATUS_COLFAM, null, uuidSerializer);
+        m.delete(qName, QUEUE_DESCRIPTORS_COLFAM, null, null);
+        m.delete(qName, PIPE_STATUS_COLFAM, null, null);
         // TODO : remove QUEUE_STATS when created
     }
 
@@ -283,8 +286,10 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    public void createPipeDescriptor(String qName, UUID pipeId, String pipeStatus) throws Exception {
-        String rawStatus = pipeStatusFactory.createInstance(new PipeStatus(pipeStatus, 0));
+    public void createPipeDescriptor(String qName, UUID pipeId, String pipeStatus, long startTimestamp)
+            throws Exception {
+        String rawStatus =
+                pipeStatusFactory.createInstance(pipeStatusFactory.createInstance(pipeStatus, 0, startTimestamp));
         Mutator<String> m = HFactory.createMutator(ko, StringSerializer.get());
         HColumn<UUID, String> col = HFactory.createColumn(pipeId, rawStatus, uuidSerializer, StringSerializer.get());
         m.insert(qName, PIPE_STATUS_COLFAM, col);
@@ -301,9 +306,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         if (null != result && null != result.get()) {
             return pipeDescFactory.createInstance(qName, result.get());
         }
-        else {
-            return pipeDescFactory.createInstance(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE, 0);
-        }
+        return null;
     }
 
     @Override

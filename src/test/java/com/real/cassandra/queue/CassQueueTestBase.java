@@ -5,13 +5,13 @@ import org.junit.BeforeClass;
 
 import com.real.cassandra.queue.app.CassQueueUtils;
 import com.real.cassandra.queue.app.EnvProperties;
-import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
 import com.real.cassandra.queue.repository.RepositoryFactoryImpl;
+import com.real.cassandra.queue.repository.hector.QueueRepositoryImpl;
 
 public class CassQueueTestBase {
 
     protected static EnvProperties baseEnvProps;
-    protected static QueueRepositoryAbstractImpl qRepos;
+    protected static QueueRepositoryImpl qRepos;
     protected static CassQMsgFactory qMsgFactory = new CassQMsgFactory();
 
     public CassQueueTestBase() {

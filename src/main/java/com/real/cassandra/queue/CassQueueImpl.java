@@ -46,6 +46,7 @@ public class CassQueueImpl implements CassQueueMXBean {
         this.maxPopWidth = popWidth;
         this.popLocker = popLocker;
         this.popPipeRefreshDelay = popPipeRefreshDelay;
+        logger.debug("creating pusher for rollback only");
         this.rollbackPusher = createPusher();
         initJmx();
     }

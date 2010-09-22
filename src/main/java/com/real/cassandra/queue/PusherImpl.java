@@ -48,10 +48,6 @@ public class PusherImpl {
         return insertInternal(qMsgFactory.createMsgId(), msgData);
     }
 
-    public CassQMsg insert(CassQMsg qMsg) throws Exception {
-        return insertInternal(qMsg.getMsgId(), qMsg.getMsgData());
-    }
-
     private CassQMsg insertInternal(UUID msgId, String msgData) throws Exception {
         long start = System.currentTimeMillis();
 
@@ -68,12 +64,11 @@ public class PusherImpl {
         pushCount++;
 
         CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
-        qRepos.insert(getQName(), pipeDesc, qMsg.getMsgId(), qMsg.getMsgData());
+        qRepos.insert(pipeDesc, qMsg.getMsgId(), qMsg.getMsgData());
         logger.debug("pushed message : {}", qMsg);
 
         pushStat.addSample(System.currentTimeMillis() - start);
         return qMsg;
-
     }
 
     private void createNewPipe() throws Exception {
@@ -93,15 +88,15 @@ public class PusherImpl {
 
     private boolean isNewPipeNeeded() {
         if (null == pipeDesc) {
-            logger.debug("new pipe need, none exists");
+            logger.debug("new pipe needed, none exists");
             return true;
         }
         else if (pipeDesc.getMsgCount() >= cq.getMaxPushesPerPipe()) {
-            logger.debug("new pipe need, msg count exceeds max of {}", cq.getMaxPushesPerPipe());
+            logger.debug("new pipe needed, msg count exceeds max of {}", cq.getMaxPushesPerPipe());
             return true;
         }
         else if (System.currentTimeMillis() - start > cq.getMaxPushTimePerPipe()) {
-            logger.debug("new pipe need, pipe has exceed expiration of {} ms", cq.getMaxPushTimePerPipe());
+            logger.debug("new pipe needed, pipe has exceed expiration of {} ms", cq.getMaxPushTimePerPipe());
             return true;
         }
 

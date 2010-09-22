@@ -19,7 +19,7 @@ import com.real.cassandra.queue.QueueDescriptorFactoryAbstractImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatusFactory;
-import com.real.cassandra.queue.repository.pelops.QueueDescriptorFactoryImpl;
+import com.real.cassandra.queue.repository.hector.QueueDescriptorFactoryImpl;
 
 /**
  * Responsible for the raw I/O for Cassandra queues. Uses Pelops library for
@@ -283,7 +283,7 @@ public abstract class QueueRepositoryAbstractImpl {
 
     protected abstract boolean isKeyspaceExists() throws Exception;
 
-    public abstract void insert(String qName, PipeDescriptorImpl pipeDesc, UUID msgId, String msgData) throws Exception;
+    public abstract void insert(PipeDescriptorImpl pipeDesc, UUID msgId, String msgData) throws Exception;
 
     public abstract void setPipeDescriptorStatus(PipeDescriptorImpl pipeDesc, String pipeStatus) throws Exception;
 
@@ -297,7 +297,8 @@ public abstract class QueueRepositoryAbstractImpl {
 
     public abstract CassQMsg getMsg(String qName, PipeDescriptorImpl pipeDesc, UUID msgId) throws Exception;
 
-    public abstract void createPipeDescriptor(String qName, UUID pipeId, String pipeStatus) throws Exception;
+    public abstract void createPipeDescriptor(String qName, UUID pipeId, String pipeStatus, long createTimestamp)
+            throws Exception;
 
     public abstract PipeDescriptorImpl getPipeDescriptor(String qName, UUID pipeId) throws Exception;
 

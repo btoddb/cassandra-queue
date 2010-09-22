@@ -9,7 +9,6 @@ import java.util.Properties;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import org.scale7.cassandra.pelops.Pelops;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,8 +25,8 @@ import com.real.cassandra.queue.repository.RepositoryFactoryImpl;
  * 
  * @author Todd Burruss
  */
-public class TestMain {
-    private static Logger logger = LoggerFactory.getLogger(TestMain.class);
+public class PushPopApp {
+    private static Logger logger = LoggerFactory.getLogger(PushPopApp.class);
 
     private static CassQueueFactoryImpl cqFactory;
     private static QueueRepositoryAbstractImpl qRepos;
@@ -84,7 +83,6 @@ public class TestMain {
 
     private static void shutdownQueueMgrAndPool() {
         cq.shutdown();
-        Pelops.shutdown();
     }
 
 }

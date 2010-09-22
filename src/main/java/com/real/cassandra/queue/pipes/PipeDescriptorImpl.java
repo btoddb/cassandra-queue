@@ -12,6 +12,7 @@ public class PipeDescriptorImpl {
     private String pipeIdAsStr;
     private int msgCount;
     private String status;
+    private long startTimestamp;
 
     public PipeDescriptorImpl(String qName, UUID pipeId, String status) {
         this.qName = qName;
@@ -35,6 +36,14 @@ public class PipeDescriptorImpl {
 
     public int getMsgCount() {
         return msgCount;
+    }
+
+    public long getStartTimestamp() {
+        return startTimestamp;
+    }
+
+    public void setStartTimestamp(long startTimestamp) {
+        this.startTimestamp = startTimestamp;
     }
 
     @Override

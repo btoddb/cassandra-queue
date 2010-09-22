@@ -11,21 +11,23 @@ public class PipeStatusFactoryTest {
 
     @Test
     public void createValidFromRaw() {
+        long now = System.currentTimeMillis();
         PipeStatusFactory psf = new PipeStatusFactory();
-        PipeStatus psExpected = new PipeStatus("F", 123);
+        PipeStatus psExpected = new PipeStatus("F", 123, now);
 
-        assertEquals(psExpected, psf.createInstance("F/123"));
-        assertEquals(psExpected, psf.createInstance("    F/123  "));
-        assertEquals(psExpected, psf.createInstance("F    /     123"));
-        assertEquals(psExpected, psf.createInstance("F/123    "));
-        assertEquals(psExpected, psf.createInstance("     F/123"));
+        assertEquals(psExpected, psf.createInstance("F/123/" + now));
+        assertEquals(psExpected, psf.createInstance("    F/123  /" + now));
+        assertEquals(psExpected, psf.createInstance("F    /     123/  " + now));
+        assertEquals(psExpected, psf.createInstance("F/123/" + now + "   "));
+        assertEquals(psExpected, psf.createInstance("     F/123/" + now));
     }
 
     @Test
     public void createRawFromValid() {
+        long now = System.currentTimeMillis();
         PipeStatusFactory psf = new PipeStatusFactory();
-        String psExpected = "F/123";
+        String psExpected = "F/123/" + now;
 
-        assertEquals(psExpected, psf.createInstance(new PipeStatus("F", 123)));
+        assertEquals(psExpected, psf.createInstance(new PipeStatus("F", 123, now)));
     }
 }

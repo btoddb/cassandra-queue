@@ -6,7 +6,6 @@ import me.prettyprint.cassandra.model.HColumn;
 
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.UUIDGen;
-import org.scale7.cassandra.pelops.Bytes;
 
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.utils.MyInetAddress;
@@ -23,7 +22,7 @@ public class CassQMsgFactory {
     }
 
     public CassQMsg createInstance(PipeDescriptorImpl pipeDesc, Column col) {
-        return createInstance(pipeDesc, Bytes.fromBytes(col.getName()).toUuid(), new String(col.getValue()));
+        return createInstance(pipeDesc, UUIDGen.makeType1UUID(col.getName()), new String(col.getValue()));
     }
 
     public UUID createMsgId() {

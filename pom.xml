@@ -63,11 +63,6 @@
 
 	<dependencies>
         <dependency>
-            <groupId>com.real.maps</groupId>
-            <artifactId>cassandra-pelops</artifactId>
-            <version>0.903-0.7.0-00-SNAPSHOT</version>
-        </dependency>
-        <dependency>
             <groupId>me.prettyprint</groupId>
             <artifactId>hector</artifactId>
             <version>0.7.0-17-RN03-SNAPSHOT</version>
