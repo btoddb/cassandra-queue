@@ -97,7 +97,7 @@ public abstract class QueueRepositoryAbstractImpl {
      *            if true will drop the keyspace and recreate it.
      * @throws Exception
      */
-    public void initKeyspace(boolean forceRecreate) throws Exception {
+    public void initKeyspace(boolean forceRecreate) {
         String schemaVer = null;
         if (isKeyspaceExists()) {
             if (!forceRecreate) {
@@ -196,7 +196,7 @@ public abstract class QueueRepositoryAbstractImpl {
 
     }
 
-    private KsDef createKeyspaceDefinition() throws Exception {
+    private KsDef createKeyspaceDefinition() {
         ArrayList<CfDef> cfDefList = new ArrayList<CfDef>(2);
         cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_DESCRIPTORS_COLFAM).setComparator_type("BytesType")
                 .setKey_cache_size(0).setRow_cache_size(1000).setGc_grace_seconds(GC_GRACE_SECS));
@@ -206,7 +206,7 @@ public abstract class QueueRepositoryAbstractImpl {
         return new KsDef(QUEUE_KEYSPACE_NAME, STRATEGY_CLASS_NAME, getReplicationFactor(), cfDefList);
     }
 
-    public boolean isSchemaInSync(String version) throws Exception {
+    public boolean isSchemaInSync(String version) {
         Map<String, List<String>> schemaMap = getSchemaVersionMap();
         return null != schemaMap && 1 == schemaMap.size() && schemaMap.containsKey(version);
     }
@@ -219,7 +219,7 @@ public abstract class QueueRepositoryAbstractImpl {
         return qName + PENDING_COLFAM_SUFFIX;
     }
 
-    public CountResult getCountOfWaitingMsgs(String qName) throws Exception {
+    public CountResult getCountOfWaitingMsgs(String qName) {
         return getCountOfMsgsAndStatus(qName, formatWaitingColFamName(qName));
     }
 
@@ -269,19 +269,19 @@ public abstract class QueueRepositoryAbstractImpl {
 
     public abstract void shutdown();
 
-    protected abstract CountResult getCountOfMsgsAndStatus(String qName, final String colFamName) throws Exception;
+    protected abstract CountResult getCountOfMsgsAndStatus(String qName, final String colFamName);
 
     protected abstract QueueDescriptorFactoryAbstractImpl getQueueDescriptorFactory();
 
-    protected abstract String createKeyspace(KsDef ksDef) throws Exception;
+    protected abstract String createKeyspace(KsDef ksDef);
 
-    protected abstract String dropKeyspace() throws Exception;
+    protected abstract String dropKeyspace();
 
     public abstract QueueDescriptor getQueueDescriptor(String qName) throws Exception;
 
-    protected abstract Map<String, List<String>> getSchemaVersionMap() throws Exception;
+    protected abstract Map<String, List<String>> getSchemaVersionMap();
 
-    protected abstract boolean isKeyspaceExists() throws Exception;
+    protected abstract boolean isKeyspaceExists();
 
     public abstract void insert(PipeDescriptorImpl pipeDesc, UUID msgId, String msgData) throws Exception;
 
@@ -327,6 +327,19 @@ public abstract class QueueRepositoryAbstractImpl {
                 count = new Integer(0);
             }
             statusCounts.put(status, Integer.valueOf(count + 1));
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder builder = new StringBuilder();
+            builder.append("CountResult [numPipeDescriptors=");
+            builder.append(numPipeDescriptors);
+            builder.append(", totalMsgCount=");
+            builder.append(totalMsgCount);
+            builder.append(", statusCounts=");
+            builder.append(statusCounts);
+            builder.append("]");
+            return builder.toString();
         }
 
     }

@@ -2,6 +2,8 @@ package com.real.cassandra.queue.pipes;
 
 import java.util.UUID;
 
+import org.apache.cassandra.utils.UUIDGen;
+
 import me.prettyprint.cassandra.model.HColumn;
 
 import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
@@ -33,4 +35,5 @@ public class PipeDescriptorFactory {
         PipeStatus ps = pipeStatusFactory.createInstance(col);
         return createInstance(qName, col.getName(), ps.getStatus(), ps.getPushCount(), ps.getStartTimestamp());
     }
+
 }

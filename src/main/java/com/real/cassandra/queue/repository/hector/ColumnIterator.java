@@ -15,8 +15,7 @@ public class ColumnIterator {
     private static final byte[] EMPTY_BYTES = new byte[] {};;
     private int maxColsPerPage = 1000;
 
-    public void doIt(Cluster cluster, String keyspaceName, String colFamName, byte[] rowKey, ColumnOperator op)
-            throws Exception {
+    public void doIt(Cluster cluster, String keyspaceName, String colFamName, byte[] rowKey, ColumnOperator op) {
         BytesSerializer bs = BytesSerializer.get();
         KeyspaceOperator ko = HFactory.createKeyspaceOperator(keyspaceName, cluster);
         SliceQuery<byte[], byte[], byte[]> sliceQuery = HFactory.createSliceQuery(ko, bs, bs, bs);
@@ -25,7 +24,7 @@ public class ColumnIterator {
 
         byte[] lastColName = EMPTY_BYTES;
         while (true) {
-            sliceQuery.setRange(lastColName, EMPTY_BYTES, false, maxColsPerPage + 1);
+            sliceQuery.setRange(lastColName, null, false, maxColsPerPage + 1);
             Result<ColumnSlice<byte[], byte[]>> result = sliceQuery.execute();
 
             List<HColumn<byte[], byte[]>> colList = result.get().getColumns();
@@ -51,6 +50,6 @@ public class ColumnIterator {
     }
 
     public interface ColumnOperator {
-        boolean execute(HColumn<byte[], byte[]> col) throws Exception;
+        boolean execute(HColumn<byte[], byte[]> col);
     }
 }

@@ -82,7 +82,7 @@ public class CassQueueTest extends CassQueueTestBase {
 
     @Test
     public void testFinishedPipeRemoval() {
-        fail("not implemented yet");
+        fail("functionality not implemented yet");
     }
 
     //

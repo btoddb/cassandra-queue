@@ -31,7 +31,7 @@
     -->
     <appender name="FILE" class="org.apache.log4j.RollingFileAppender">
         <errorHandler class="org.apache.log4j.helpers.OnlyOnceErrorHandler"/>
-        <param name="File" value="log/system.log"/>
+        <param name="File" value="logs/system.log"/>
         <param name="maxBackupIndex" value="1" />
         <param name="maxFileSize" value="200mb" />
         <param name="Append" value="true"/>
@@ -63,6 +63,9 @@
     </category>
     <category name="com.real.cassandra.queue">
         <priority value="info"/>
+    </category>
+    <category name="me.prettyprint.cassandra">
+        <priority value="warn"/>
     </category>
 
     <!-- ================================================================= -->

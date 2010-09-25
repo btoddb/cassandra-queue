@@ -1,12 +1,7 @@
 package com.real.cassandra.queue.app;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.Properties;
 import java.util.UUID;
 
 import org.apache.commons.cli.CommandLine;
@@ -22,7 +17,8 @@ import com.real.cassandra.queue.CassQueueImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeLockerImpl;
-import com.real.cassandra.queue.repository.RepositoryFactoryImpl;
+import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl.CountResult;
+import com.real.cassandra.queue.repository.hector.HectorUtils;
 import com.real.cassandra.queue.repository.hector.QueueRepositoryImpl;
 
 public class CassQueueApp {
@@ -31,46 +27,80 @@ public class CassQueueApp {
     private static final String OPT_COUNT = "count";
     private static final String OPT_DUMP_PIPE = "dump-pipe";
     private static final String OPT_OLDEST_PIPES = "oldest-pipes";
+    private static final String OPT_DUMP_QUEUE = "dump-queue";
 
     private static CassQueueFactoryImpl cqFactory;
     private static QueueRepositoryImpl qRepos;
-    private static EnvProperties envProps;
+    // private static EnvProperties envProps;
     private static CassQueueImpl cq;
 
+    private static String qName;
+    private static String host;
+    private static int port = 9160;
+    private static int replicationFactor = 1;
+    private static int maxPushesPerPipe = 5000;
+    private static int maxPopWidth = 4;
+
     public static void main(String[] args) throws Exception {
-        parseAppProperties();
-        setupQueueSystem();
+        try {
+            CommandLineParser parser = new GnuParser();
+            Options options = new Options();
 
-        System.out.println("qName     : " + envProps.getQName());
+            options.addOption("c", OPT_COUNT, false, "count msgs in queue");
+            options.addOption("p", OPT_DUMP_PIPE, true, "dump contents of pipe");
+            options.addOption("o", OPT_OLDEST_PIPES, false, "dump UUIDs of oldest pipes");
+            options.addOption("q", OPT_DUMP_QUEUE, false, "dump queue messages and string values");
 
-        CommandLineParser parser = new GnuParser();
-        Options options = new Options();
+            CommandLine cmdLine = parser.parse(options, args);
 
-        options.addOption("c", OPT_COUNT, false, "count msgs in queue");
-        options.addOption("p", OPT_DUMP_PIPE, true, "dump contents of pipe");
-        options.addOption("o", OPT_OLDEST_PIPES, false, "dump UUIDs of oldest pipes");
+            if (2 > cmdLine.getArgList().size()) {
+                logger.error("requires <qname> and <host>");
+                return;
+            }
 
-        CommandLine cmdLine = parser.parse(options, args);
-        if (cmdLine.hasOption(OPT_COUNT)) {
-            countMsgs();
+            List<String> argsList = cmdLine.getArgList();
+            qName = argsList.get(0);
+            host = argsList.get(1);
+            maxPushesPerPipe = 5000;
+
+            System.out.println("qName : " + qName);
+            System.out.println("host  : " + host);
+
+            // parseAppProperties();
+            setupQueueSystem();
+
+            if (cmdLine.hasOption(OPT_COUNT)) {
+                countMsgs();
+            }
+            else if (cmdLine.hasOption(OPT_DUMP_PIPE)) {
+                dumpPipe(cmdLine);
+            }
+            else if (cmdLine.hasOption(OPT_OLDEST_PIPES)) {
+                dumpOldestPipes(cmdLine);
+            }
+            else if (cmdLine.hasOption(OPT_DUMP_QUEUE)) {
+                dumpQueue(cmdLine);
+            }
+            else {
+                logger.error("missing cmd parameter");
+            }
         }
-        else if (cmdLine.hasOption(OPT_DUMP_PIPE)) {
-            dumpPipe(cmdLine);
+        finally {
+            shutdownQueueMgrAndPool();
         }
-        else if (cmdLine.hasOption(OPT_OLDEST_PIPES)) {
-            dumpOldestPipes(cmdLine);
-        }
-        else {
-            logger.error("missing cmd parameter");
-        }
+    }
 
-        shutdownQueueMgrAndPool();
+    private static void dumpQueue(CommandLine cmdLine) {
+        List<CassQMsg> result = qRepos.getOldestMsgsFromQueue(qName, 100);
+        for (CassQMsg qMsg : result) {
+            System.out.println(qMsg.toString());
+        }
     }
 
     private static void dumpPipe(CommandLine cmdLine) throws Exception {
         String pipeIdAsStr = cmdLine.getOptionValue(OPT_DUMP_PIPE);
-        PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(envProps.getQName(), UUID.fromString(pipeIdAsStr));
-        outputPipeDescription(qRepos, pipeDesc, envProps.getMaxPushesPerPipe());
+        PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(qName, UUID.fromString(pipeIdAsStr));
+        outputPipeDescription(qRepos, pipeDesc, maxPushesPerPipe);
     }
 
     public static void outputPipeDescription(QueueRepositoryImpl qRepos, PipeDescriptorImpl pipeDesc,
@@ -93,16 +123,16 @@ public class CassQueueApp {
     }
 
     private static void dumpOldestPipes(CommandLine cmdLine) throws Exception {
-        List<PipeDescriptorImpl> pdList = qRepos.getOldestNonEmptyPipes(envProps.getQName(), envProps.getMaxPopWidth());
+        List<PipeDescriptorImpl> pdList = qRepos.getOldestNonEmptyPipes(qName, maxPopWidth);
         for (PipeDescriptorImpl pipeDesc : pdList) {
             System.out.println(pipeDesc.toString() + " = "
-                    + qRepos.getWaitingMessagesFromPipe(pipeDesc, envProps.getMaxPushesPerPipe()).size());
+                    + qRepos.getWaitingMessagesFromPipe(pipeDesc, maxPushesPerPipe).size());
         }
     }
 
     private static void countMsgs() throws Exception {
-        QueueRepositoryImpl.CountResult waitingCount = qRepos.getCountOfWaitingMsgs(envProps.getQName());
-        QueueRepositoryImpl.CountResult deliveredCount = qRepos.getCountOfPendingCommitMsgs(envProps.getQName());
+        QueueRepositoryImpl.CountResult waitingCount = qRepos.getCountOfWaitingMsgs(qName);
+        QueueRepositoryImpl.CountResult deliveredCount = qRepos.getCountOfPendingCommitMsgs(qName);
 
         System.out.println("waiting   : " + waitingCount.totalMsgCount);
         System.out.println("delivered : " + deliveredCount.totalMsgCount);
@@ -113,20 +143,11 @@ public class CassQueueApp {
         }
     }
 
-    private static void parseAppProperties() throws FileNotFoundException, IOException {
-        File appPropsFile = new File("conf/app.properties");
-        Properties props = new Properties();
-        props.load(new FileReader(appPropsFile));
-        envProps = new EnvProperties(props);
-
-        logger.info("using hosts : " + envProps.getHostArr());
-        logger.info("using thrift port : " + envProps.getRpcPort());
-    }
-
     private static void setupQueueSystem() throws Exception {
-        qRepos = new RepositoryFactoryImpl().createInstance(envProps);
+        qRepos = HectorUtils.createQueueRepository(new String[] {
+            host }, port, replicationFactor, false);
         cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new PipeLockerImpl());
-        cq = cqFactory.createInstance(envProps.getQName());
+        cq = cqFactory.createInstance(qName);
     }
 
     private static void shutdownQueueMgrAndPool() {

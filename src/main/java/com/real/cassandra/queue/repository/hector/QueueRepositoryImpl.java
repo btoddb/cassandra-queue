@@ -93,11 +93,14 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    public String createKeyspace(KsDef ksDef) throws Exception {
+    public String createKeyspace(KsDef ksDef) {
         CassandraClient client = cluster.borrowClient();
         try {
             Client thriftClient = client.getCassandra();
             return thriftClient.system_add_keyspace(ksDef);
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
         }
         finally {
             cluster.releaseClient(client);
@@ -105,12 +108,15 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    protected Map<String, List<String>> getSchemaVersionMap() throws Exception {
+    protected Map<String, List<String>> getSchemaVersionMap() {
         Map<String, List<String>> schemaMap;
         CassandraClient client = cluster.borrowClient();
         try {
             Client thriftClient = client.getCassandra();
             schemaMap = thriftClient.describe_schema_versions();
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
         }
         finally {
             cluster.releaseClient(client);
@@ -120,11 +126,14 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    protected String dropKeyspace() throws Exception {
+    protected String dropKeyspace() {
         CassandraClient client = cluster.borrowClient();
         try {
             Client thriftClient = client.getCassandra();
             return thriftClient.system_drop_keyspace(QUEUE_KEYSPACE_NAME);
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
         }
         finally {
             cluster.releaseClient(client);
@@ -133,7 +142,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    protected boolean isKeyspaceExists() throws Exception {
+    protected boolean isKeyspaceExists() {
         List<KsDef> ksDefList = cluster.describeKeyspaces();
         for (KsDef ksDef : ksDefList) {
             if (ksDef.getName().equals(QUEUE_KEYSPACE_NAME)) {
@@ -189,7 +198,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         rawMsgColIter.doIt(cluster, QUEUE_KEYSPACE_NAME, PIPE_STATUS_COLFAM, qName.getBytes(),
                 new ColumnIterator.ColumnOperator() {
                     @Override
-                    public boolean execute(HColumn<byte[], byte[]> col) throws Exception {
+                    public boolean execute(HColumn<byte[], byte[]> col) {
                         PipeStatus ps = pipeStatusFactory.createInstance(new String(col.getValue()));
                         PipeDescriptorImpl pipeDesc =
                                 pipeDescFactory.createInstance(qName, UuidGenerator.createInstance(col.getName()),
@@ -220,6 +229,52 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
             msgList.add(qMsgFactory.createInstance(pipeDesc, col));
         }
         return msgList;
+    }
+
+    // @Override
+    public List<CassQMsg> getOldestMsgsFromQueue(final String qName, final int maxMsgs) {
+        final LinkedList<CassQMsg> result = new LinkedList<CassQMsg>();
+        final String colFamName = formatWaitingColFamName(qName);
+
+        ColumnIterator rawMsgColIter = new ColumnIterator();
+        rawMsgColIter.doIt(cluster, QUEUE_KEYSPACE_NAME, PIPE_STATUS_COLFAM, qName.getBytes(),
+                new ColumnIterator.ColumnOperator() {
+                    @Override
+                    public boolean execute(HColumn<byte[], byte[]> col) {
+                        UUID pipeId = UUIDGen.makeType1UUID(col.getName());
+                        PipeStatus ps = pipeStatusFactory.createInstance(new String(col.getValue()));
+                        PipeDescriptorImpl pipeDesc =
+                                pipeDescFactory.createInstance(qName, pipeId, ps.getStatus(), ps.getPushCount(),
+                                        ps.getStartTimestamp());
+                        if (!PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY.equals(ps.getStatus())) {
+                            logger.info("working on pipe descriptor : " + pipeId);
+                            result.addAll(getMsgsInPipe(qName, colFamName, pipeDesc, maxMsgs));
+                        }
+                        return maxMsgs > result.size();
+                    }
+                });
+
+        return result;
+    }
+
+    private List<CassQMsg> getMsgsInPipe(final String qName, final String colFamName,
+            final PipeDescriptorImpl pipeDesc, final int maxMsgs) {
+        final LinkedList<CassQMsg> result = new LinkedList<CassQMsg>();
+
+        ColumnIterator rawMsgColIter = new ColumnIterator();
+        rawMsgColIter.doIt(cluster, QUEUE_KEYSPACE_NAME, colFamName, UUIDGen.decompose(pipeDesc.getPipeId()),
+                new ColumnIterator.ColumnOperator() {
+                    @Override
+                    public boolean execute(HColumn<byte[], byte[]> col) {
+                        UUID msgId = UUIDGen.makeType1UUID(col.getName());
+                        String msgData = new String(col.getValue());
+                        CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
+                        result.add(qMsg);
+                        return maxMsgs > result.size();
+                    }
+                });
+
+        return result;
     }
 
     @Override
@@ -310,7 +365,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    protected CountResult getCountOfMsgsAndStatus(String qName, final String colFamName) throws Exception {
+    protected CountResult getCountOfMsgsAndStatus(String qName, final String colFamName) {
         final CountResult result = new CountResult();
         final BytesSerializer bs = BytesSerializer.get();
         final CountQuery<byte[], byte[]> countQuery = HFactory.createCountQuery(ko, bs, bs);
@@ -323,7 +378,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         rawMsgColIter.doIt(cluster, QUEUE_KEYSPACE_NAME, PIPE_STATUS_COLFAM, qName.getBytes(),
                 new ColumnIterator.ColumnOperator() {
                     @Override
-                    public boolean execute(HColumn<byte[], byte[]> col) throws Exception {
+                    public boolean execute(HColumn<byte[], byte[]> col) {
                         logger.info("working on pipe descriptor : " + UUIDGen.makeType1UUID(col.getName()));
                         String status = new String(col.getValue());
                         result.addStatus(status);

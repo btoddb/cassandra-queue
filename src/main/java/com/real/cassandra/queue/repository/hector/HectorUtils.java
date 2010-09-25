@@ -14,14 +14,21 @@ import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
 public class HectorUtils {
 
     public static QueueRepositoryImpl createQueueRepository(EnvProperties envProps) throws Exception {
-        CassandraHostConfigurator hc = new CassandraHostConfigurator(outputStringsAsCommaDelim(envProps.getHostArr()));
-        hc.setPort(envProps.getRpcPort());
+        return createQueueRepository(envProps.getHostArr(), envProps.getRpcPort(), envProps.getReplicationFactor(),
+                envProps.getDropKeyspace());
+    }
+
+    public static QueueRepositoryImpl createQueueRepository(String[] hostArr, int port, int replicationFactor,
+            boolean dropKeyspace) {
+        CassandraHostConfigurator hc = new CassandraHostConfigurator(outputStringsAsCommaDelim(hostArr));
+        hc.setPort(port);
         Cluster c = HFactory.getOrCreateCluster(QueueRepositoryAbstractImpl.QUEUE_POOL_NAME, hc);
 
         KeyspaceOperator ko = HFactory.createKeyspaceOperator(QueueRepositoryAbstractImpl.QUEUE_KEYSPACE_NAME, c);
-        QueueRepositoryImpl qRepos = new QueueRepositoryImpl(c, envProps.getReplicationFactor(), ko);
-        qRepos.initKeyspace(envProps.getDropKeyspace());
+        QueueRepositoryImpl qRepos = new QueueRepositoryImpl(c, replicationFactor, ko);
+        qRepos.initKeyspace(dropKeyspace);
         return qRepos;
+
     }
 
     public static String outputStringsAsCommaDelim(String[] strArr) {
