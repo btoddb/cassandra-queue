@@ -1,11 +1,15 @@
 package com.real.cassandra.queue;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.apache.cassandra.utils.UUIDGen;
@@ -15,6 +19,7 @@ import org.junit.Test;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeLockerImpl;
+import com.real.cassandra.queue.repository.hector.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.MyIp;
 
 public class PopperImplTest extends CassQueueTestBase {
@@ -277,6 +282,34 @@ public class PopperImplTest extends CassQueueTestBase {
         assertEquals(PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY, qRepos.getPipeDescriptor(cq.getName(), pipeId1)
                 .getStatus());
         assertEquals(PipeDescriptorImpl.STATUS_PUSH_ACTIVE, qRepos.getPipeDescriptor(cq.getName(), pipeId2).getStatus());
+    }
+
+    @Test
+    public void testRollAfterTimePasses() throws Exception {
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 1000, 10, 1, 5000, false);
+        PusherImpl pusher = cq.createPusher();
+        int numMsgs = 3;
+        CassQMsg qMsg = null;
+
+        for (int i = 0; i < numMsgs; i++) {
+            qMsg = pusher.push("push-" + System.currentTimeMillis() + i);
+        }
+        UUID pipeId = qMsg.getPipeDescriptor().getPipeId();
+
+        // sleep long enough for pipe to expire
+        Thread.sleep(1001);
+        PopperImpl popper = cq.createPopper(true);
+
+        qMsg = popper.pop();
+        assertEquals("Pipe should still be push active (PA) right now", PipeDescriptorImpl.STATUS_PUSH_ACTIVE, qRepos
+                .getPipeDescriptor(cq.getName(), pipeId).getStatus());
+        for (int i = 0; i < numMsgs; i++) {
+            popper.pop();
+        }
+
+        assertEquals("Pipe should now be push finished and empty (E) right now",
+                PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY, qRepos.getPipeDescriptor(cq.getName(), pipeId)
+                        .getStatus());
     }
 
     // -------------------------
