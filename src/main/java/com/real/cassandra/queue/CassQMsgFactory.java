@@ -11,7 +11,6 @@ import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.utils.MyIp;
 
 public class CassQMsgFactory {
-    private static MyIp inetAddr = new MyIp();
 
     public CassQMsg createInstance(PipeDescriptorImpl pipeDesc, UUID msgId, String msgData) {
         return new CassQMsg(pipeDesc, msgId, msgData);
@@ -26,7 +25,7 @@ public class CassQMsgFactory {
     }
 
     public UUID createMsgId() {
-        return UUIDGen.makeType1UUIDFromHost(inetAddr.get());
+        return UUIDGen.makeType1UUIDFromHost(MyIp.get());
     }
 
     public CassQMsg createInstance(PipeDescriptorImpl pipeDesc, HColumn<UUID, byte[]> hColumn) {

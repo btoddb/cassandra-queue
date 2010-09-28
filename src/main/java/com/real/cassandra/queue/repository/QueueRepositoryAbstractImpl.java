@@ -219,12 +219,12 @@ public abstract class QueueRepositoryAbstractImpl {
         return qName + PENDING_COLFAM_SUFFIX;
     }
 
-    public CountResult getCountOfWaitingMsgs(String qName) {
-        return getCountOfMsgsAndStatus(qName, formatWaitingColFamName(qName));
+    public CountResult getCountOfWaitingMsgs(String qName, int maxMsgCount) {
+        return getCountOfMsgsAndStatus(qName, formatWaitingColFamName(qName), maxMsgCount);
     }
 
-    public CountResult getCountOfPendingCommitMsgs(String qName) throws Exception {
-        return getCountOfMsgsAndStatus(qName, formatPendingColFamName(qName));
+    public CountResult getCountOfPendingCommitMsgs(String qName, int maxMsgCount) throws Exception {
+        return getCountOfMsgsAndStatus(qName, formatPendingColFamName(qName), maxMsgCount);
     }
 
     public CassQMsg getOldestMsgFromDeliveredPipe(PipeDescriptorImpl pipeDesc) throws Exception {
@@ -269,7 +269,7 @@ public abstract class QueueRepositoryAbstractImpl {
 
     public abstract void shutdown();
 
-    protected abstract CountResult getCountOfMsgsAndStatus(String qName, final String colFamName);
+    protected abstract CountResult getCountOfMsgsAndStatus(String qName, final String colFamName, int maxMsgCount);
 
     protected abstract QueueDescriptorFactoryAbstractImpl getQueueDescriptorFactory();
 

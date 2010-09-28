@@ -1,15 +1,11 @@
 package com.real.cassandra.queue;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 import org.apache.cassandra.utils.UUIDGen;
@@ -19,7 +15,6 @@ import org.junit.Test;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeLockerImpl;
-import com.real.cassandra.queue.repository.hector.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.MyIp;
 
 public class PopperImplTest extends CassQueueTestBase {

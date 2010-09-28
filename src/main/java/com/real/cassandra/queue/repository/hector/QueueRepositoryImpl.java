@@ -365,11 +365,12 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    protected CountResult getCountOfMsgsAndStatus(String qName, final String colFamName) {
+    protected CountResult getCountOfMsgsAndStatus(String qName, final String colFamName, int maxMsgCount) {
         final CountResult result = new CountResult();
         final BytesSerializer bs = BytesSerializer.get();
         final CountQuery<byte[], byte[]> countQuery = HFactory.createCountQuery(ko, bs, bs);
         countQuery.setColumnFamily(colFamName);
+        countQuery.setRange(new byte[] {}, new byte[] {}, maxMsgCount);
 
         // TODO:BTB currently not removing columns from this CF, which would
         // speed this up after compaction
@@ -380,13 +381,14 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
                     @Override
                     public boolean execute(HColumn<byte[], byte[]> col) {
                         logger.info("working on pipe descriptor : " + UUIDGen.makeType1UUID(col.getName()));
-                        String status = new String(col.getValue());
-                        result.addStatus(status);
+                        PipeStatus ps = pipeStatusFactory.createInstance(col.getValue());
+                        result.addStatus(ps.getStatus());
 
-                        int msgCount = countQuery.setKey(col.getValue()).execute().get();
+                        int msgCount = countQuery.setKey(col.getName()).execute().get();
 
                         result.totalMsgCount += msgCount;
-                        logger.info(result.numPipeDescriptors + " : status = " + status + ", msgCount = " + msgCount);
+                        logger.info(result.numPipeDescriptors + " : status = " + ps.getStatus() + ", msgCount = "
+                                + msgCount);
                         return true;
                     }
                 });

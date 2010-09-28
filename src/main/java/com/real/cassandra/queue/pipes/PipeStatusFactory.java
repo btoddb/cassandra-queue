@@ -40,4 +40,8 @@ public class PipeStatusFactory {
     public PipeStatus createInstance(HColumn<UUID, String> col) {
         return createInstance(col.getValue());
     }
+
+    public PipeStatus createInstance(byte[] value) {
+        return createInstance(new String(value));
+    }
 }

@@ -39,7 +39,9 @@ public class CassQueueTest extends CassQueueTestBase {
 
     @Test
     public void testTruncate() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 2, 1, 5000, false);
+        int maxPushesPerPipe = 2;
+        CassQueueImpl cq =
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 1, 5000, false);
         PusherImpl pusher = cq.createPusher();
         PopperImpl popper = cq.createPopper(false);
 
@@ -54,9 +56,10 @@ public class CassQueueTest extends CassQueueTestBase {
 
         cq.truncate();
 
-        assertEquals("all data should have been truncated", 0, qRepos.getCountOfWaitingMsgs(cq.getName()).totalMsgCount);
         assertEquals("all data should have been truncated", 0,
-                qRepos.getCountOfPendingCommitMsgs(cq.getName()).totalMsgCount);
+                qRepos.getCountOfWaitingMsgs(cq.getName(), maxPushesPerPipe).totalMsgCount);
+        assertEquals("all data should have been truncated", 0,
+                qRepos.getCountOfPendingCommitMsgs(cq.getName(), maxPushesPerPipe).totalMsgCount);
 
         for (int i = 0; i < numMsgs; i++) {
             CassQMsg qMsg = popper.pop();
@@ -106,6 +109,7 @@ public class CassQueueTest extends CassQueueTestBase {
 
     private void assertPushersPoppersWork(int numPushers, int numPoppers, int numMsgs, long pushDelay, long popDelay)
             throws Exception {
+        int maxPushesPerPipe = 100;
         Set<CassQMsg> msgSet = new LinkedHashSet<CassQMsg>();
         Set<String> valueSet = new HashSet<String>();
         Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
@@ -123,7 +127,8 @@ public class CassQueueTest extends CassQueueTestBase {
         tmpProps.setPopDelay(popDelay);
         // tmpProps.setNumMsgsPerPopper(numToPopPerPopper);
 
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 100, 4, 5000, false);
+        CassQueueImpl cq =
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 4, 5000, false);
         List<PushPopAbstractBase> pusherSet = CassQueueUtils.startPushers(cq, tmpProps);
         List<PushPopAbstractBase> popperSet = CassQueueUtils.startPoppers(cq, popQ, tmpProps);
 
@@ -148,9 +153,10 @@ public class CassQueueTest extends CassQueueTestBase {
         assertEquals("expected to have a total of " + numMsgs + " messages in set", numMsgs, msgSet.size());
         assertEquals("expected to have a total of " + numMsgs + " values in set", numMsgs, valueSet.size());
 
-        assertEquals("waiting queue should be empty", 0, qRepos.getCountOfWaitingMsgs(cq.getName()).totalMsgCount);
+        assertEquals("waiting queue should be empty", 0,
+                qRepos.getCountOfWaitingMsgs(cq.getName(), maxPushesPerPipe).totalMsgCount);
         assertEquals("delivered queue should be empty", 0,
-                qRepos.getCountOfPendingCommitMsgs(cq.getName()).totalMsgCount);
+                qRepos.getCountOfPendingCommitMsgs(cq.getName(), maxPushesPerPipe).totalMsgCount);
     }
 
     @Before
