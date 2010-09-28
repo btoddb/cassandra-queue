@@ -28,10 +28,13 @@ public class CassQueueFactoryImpl {
 
     public CassQueueImpl createInstance(String qName) throws Exception {
         QueueDescriptor qDesc = qRepos.getQueueDescriptor(qName);
-        CassQueueImpl cq =
-                new CassQueueImpl(qRepos, pipeDescFactory, qName, qDesc.getMaxPushTimeOfPipe(),
-                        qDesc.getMaxPushesPerPipe(), qDesc.getMaxPopWidth(), popLocker, qDesc.getPopPipeRefreshDelay());
-        return cq;
+        if (null != qDesc) {
+            return new CassQueueImpl(qRepos, pipeDescFactory, qName, qDesc.getMaxPushTimeOfPipe(),
+                    qDesc.getMaxPushesPerPipe(), qDesc.getMaxPopWidth(), popLocker, qDesc.getPopPipeRefreshDelay());
+        }
+        else {
+            return null;
+        }
     }
 
 }
