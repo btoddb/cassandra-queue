@@ -26,7 +26,7 @@ public class CassQueueApp {
 
     private static final String OPT_COUNT = "count";
     private static final String OPT_DUMP_PIPE = "dump-pipe";
-    private static final String OPT_OLDEST_PIPES = "oldest-pipes";
+    private static final String OPT_OLDEST_PIPES = "dump-oldest-pipes";
     private static final String OPT_DUMP_QUEUE = "dump-queue";
 
     private static CassQueueFactoryImpl cqFactory;
@@ -69,7 +69,10 @@ public class CassQueueApp {
             // parseAppProperties();
             setupQueueSystem();
 
-            if (cmdLine.hasOption(OPT_COUNT)) {
+            if (null == cq) {
+                System.out.println("Queue, " + qName + ", has not been created");
+            }
+            else if (cmdLine.hasOption(OPT_COUNT)) {
                 countMsgs();
             }
             else if (cmdLine.hasOption(OPT_DUMP_PIPE)) {
@@ -151,7 +154,9 @@ public class CassQueueApp {
     }
 
     private static void shutdownQueueMgrAndPool() {
-        cq.shutdown();
+        if (null != cq) {
+            cq.shutdown();
+        }
     }
 
 }
