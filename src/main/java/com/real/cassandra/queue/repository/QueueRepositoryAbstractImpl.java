@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import me.prettyprint.hector.api.ddl.HKsDef;
+
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.KsDef;
 import org.slf4j.Logger;
@@ -305,7 +307,7 @@ public abstract class QueueRepositoryAbstractImpl {
     protected abstract List<CassQMsg> getOldestMsgsFromPipe(String colFameName, PipeDescriptorImpl pipeDesc, int maxMsgs)
             throws Exception;
 
-    public abstract KsDef getKeyspaceDefinition() throws Exception;
+    public abstract HKsDef getKeyspaceDefinition() throws Exception;
 
     public abstract String createColumnFamily(CfDef colFamDef) throws Exception;
 

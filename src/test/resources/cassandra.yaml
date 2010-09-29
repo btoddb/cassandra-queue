@@ -1,9 +1,25 @@
 # Cassandra storage config YAML 
-# See http://wiki.apache.org/cassandra/StorageConfiguration for
-# explanations of configuration directives.
 
-# name of the cluster
+#NOTE !!!!!!!! NOTE 
+# See http://wiki.apache.org/cassandra/StorageConfiguration for
+# full explanations of configuration directives
+#NOTE !!!!!!!! NOTE 
+
+# The name of the cluster. This is mainly used to prevent machines in
+# one logical cluster from joining another.
 cluster_name: 'Test Cluster'
+
+# You should always specify InitialToken when setting up a production
+# cluster for the first time, and often when adding capacity later.
+# The principle is that each node should be given an equal slice of
+# the token ring; see http://wiki.apache.org/cassandra/Operations
+# for more details.
+#
+# If blank, Cassandra will request a token bisecting the range of
+# the heaviest-loaded existing node.  If there is no load information
+# available, such as is the case with a new cluster, it will pick
+# a random token, which will lead to hot spots.
+initial_token:
 
 # Set to true to make new [non-seed] nodes automatically migrate data
 # to themselves from the pre-existing nodes in the cluster.  Defaults
@@ -16,19 +32,43 @@ auto_bootstrap: false
 # See http://wiki.apache.org/cassandra/HintedHandoff
 hinted_handoff_enabled: true
 
-# authentication backend, implementing IAuthenticator; used to limit keyspace access
+# authentication backend, implementing IAuthenticator; used to identify users
 authenticator: org.apache.cassandra.auth.AllowAllAuthenticator
+
+# authorization backend, implementing IAuthority; used to limit access/provide permissions
+authority: org.apache.cassandra.auth.AllowAllAuthority
 
 # any IPartitioner may be used, including your own as long as it is on
 # the classpath.  Out of the box, Cassandra provides
 # org.apache.cassandra.dht.RandomPartitioner
+# org.apache.cassandra.dht.ByteOrderedPartitioner,
 # org.apache.cassandra.dht.OrderPreservingPartitioner, and
 # org.apache.cassandra.dht.CollatingOrderPreservingPartitioner.
+# (CollatingOPP colates according to EN,US rules, not naive byte
+# ordering.  Use this as an example if you need locale-aware collation.)
 partitioner: org.apache.cassandra.dht.RandomPartitioner
 
 # directories where Cassandra should store data on disk.
 data_file_directories:
     - cassandra-data/data
+
+# commit log
+commitlog_directory: cassandra-data/commitlog
+
+# Size to allow commitlog to grow to before creating a new segment 
+commitlog_rotation_threshold_in_mb: 128
+
+# commitlog_sync may be either "periodic" or "batch." 
+# When in batch mode, Cassandra won't ack writes until the commit log
+# has been fsynced to disk.  It will wait up to
+# CommitLogSyncBatchWindowInMS milliseconds for other writes, before
+# performing the sync.
+commitlog_sync: periodic
+
+# the other option is "timed," where writes may be acked immediately
+# and the CommitLog is simply synced every commitlog_sync_period_in_ms
+# milliseconds.
+commitlog_sync_period_in_ms: 10000
 
 # Addresses of hosts that are deemed contact points. 
 # Cassandra nodes use this list of hosts to find each other and learn
@@ -78,8 +118,16 @@ rpc_address: localhost
 # port for Thrift to listen on
 rpc_port: 9161
 
+# enable or disable keepalive on rpc connections
+rpc_keepalive: true
+
+# uncomment to set socket buffer sizes on rpc connections
+# rpc_send_buff_size_in_bytes:
+# rpc_recv_buff_size_in_bytes:
+
 # Frame size for thrift (maximum field length).
-# 0 disables TFramedTransport in favor of TSocket. 
+# 0 disables TFramedTransport in favor of TSocket. This option
+# is deprecated; we strongly recommend using Framed mode.
 thrift_framed_transport_size_in_mb: 15
 #thrift_framed_transport_size_in_mb: 0
 
@@ -87,7 +135,15 @@ thrift_framed_transport_size_in_mb: 15
 # internal thrift overhead.
 thrift_max_message_length_in_mb: 16
 
+# Whether or not to take a snapshot before each compaction.  Be
+# careful using this option, since Cassandra won't clean up the
+# snapshots for you.  Mostly useful if you're paranoid when there
+# is a data format change.
 snapshot_before_compaction: false
+
+# change this to increase the compaction thread's priority.  In java, 1 is the
+# lowest priority and that is our default.
+# compaction_thread_priority: 1
 
 # The threshold size in megabytes the binary memtable must grow to,
 # before it's submitted for flushing to disk.
@@ -98,33 +154,28 @@ binary_memtable_throughput_in_mb: 256
 # This needs to be large enough that it won't cause a flush storm
 # of all your memtables flushing at once because none has hit
 # the size or count thresholds yet.
-memtable_flush_after_mins: 60
+# defaults to 60
+#memtable_flush_after_mins: 60
 # Size of the memtable in memory before it is flushed
-memtable_throughput_in_mb: 64
+# if left undefined, 1/8 of the heap will be used
+#memtable_throughput_in_mb: 256
 # Number of objects in millions in the memtable before it is flushed
-memtable_operations_in_millions: 0.3
+# if left undefined, the memtable_throughput_in_mb / 64 * 0.3 will be used
+#memtable_operations_in_millions: 1.2 
 
+# Add column indexes to a row after its contents reach this size.
+# Increase if your column values are large, or if you have a very large
+# number of columns.  The competing causes are, Cassandra has to
+# deserialize this much of the row to read a single column, so you want
+# it to be small - at least if you do many partial-row reads - but all
+# the index data is read for each access, so you don't want to generate
+# that wastefully either.
 column_index_size_in_kb: 64
 
+# Size limit for rows being compacted in memory.  Larger rows will spill
+# over to disk and use a slower two-pass compaction process.  A message
+# will be logged specifying the row key.
 in_memory_compaction_limit_in_mb: 64
-
-# commit log
-commitlog_directory: cassandra-data/commitlog
-
-# Size to allow commitlog to grow to before creating a new segment 
-commitlog_rotation_threshold_in_mb: 128
-
-# commitlog_sync may be either "periodic" or "batch." 
-# When in batch mode, Cassandra won't ack writes until the commit log
-# has been fsynced to disk.  It will wait up to
-# CommitLogSyncBatchWindowInMS milliseconds for other writes, before
-# performing the sync.
-commitlog_sync: periodic
-
-# the other option is "timed," where writes may be acked immediately
-# and the CommitLog is simply synced every commitlog_sync_period_in_ms
-# milliseconds.
-commitlog_sync_period_in_ms: 10000
 
 # Time to wait for a reply from other nodes before failing the command 
 rpc_timeout_in_ms: 10000
@@ -137,9 +188,16 @@ rpc_timeout_in_ms: 10000
 # IEndpointSnitch, which will let Cassandra know enough
 # about your network topology to route requests efficiently.
 # Out of the box, Cassandra provides
-# org.apache.cassandra.locator.SimpleSnitch,
-# org.apache.cassandra.locator.RackInferringSnitch, and
-# org.apache.cassandra.locator.PropertyFileSnitch.
+#  - org.apache.cassandra.locator.SimpleSnitch:
+#    Treats Strategy order as proximity. This improves cache locality
+#    when disabling read repair, which can further improve throughput.
+#  - org.apache.cassandra.locator.RackInferringSnitch:
+#    Proximity is determined by rack and data center, which are
+#    assumed to correspond to the 3rd and 2nd octet of each node's
+#    IP address, respectively
+# org.apache.cassandra.locator.PropertyFileSnitch:
+#  - Proximity is determined by rack and data center, which are
+#    explicitly configured in cassandra-rack.properties.
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 
 # dynamic_snitch -- This boolean controls whether the above snitch is
@@ -156,9 +214,9 @@ dynamic_snitch: true
 # not affect inter node communication.
 # org.apache.cassandra.scheduler.NoScheduler - No scheduling takes place
 # org.apache.cassandra.scheduler.RoundRobinScheduler - Round robin of
-# client requests to a node with a sepearte queue for each
-# reques_scheduler_id. The requests are throttled based on the limit set
-# in throttle_limit in the requeset_scheduler_options
+# client requests to a node with a separate queue for each
+# request_scheduler_id. The scheduler is further customized by
+# request_scheduler_options as described below.
 request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 
 # Scheduler Options vary based on the type of scheduler
@@ -170,12 +228,28 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 #                      running requests can complete.
 #                      The value of 80 here is twice the number of
 #                      concurrent_reads + concurrent_writes.
+#  - default_weight -- default_weight is optional and allows for
+#                      overriding the default which is 1.
+#  - weights -- Weights are optional and will default to 1 or the
+#               overridden default_weight. The weight translates into how
+#               many requests are handled during each turn of the
+#               RoundRobin, based on the scheduler id.
+#
 # request_scheduler_options:
 #    throttle_limit: 80
+#    default_weight: 5
+#    weights:
+#      Keyspace1: 1
+#      Keyspace2: 5
 
 # request_scheduler_id -- An identifer based on which to perform
-# the request scheduling. The current supported option is "keyspace"
-request_scheduler_id: keyspace
+# the request scheduling. Currently the only valid option is keyspace.
+# request_scheduler_id: keyspace
+
+# The Index Interval determines how large the sampling of row keys
+#  is for a given SSTable. The larger the sampling, the more effective
+#  the index is at the cost of space.
+index_interval: 128
 
 # A ColumnFamily is the Cassandra concept closest to a relational table. 
 #
@@ -189,32 +263,34 @@ request_scheduler_id: keyspace
 #   are distributed among nodes. Contains both the class as well as
 #   configuration information.  Must extend AbstractReplicationStrategy.
 #   Out of the box, Cassandra provides 
-#     * org.apache.cassandra.locator.RackUnawareStrategy 
-#     * org.apache.cassandra.locator.RackAwareStrategy
-#     * org.apache.cassandra.locator.DatacenterShardStrategy
+#     * org.apache.cassandra.locator.SimpleStrategy 
+#     * org.apache.cassandra.locator.NetworkTopologyStrategy
+#     * org.apache.cassandra.locator.OldNetworkTopologyStrategy
 #
-#   RackUnawareStrategy is the simplest; it simply places the first
+#   SimpleStrategy merely places the first
 #   replica at the node whose token is closest to the key (as determined
 #   by the Partitioner), and additional replicas on subsequent nodes
 #   along the ring in increasing Token order.
 # 
-#   RackAwareStrategy is special cased for replication_factor of 3.  It
-#   places one replica in each of two datacenters, and the third on a
-#   different rack in in the first.
-#
-#   DatacenterShardStrategy is a generalization of RackAwareStrategy.
-#   For each datacenter, you can specify how many replicas you want
+#   With NetworkTopologyStrategy,
+#   for each datacenter, you can specify how many replicas you want
 #   on a per-keyspace basis.  Replicas are placed on different racks
 #   within each DC, if possible. This strategy also requires rack aware
 #   snitch, such as RackInferringSnitch or PropertyFileSnitch.
 #   An example:
 #    - name: Keyspace1
-#      replica_placement_strategy: org.apache.cassandra.locator.DatacenterShardStrategy
+#      replica_placement_strategy: org.apache.cassandra.locator.NetworkTopologyStrategy
 #      strategy_options:
 #        DC1 : 3
 #        DC2 : 2
 #        DC3 : 1
 # 
+#   OldNetworkToplogyStrategy [formerly RackAwareStrategy] 
+#   places one replica in each of two datacenters, and the third on a
+#   different rack in in the first.  Additional datacenters are not
+#   guaranteed to get a replica.  Additional replicas after three are placed
+#   in ring order after the third without regard to rack or datacenter.
+#
 # - replication_factor: Number of replicas of each row
 # - column_families: column families associated with this keyspace
 #
@@ -249,13 +325,23 @@ request_scheduler_id: keyspace
 # - gc_grace_seconds: specifies the time to wait before garbage
 #   collecting tombstones (deletion markers). defaults to 864000 (10
 #   days). See http://wiki.apache.org/cassandra/DistributedDeletes
+#     - default_validation_class: specifies a validator class to use for
+#        validating all the column values in the CF.
+#     - min_compaction_threshold: the minimum number of SSTables needed
+#        to start a minor compaction.  increasing this will cause minor
+#        compactions to start less frequently and be more intensive. setting
+#        this to 0 disables minor compactions.  defaults to 4.
+#     - max_compaction_threshold: the maximum number of SSTables allowed
+#        before a minor compaction is forced.  decreasing this will cause
+#        minor compactions to start more frequently and be less intensive.
+#        setting this to 0 disables minor compactions.  defaults to 32.
 #
 # NOTE: this keyspace definition is for demonstration purposes only.
 #       Cassandra will not load these definitions during startup. See
 #       http://wiki.apache.org/cassandra/FAQ#no_keyspaces for an explanation.
 keyspaces:
     - name: Keyspace1
-      replica_placement_strategy: org.apache.cassandra.locator.RackUnawareStrategy
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 1
       column_families:
         - name: Standard1
@@ -266,11 +352,11 @@ keyspaces:
           read_repair_chance: 0.1
           keys_cached: 100
           gc_grace_seconds: 0
+          min_compaction_threshold: 5
+          max_compaction_threshold: 31
 
         - name: StandardByUUID1
           compare_with: TimeUUIDType
-          clock_type: Timestamp
-          reconciler: TimestampReconciler          
 
         - name: Super1
           column_type: Super
@@ -289,3 +375,9 @@ keyspaces:
           column_type: Super
           compare_with: LongType
           comment: 'A column family with supercolumns, whose column names are Longs (8 bytes)'
+        - name: Indexed1
+          default_validation_class: LongType
+          column_metadata:
+            - name: birthdate
+              validator_class: LongType
+              index_type: KEYS

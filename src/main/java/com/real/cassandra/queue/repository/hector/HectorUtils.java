@@ -3,9 +3,9 @@ package com.real.cassandra.queue.repository.hector;
 import java.util.Arrays;
 import java.util.Collection;
 
-import me.prettyprint.cassandra.model.KeyspaceOperator;
 import me.prettyprint.cassandra.service.CassandraHostConfigurator;
-import me.prettyprint.cassandra.service.Cluster;
+import me.prettyprint.hector.api.Cluster;
+import me.prettyprint.hector.api.Keyspace;
 import me.prettyprint.hector.api.factory.HFactory;
 
 import com.real.cassandra.queue.app.EnvProperties;
@@ -24,7 +24,7 @@ public class HectorUtils {
         hc.setPort(port);
         Cluster c = HFactory.getOrCreateCluster(QueueRepositoryAbstractImpl.QUEUE_POOL_NAME, hc);
 
-        KeyspaceOperator ko = HFactory.createKeyspaceOperator(QueueRepositoryAbstractImpl.QUEUE_KEYSPACE_NAME, c);
+        Keyspace ko = HFactory.createKeyspace(QueueRepositoryAbstractImpl.QUEUE_KEYSPACE_NAME, c);
         QueueRepositoryImpl qRepos = new QueueRepositoryImpl(c, replicationFactor, ko);
         qRepos.initKeyspace(dropKeyspace);
         return qRepos;

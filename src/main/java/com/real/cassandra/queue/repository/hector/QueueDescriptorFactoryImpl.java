@@ -1,17 +1,17 @@
 package com.real.cassandra.queue.repository.hector;
 
-import me.prettyprint.cassandra.model.ColumnSlice;
-import me.prettyprint.cassandra.model.Result;
-import me.prettyprint.cassandra.serializers.IntegerSerializer;
 import me.prettyprint.cassandra.serializers.LongSerializer;
+import me.prettyprint.hector.api.beans.ColumnSlice;
+import me.prettyprint.hector.api.query.QueryResult;
 
 import com.real.cassandra.queue.QueueDescriptor;
 import com.real.cassandra.queue.QueueDescriptorFactoryAbstractImpl;
 import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
+import com.real.cassandra.queue.utils.IntegerSerializer;
 
 public class QueueDescriptorFactoryImpl extends QueueDescriptorFactoryAbstractImpl {
 
-    public QueueDescriptor createInstance(String qName, Result<ColumnSlice<String, byte[]>> result) {
+    public QueueDescriptor createInstance(String qName, QueryResult<ColumnSlice<String, byte[]>> result) {
         LongSerializer le = LongSerializer.get();
         IntegerSerializer ie = IntegerSerializer.get();
 

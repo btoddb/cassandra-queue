@@ -6,23 +6,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import me.prettyprint.cassandra.model.ColumnSlice;
-import me.prettyprint.cassandra.model.CountQuery;
-import me.prettyprint.cassandra.model.HColumn;
-import me.prettyprint.cassandra.model.KeyspaceOperator;
-import me.prettyprint.cassandra.model.Mutator;
 import me.prettyprint.cassandra.model.QuorumAllConsistencyLevelPolicy;
-import me.prettyprint.cassandra.model.Result;
-import me.prettyprint.cassandra.model.SliceQuery;
 import me.prettyprint.cassandra.serializers.BytesSerializer;
 import me.prettyprint.cassandra.serializers.IntegerSerializer;
 import me.prettyprint.cassandra.serializers.LongSerializer;
 import me.prettyprint.cassandra.serializers.StringSerializer;
 import me.prettyprint.cassandra.serializers.UUIDSerializer;
 import me.prettyprint.cassandra.service.CassandraClient;
-import me.prettyprint.cassandra.service.Cluster;
+import me.prettyprint.hector.api.Cluster;
+import me.prettyprint.hector.api.Keyspace;
+import me.prettyprint.hector.api.beans.ColumnSlice;
+import me.prettyprint.hector.api.beans.HColumn;
+import me.prettyprint.hector.api.ddl.HKsDef;
 import me.prettyprint.hector.api.factory.HFactory;
+import me.prettyprint.hector.api.mutation.Mutator;
 import me.prettyprint.hector.api.query.ColumnQuery;
+import me.prettyprint.hector.api.query.CountQuery;
+import me.prettyprint.hector.api.query.QueryResult;
+import me.prettyprint.hector.api.query.SliceQuery;
 
 import org.apache.cassandra.thrift.Cassandra.Client;
 import org.apache.cassandra.thrift.CfDef;
@@ -49,9 +50,9 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     private QueueDescriptorFactoryImpl qDescFactory;
     private UUIDSerializer uuidSerializer = UUIDSerializer.get();
     private BytesSerializer bytesSerializer = BytesSerializer.get();
-    private KeyspaceOperator ko;
+    private Keyspace ko;
 
-    public QueueRepositoryImpl(Cluster cluster, int replicationFactor, KeyspaceOperator ko) {
+    public QueueRepositoryImpl(Cluster cluster, int replicationFactor, Keyspace ko) {
         super(replicationFactor);
         this.cluster = cluster;
         this.qDescFactory = new QueueDescriptorFactoryImpl();
@@ -67,7 +68,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         q.setRange("", "", false, 100);
         q.setColumnFamily(QUEUE_DESCRIPTORS_COLFAM);
         q.setKey(qName);
-        Result<ColumnSlice<String, byte[]>> r = q.execute();
+        QueryResult<ColumnSlice<String, byte[]>> r = q.execute();
         return qDescFactory.createInstance(qName, r);
     }
 
@@ -143,8 +144,8 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
 
     @Override
     protected boolean isKeyspaceExists() {
-        List<KsDef> ksDefList = cluster.describeKeyspaces();
-        for (KsDef ksDef : ksDefList) {
+        List<HKsDef> ksDefList = cluster.describeKeyspaces();
+        for (HKsDef ksDef : ksDefList) {
             if (ksDef.getName().equals(QUEUE_KEYSPACE_NAME)) {
                 return true;
             }
@@ -177,7 +178,6 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         String rawStatus =
                 pipeStatusFactory.createInstance(pipeStatusFactory.createInstance(pipeStatus, pipeDesc.getMsgCount(),
                         pipeDesc.getStartTimestamp()));
-        KeyspaceOperator ko = HFactory.createKeyspaceOperator(QUEUE_KEYSPACE_NAME, cluster);
         Mutator<String> m = HFactory.createMutator(ko, StringSerializer.get());
         m.insert(pipeDesc.getQName(), PIPE_STATUS_COLFAM,
                 HFactory.createColumn(pipeDesc.getPipeId(), rawStatus, UUIDSerializer.get(), StringSerializer.get()));
@@ -222,7 +222,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         q.setColumnFamily(colFameName);
         q.setKey(pipeDesc.getPipeId());
         q.setRange(null, null, false, maxMsgs);
-        Result<ColumnSlice<UUID, byte[]>> res = q.execute();
+        QueryResult<ColumnSlice<UUID, byte[]>> res = q.execute();
 
         ArrayList<CassQMsg> msgList = new ArrayList<CassQMsg>(maxMsgs);
         for (HColumn<UUID, byte[]> col : res.get().getColumns()) {
@@ -336,7 +336,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         q.setColumnFamily(formatWaitingColFamName(qName));
         q.setKey(pipeDesc.getPipeId());
         q.setName(msgId);
-        Result<HColumn<UUID, byte[]>> result = q.execute();
+        QueryResult<HColumn<UUID, byte[]>> result = q.execute();
         return qMsgFactory.createInstance(pipeDesc, result.get());
     }
 
@@ -357,7 +357,7 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         q.setColumnFamily(PIPE_STATUS_COLFAM);
         q.setKey(qName.getBytes());
         q.setName(pipeId);
-        Result<HColumn<UUID, String>> result = q.execute();
+        QueryResult<HColumn<UUID, String>> result = q.execute();
         if (null != result && null != result.get()) {
             return pipeDescFactory.createInstance(qName, result.get());
         }
@@ -397,8 +397,8 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
-    public KsDef getKeyspaceDefinition() throws Exception {
-        KsDef ksDef = cluster.describeKeyspace(QUEUE_KEYSPACE_NAME);
+    public HKsDef getKeyspaceDefinition() throws Exception {
+        HKsDef ksDef = cluster.describeKeyspace(QUEUE_KEYSPACE_NAME);
         return ksDef;
     }
 

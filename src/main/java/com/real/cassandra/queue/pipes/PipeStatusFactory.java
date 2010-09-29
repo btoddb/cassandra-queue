@@ -2,7 +2,7 @@ package com.real.cassandra.queue.pipes;
 
 import java.util.UUID;
 
-import me.prettyprint.cassandra.model.HColumn;
+import me.prettyprint.hector.api.beans.HColumn;
 
 import org.apache.cassandra.thrift.Column;
 
