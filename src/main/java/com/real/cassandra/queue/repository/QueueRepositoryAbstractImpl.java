@@ -4,9 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
-
-import me.prettyprint.hector.api.ddl.HKsDef;
 
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.KsDef;
@@ -22,6 +21,8 @@ import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatusFactory;
 import com.real.cassandra.queue.repository.hector.QueueDescriptorFactoryImpl;
+
+import me.prettyprint.hector.api.ddl.HKsDef;
 
 /**
  * Responsible for the raw I/O for Cassandra queues. Uses Pelops library for
@@ -278,6 +279,8 @@ public abstract class QueueRepositoryAbstractImpl {
     protected abstract String createKeyspace(KsDef ksDef);
 
     protected abstract String dropKeyspace();
+
+    public abstract Set<QueueDescriptor> getQueueDescriptors();    
 
     public abstract QueueDescriptor getQueueDescriptor(String qName) throws Exception;
 

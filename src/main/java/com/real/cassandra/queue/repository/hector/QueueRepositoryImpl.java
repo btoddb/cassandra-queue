@@ -1,29 +1,13 @@
 package com.real.cassandra.queue.repository.hector;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
-
-import me.prettyprint.cassandra.model.QuorumAllConsistencyLevelPolicy;
-import me.prettyprint.cassandra.serializers.BytesSerializer;
-import me.prettyprint.cassandra.serializers.IntegerSerializer;
-import me.prettyprint.cassandra.serializers.LongSerializer;
-import me.prettyprint.cassandra.serializers.StringSerializer;
-import me.prettyprint.cassandra.serializers.UUIDSerializer;
-import me.prettyprint.cassandra.service.CassandraClient;
-import me.prettyprint.hector.api.Cluster;
-import me.prettyprint.hector.api.Keyspace;
-import me.prettyprint.hector.api.beans.ColumnSlice;
-import me.prettyprint.hector.api.beans.HColumn;
-import me.prettyprint.hector.api.ddl.HKsDef;
-import me.prettyprint.hector.api.factory.HFactory;
-import me.prettyprint.hector.api.mutation.Mutator;
-import me.prettyprint.hector.api.query.ColumnQuery;
-import me.prettyprint.hector.api.query.CountQuery;
-import me.prettyprint.hector.api.query.QueryResult;
-import me.prettyprint.hector.api.query.SliceQuery;
 
 import org.apache.cassandra.thrift.Cassandra.Client;
 import org.apache.cassandra.thrift.CfDef;
@@ -40,6 +24,28 @@ import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
 import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
 import com.real.cassandra.queue.utils.UuidGenerator;
+
+import me.prettyprint.cassandra.model.QuorumAllConsistencyLevelPolicy;
+import me.prettyprint.cassandra.serializers.BytesSerializer;
+import me.prettyprint.cassandra.serializers.IntegerSerializer;
+import me.prettyprint.cassandra.serializers.LongSerializer;
+import me.prettyprint.cassandra.serializers.StringSerializer;
+import me.prettyprint.cassandra.serializers.UUIDSerializer;
+import me.prettyprint.cassandra.service.CassandraClient;
+import me.prettyprint.hector.api.Cluster;
+import me.prettyprint.hector.api.Keyspace;
+import me.prettyprint.hector.api.beans.ColumnSlice;
+import me.prettyprint.hector.api.beans.HColumn;
+import me.prettyprint.hector.api.beans.OrderedRows;
+import me.prettyprint.hector.api.beans.Row;
+import me.prettyprint.hector.api.ddl.HKsDef;
+import me.prettyprint.hector.api.factory.HFactory;
+import me.prettyprint.hector.api.mutation.Mutator;
+import me.prettyprint.hector.api.query.ColumnQuery;
+import me.prettyprint.hector.api.query.CountQuery;
+import me.prettyprint.hector.api.query.QueryResult;
+import me.prettyprint.hector.api.query.RangeSlicesQuery;
+import me.prettyprint.hector.api.query.SliceQuery;
 
 public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     private static Logger logger = LoggerFactory.getLogger(QueueRepositoryImpl.class);
@@ -60,6 +66,34 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
     }
 
     @Override
+    public Set<QueueDescriptor> getQueueDescriptors() {
+        StringSerializer se = StringSerializer.get();
+        BytesSerializer be = BytesSerializer.get();
+
+        RangeSlicesQuery<String, String, byte[]> q = HFactory.createRangeSlicesQuery(ko, se, se, be);
+        q.setRange("", "", false, 100);
+        q.setKeys("", "");
+        q.setColumnFamily(QUEUE_DESCRIPTORS_COLFAM);
+
+        OrderedRows<String, String, byte[]> r = q.execute().get();
+
+        Set<QueueDescriptor> queueDescriptors; //transformed result set
+
+        if(r == null || r.getCount() < 1) {
+            queueDescriptors = Collections.emptySet();
+        }
+        else {
+            List<Row<String, String, byte[]>> rowList = r.getList();
+            queueDescriptors = new HashSet<QueueDescriptor>(rowList.size());
+            for(Row<String, String, byte[]> row : rowList) {
+                queueDescriptors.add(qDescFactory.createInstance(row.getKey(), row.getColumnSlice()));
+            }
+        }
+
+        return queueDescriptors;
+    }
+
+    @Override
     public QueueDescriptor getQueueDescriptor(String qName) throws Exception {
         StringSerializer se = StringSerializer.get();
         BytesSerializer be = BytesSerializer.get();
@@ -68,8 +102,8 @@ public class QueueRepositoryImpl extends QueueRepositoryAbstractImpl {
         q.setRange("", "", false, 100);
         q.setColumnFamily(QUEUE_DESCRIPTORS_COLFAM);
         q.setKey(qName);
-        QueryResult<ColumnSlice<String, byte[]>> r = q.execute();
-        return qDescFactory.createInstance(qName, r);
+
+        return qDescFactory.createInstance(qName, q.execute().get());
     }
 
     @Override
