@@ -6,3 +6,6 @@
 /cassandra-data
 /log
 /logs
+/popper.*
+/pusher.*
+CVS
