@@ -27,7 +27,9 @@ public class CassQueueTestBase {
 
     @AfterClass
     public static void shutdown() throws Exception {
-        qRepos.shutdown();
+        if (null != qRepos) {
+            qRepos.shutdown();
+        }
     }
 
 }
