@@ -1,7 +1,4 @@
-A simple FIFO queue using Cassandra Database and the Pelops client library.
+A simple (mostly) FIFO queue using Cassandra Database.
 
-Requires Cassandra version 0.7 and a version of Pelops that works with 0.7
+Requires Cassandra version 0.7 and Hector 0.7.0-18 or better.
 
-Enhancements
-
-- Priorites can be implemented using multiple row keys per pipe
