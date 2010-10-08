@@ -47,7 +47,7 @@ public class HectorUtils {
         StringBuilder sb = null;
         for (String str : collection) {
             if (null != sb) {
-                sb.append(", ");
+                sb.append(",");
             }
             else {
                 sb = new StringBuilder();

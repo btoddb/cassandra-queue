@@ -14,7 +14,6 @@ public class RepositoryFactoryImpl {
     public static final String API_PELOPS = "pelops";
 
     public QueueRepositoryImpl createInstance(EnvProperties envProps) throws Exception {
-        logger.info("client API chosen : " + API_HECTOR);
         return HectorUtils.createQueueRepository(envProps);
     }
 }
