@@ -1,9 +1,9 @@
 package com.real.cassandra.queue.app;
 
 public interface EnvPropertiesMXBean {
-    String JMX_MBEAN_OBJ_NAME = "com.real.cassq:type=EnvProperties";
+    String JMX_MBEAN_OBJ_NAME = "com.real.cassq:type=QueueProperties";
 
-    String[] getHostArr();
+    String getHostArr();
 
     int getRpcPort();
 

@@ -145,26 +145,26 @@ public class CassQueueUtils {
         Thread.sleep(1000);
     }
 
-    public static EnvProperties createEnvPropertiesWithDefaults() {
+    public static QueueProperties createEnvPropertiesWithDefaults() {
         Properties rawProps = new Properties();
-        rawProps.setProperty(EnvProperties.ENV_numPipes, "4");
-        rawProps.setProperty(EnvProperties.ENV_hosts, "localhost");
-        rawProps.setProperty(EnvProperties.ENV_RPC_PORT, "9161");
-        rawProps.setProperty(EnvProperties.ENV_maxActive, "16");
-        rawProps.setProperty(EnvProperties.ENV_maxIdle, "16");
-        rawProps.setProperty(EnvProperties.ENV_REPLICATION_FACTOR, "1");
-        rawProps.setProperty(EnvProperties.ENV_dropKeyspace, "true");
-        return new EnvProperties(rawProps);
+        rawProps.setProperty(QueueProperties.ENV_numPipes, "4");
+        rawProps.setProperty(QueueProperties.ENV_hosts, "localhost");
+        rawProps.setProperty(QueueProperties.ENV_RPC_PORT, "9161");
+        rawProps.setProperty(QueueProperties.ENV_maxActive, "16");
+        rawProps.setProperty(QueueProperties.ENV_maxIdle, "16");
+        rawProps.setProperty(QueueProperties.ENV_REPLICATION_FACTOR, "1");
+        rawProps.setProperty(QueueProperties.ENV_dropKeyspace, "true");
+        return new QueueProperties(rawProps);
     }
 
-    public static List<PushPopAbstractBase> startPushers(CassQueueImpl cq, EnvProperties envProps) {
+    public static List<PushPopAbstractBase> startPushers(CassQueueImpl cq, QueueProperties envProps) {
         List<PushPopAbstractBase> retList = new ArrayList<PushPopAbstractBase>(envProps.getNumPushers());
         WorkerThreadWatcher ptw = new PusherThreadWatcher(envProps, cq, retList);
         ptw.start();
         return retList;
     }
 
-    public static List<PushPopAbstractBase> startPoppers(CassQueueImpl cq, Queue<CassQMsg> popQ, EnvProperties envProps) {
+    public static List<PushPopAbstractBase> startPoppers(CassQueueImpl cq, Queue<CassQMsg> popQ, QueueProperties envProps) {
         List<PushPopAbstractBase> retList = new ArrayList<PushPopAbstractBase>(envProps.getNumPoppers());
         WorkerThreadWatcher ptw = new PopperThreadWatcher(envProps, cq, retList, popQ);
         ptw.start();
@@ -172,13 +172,13 @@ public class CassQueueUtils {
     }
 
     static abstract class WorkerThreadWatcher implements Runnable {
-        protected EnvProperties envProps;
+        protected QueueProperties envProps;
         protected List<PushPopAbstractBase> workerList;
         protected CassQueueImpl cq;
 
         private Thread theThread;
 
-        public WorkerThreadWatcher(EnvProperties envProps, CassQueueImpl cq, List<PushPopAbstractBase> workerList) {
+        public WorkerThreadWatcher(QueueProperties envProps, CassQueueImpl cq, List<PushPopAbstractBase> workerList) {
             this.envProps = envProps;
             this.cq = cq;
             this.workerList = workerList;
@@ -235,7 +235,7 @@ public class CassQueueUtils {
         private int pusherId = 0;
         private AtomicLong numGen = new AtomicLong();
 
-        public PusherThreadWatcher(EnvProperties envProps, CassQueueImpl cq, List<PushPopAbstractBase> workerList) {
+        public PusherThreadWatcher(QueueProperties envProps, CassQueueImpl cq, List<PushPopAbstractBase> workerList) {
             super(envProps, cq, workerList);
         }
 
@@ -256,7 +256,7 @@ public class CassQueueUtils {
         private Queue<CassQMsg> popQ;
         private int popperId = 0;
 
-        public PopperThreadWatcher(EnvProperties envProps, CassQueueImpl cq, List<PushPopAbstractBase> workerList,
+        public PopperThreadWatcher(QueueProperties envProps, CassQueueImpl cq, List<PushPopAbstractBase> workerList,
                 Queue<CassQMsg> popQ) {
             super(envProps, cq, workerList);
             this.popQ = popQ;

@@ -19,9 +19,9 @@ public class CassQueuePusher extends PushPopAbstractBase {
     private AtomicLong numGen;
     private PrintWriter fWriter;
 
-    public CassQueuePusher(int pusherId, CassQueueImpl cq, AtomicLong numGen, EnvProperties envProps)
+    public CassQueuePusher(int pusherId, CassQueueImpl cq, AtomicLong numGen, QueueProperties envProps)
             throws IOException {
-        super(envProps, EnvProperties.ENV_pushDelay);
+        super(envProps, QueueProperties.ENV_pushDelay);
         this.numGen = numGen;
         this.pusher = cq.createPusher();
         this.fWriter = new PrintWriter(new FileWriter(String.format("pusher.%03d", pusherId)));

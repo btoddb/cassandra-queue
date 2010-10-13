@@ -18,9 +18,9 @@ public class CassQueuePopper extends PushPopAbstractBase {
     private PopperImpl popper;
     private PrintWriter fWriter;
 
-    public CassQueuePopper(int popperId, CassQueueImpl cq, EnvProperties envProps, Queue<CassQMsg> popQ)
+    public CassQueuePopper(int popperId, CassQueueImpl cq, QueueProperties envProps, Queue<CassQMsg> popQ)
             throws Exception {
-        super(envProps, EnvProperties.ENV_popDelay);
+        super(envProps, QueueProperties.ENV_popDelay);
         this.popQ = popQ;
         this.popper = cq.createPopper(true);
         this.fWriter = new PrintWriter(new FileWriter(String.format("popper.%03d", popperId)));

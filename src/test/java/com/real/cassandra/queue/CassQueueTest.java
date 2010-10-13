@@ -16,7 +16,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.real.cassandra.queue.app.CassQueueUtils;
-import com.real.cassandra.queue.app.EnvProperties;
+import com.real.cassandra.queue.app.QueueProperties;
 import com.real.cassandra.queue.app.PushPopAbstractBase;
 import com.real.cassandra.queue.locks.LocalLockerImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
@@ -126,7 +126,7 @@ public class CassQueueTest extends CassQueueTestBase {
         // start a set of pushers and poppers
         //
 
-        EnvProperties tmpProps = baseEnvProps.clone();
+        QueueProperties tmpProps = baseEnvProps.clone();
         tmpProps.setNumMsgs(numMsgs);
         tmpProps.setNumPushers(numPushers);
         tmpProps.setPushDelay(pushDelay);

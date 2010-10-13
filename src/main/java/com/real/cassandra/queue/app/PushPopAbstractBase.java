@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 public abstract class PushPopAbstractBase implements Runnable {
     private static Logger logger = LoggerFactory.getLogger(PushPopAbstractBase.class);
 
-    private EnvProperties envProps;
+    private QueueProperties envProps;
     private String delayPropName;
     private int numMsgsToProcess;
     private int msgsProcessed;
@@ -16,7 +16,7 @@ public abstract class PushPopAbstractBase implements Runnable {
     long start;
     long end = -1;
 
-    public PushPopAbstractBase(EnvProperties envProps, String delayPropName) {
+    public PushPopAbstractBase(QueueProperties envProps, String delayPropName) {
         this.envProps = envProps;
         this.delayPropName = delayPropName;
     }

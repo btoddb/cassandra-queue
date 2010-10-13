@@ -2,18 +2,28 @@ package com.real.cassandra.queue.repository;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Properties;
 
 import me.prettyprint.cassandra.service.CassandraHostConfigurator;
 import me.prettyprint.hector.api.Cluster;
 import me.prettyprint.hector.api.Keyspace;
 import me.prettyprint.hector.api.factory.HFactory;
 
-import com.real.cassandra.queue.app.EnvProperties;
+import com.real.cassandra.queue.app.QueueProperties;
 
 public class HectorUtils {
 
-    public static QueueRepositoryImpl createQueueRepository(EnvProperties envProps) throws Exception {
-        CassandraHostConfigurator hc = new CassandraHostConfigurator(outputStringsAsCommaDelim(envProps.getHostArr()));
+    public static QueueRepositoryImpl createQueueRepository(String hosts, int port, int replicationFactor) {
+        Properties rawProps = new Properties();
+        rawProps.put(QueueProperties.ENV_hosts, hosts);
+        rawProps.put(QueueProperties.ENV_RPC_PORT, String.valueOf(port));
+        rawProps.put(QueueProperties.ENV_REPLICATION_FACTOR, String.valueOf(replicationFactor));
+        QueueProperties envProps = new QueueProperties(rawProps);
+        return createQueueRepository(envProps);
+    }
+
+    public static QueueRepositoryImpl createQueueRepository(QueueProperties envProps) {
+        CassandraHostConfigurator hc = new CassandraHostConfigurator(envProps.getHostArr());
         hc.setCassandraThriftSocketTimeout(envProps.getCassandraThriftSocketTimeout());
         hc.setExhaustedPolicy(envProps.getExhaustedPolicy());
         hc.setLifo(envProps.getLifo());

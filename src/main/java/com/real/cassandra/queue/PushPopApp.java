@@ -13,7 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.app.CassQueueUtils;
-import com.real.cassandra.queue.app.EnvProperties;
+import com.real.cassandra.queue.app.QueueProperties;
 import com.real.cassandra.queue.app.PushPopAbstractBase;
 import com.real.cassandra.queue.locks.LocalLockerImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
@@ -30,7 +30,7 @@ public class PushPopApp {
 
     private static CassQueueFactoryImpl cqFactory;
     private static QueueRepositoryImpl qRepos;
-    private static EnvProperties envProps;
+    private static QueueProperties envProps;
     private static CassQueueImpl cq;
 
     public static void main(String[] args) throws Exception {
@@ -62,7 +62,7 @@ public class PushPopApp {
         File appPropsFile = new File("conf/app.properties");
         Properties props = new Properties();
         props.load(new FileReader(appPropsFile));
-        envProps = new EnvProperties(props);
+        envProps = new QueueProperties(props);
 
         logger.info("using hosts : " + envProps.getHostArr());
         logger.info("using thrift port : " + envProps.getRpcPort());

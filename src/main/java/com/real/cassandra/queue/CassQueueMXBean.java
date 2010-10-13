@@ -21,17 +21,21 @@ public interface CassQueueMXBean {
 
     void setMaxPopWidth(int maxPopWidth);
 
-    long getPopCountNotEmpty();
+    long getPopCountLocalNotEmpty();
 
-    long getPopCountEmpty();
+    long getPopCountLocalEmpty();
 
-    double getPopAvgTime_NotEmpty();
+    long getPopCountCluster();
 
-    double getPopPerSecond_NotEmpty();
+    double getPopAvgTimeLocal_NotEmpty();
 
-    long getPushCount();
+    double getPopPerSecondLocal_NotEmpty();
 
-    double getPushAvgTime();
+    long getPushCountLocal();
 
-    double getPushPerSecond();
+    double getPushAvgTimeLocal();
+
+    double getPushPerSecondLocal();
+
+    long getPushCountCluster();
 }

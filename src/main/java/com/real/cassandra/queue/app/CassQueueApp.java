@@ -201,10 +201,10 @@ public class CassQueueApp {
 
     private static void setupQueueSystem() throws Exception {
         Properties rawProps = new Properties();
-        rawProps.put(EnvProperties.ENV_hosts, host);
-        rawProps.put(EnvProperties.ENV_RPC_PORT, port);
-        rawProps.put(EnvProperties.ENV_REPLICATION_FACTOR, replicationFactor);
-        EnvProperties envProps = new EnvProperties(rawProps);
+        rawProps.put(QueueProperties.ENV_hosts, host);
+        rawProps.put(QueueProperties.ENV_RPC_PORT, port);
+        rawProps.put(QueueProperties.ENV_REPLICATION_FACTOR, replicationFactor);
+        QueueProperties envProps = new QueueProperties(rawProps);
 
         qRepos = HectorUtils.createQueueRepository(envProps);
         cqFactory =

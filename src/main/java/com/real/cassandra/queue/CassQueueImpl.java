@@ -160,37 +160,49 @@ public class CassQueueImpl implements CassQueueMXBean {
     }
 
     @Override
-    public long getPopCountNotEmpty() {
+    public long getPopCountLocalNotEmpty() {
         return popNotEmptyStat.getTotalSamplesProcessed();
     }
 
     @Override
-    public long getPopCountEmpty() {
+    public long getPopCountLocalEmpty() {
         return popEmptyStat.getTotalSamplesProcessed();
     }
 
     @Override
-    public long getPushCount() {
-        return pushStat.getTotalSamplesProcessed();
+    public long getPopCountCluster() {
+        QueueStats qStats = qRepos.getQueueStats(getName());
+        return qStats.getTotalPops();
     }
 
     @Override
-    public double getPopAvgTime_NotEmpty() {
+    public double getPopAvgTimeLocal_NotEmpty() {
         return popNotEmptyStat.getAvgOfValues();
     }
 
     @Override
-    public double getPopPerSecond_NotEmpty() {
+    public double getPopPerSecondLocal_NotEmpty() {
         return popNotEmptyStat.getSamplesPerSecond();
     }
 
     @Override
-    public double getPushAvgTime() {
+    public long getPushCountLocal() {
+        return pushStat.getTotalSamplesProcessed();
+    }
+
+    @Override
+    public long getPushCountCluster() {
+        QueueStats qStats = qRepos.getQueueStats(getName());
+        return qStats.getTotalPushes();
+    }
+
+    @Override
+    public double getPushAvgTimeLocal() {
         return pushStat.getAvgOfValues();
     }
 
     @Override
-    public double getPushPerSecond() {
+    public double getPushPerSecondLocal() {
         return pushStat.getSamplesPerSecond();
     }
 
