@@ -13,29 +13,23 @@ public interface EnvPropertiesMXBean {
 
     int getNumMsgs();
 
-    // int getNumMsgsPerPopper();
-
     int getNumPoppers();
 
     long getPushDelay();
 
     long getPopDelay();
 
-    // boolean getNearFifo();
+    // boolean isStrictFifo();
 
     boolean getDropKeyspace();
 
     boolean getTruncateQueue();
 
-    // int getNumPipes();
-
-    int getMinCacheConnsPerHost();
+    // int getMinCacheConnsPerHost();
 
     int getMaxConnectionsPerHost();
 
     int getTargetConnectionsPerHost();
-
-    boolean getKillNodeConnectionsOnException();
 
     boolean getUseFramedTransport();
 
@@ -49,12 +43,6 @@ public interface EnvPropertiesMXBean {
 
     void setNumPushers(int value);
 
-    // void setNumMsgsPerPopper(int value);
-
-    // void setNumMsgsPerPusher(int value);
-
     void setPopDelay(long value);
-
-    // void setPushPipeIncrementDelay(long value);
 
 }

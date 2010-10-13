@@ -13,21 +13,27 @@ import com.real.cassandra.queue.app.EnvProperties;
 public class HectorUtils {
 
     public static QueueRepositoryImpl createQueueRepository(EnvProperties envProps) throws Exception {
-        return createQueueRepository(envProps.getHostArr(), envProps.getRpcPort(), envProps.getReplicationFactor(),
-                envProps.getDropKeyspace());
-    }
+        CassandraHostConfigurator hc = new CassandraHostConfigurator(outputStringsAsCommaDelim(envProps.getHostArr()));
+        hc.setCassandraThriftSocketTimeout(envProps.getCassandraThriftSocketTimeout());
+        hc.setExhaustedPolicy(envProps.getExhaustedPolicy());
+        hc.setLifo(envProps.getLifo());
+        hc.setMaxActive(envProps.getMaxActive());
+        hc.setMaxIdle(envProps.getMaxIdle());
+        hc.setMaxWaitTimeWhenExhausted(envProps.getMaxWaitTimeWhenExhausted());
+        hc.setMinEvictableIdleTimeMillis(envProps.getMinEvictableIdleTimeMillis());
+        hc.setPort(envProps.getRpcPort());
+        hc.setRetryDownedHosts(envProps.getRetryDownedHosts());
+        hc.setRetryDownedHostsDelayInSeconds(envProps.getRetryDownedHostsDelayInSeconds());
+        hc.setRetryDownedHostsQueueSize(envProps.getRetryDownedHostsQueueSize());
+        hc.setTimeBetweenEvictionRunsMillis(envProps.getTimeBetweenEvictionRunsMillis());
+        hc.setUseThriftFramedTransport(envProps.getUseThriftFramedTransport());
 
-    public static QueueRepositoryImpl createQueueRepository(String[] hostArr, int port, int replicationFactor,
-            boolean dropKeyspace) {
-        CassandraHostConfigurator hc = new CassandraHostConfigurator(outputStringsAsCommaDelim(hostArr));
-        hc.setPort(port);
         Cluster c = HFactory.getOrCreateCluster(QueueRepositoryImpl.QUEUE_POOL_NAME, hc);
 
         Keyspace keyspace = HFactory.createKeyspace(QueueRepositoryImpl.QUEUE_KEYSPACE_NAME, c);
-        QueueRepositoryImpl qRepos = new QueueRepositoryImpl(c, replicationFactor, keyspace);
-        qRepos.initKeyspace(dropKeyspace);
+        QueueRepositoryImpl qRepos = new QueueRepositoryImpl(c, envProps.getReplicationFactor(), keyspace);
+        qRepos.initKeyspace(envProps.getDropKeyspace());
         return qRepos;
-
     }
 
     public static String outputStringsAsCommaDelim(String[] strArr) {

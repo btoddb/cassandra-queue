@@ -19,7 +19,7 @@ public class CassQueueFactoryImpl {
     }
 
     public CassQueueImpl createInstance(String qName, long maxPushTimeOfPipe, int maxPushesPerPipe, int maxPopWidth,
-            long popPipeRefreshDelay, boolean distributed) throws Exception {
+            long popPipeRefreshDelay, boolean distributed) {
         QueueDescriptor qDesc =
                 qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
         CassQueueImpl cq =

@@ -71,4 +71,8 @@ public class LocalLockerImpl {
         }
     }
 
+    public void shutdown() {
+        // do nothing
+    }
+
 }

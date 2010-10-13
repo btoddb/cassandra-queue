@@ -2,6 +2,7 @@ package com.real.cassandra.queue.app;
 
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.UUID;
 
 import org.apache.commons.cli.CommandLine;
@@ -199,8 +200,13 @@ public class CassQueueApp {
     }
 
     private static void setupQueueSystem() throws Exception {
-        qRepos = HectorUtils.createQueueRepository(new String[] {
-            host }, port, replicationFactor, false);
+        Properties rawProps = new Properties();
+        rawProps.put(EnvProperties.ENV_hosts, host);
+        rawProps.put(EnvProperties.ENV_RPC_PORT, port);
+        rawProps.put(EnvProperties.ENV_REPLICATION_FACTOR, replicationFactor);
+        EnvProperties envProps = new EnvProperties(rawProps);
+
+        qRepos = HectorUtils.createQueueRepository(envProps);
         cqFactory =
                 new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new LocalLockerImpl(),
                         new LocalLockerImpl());

@@ -142,8 +142,13 @@ public class CassQueueImpl implements CassQueueMXBean {
         return qName;
     }
 
+    public void forcePipeReaperWakeUp() {
+        pipeReaper.wakeUp();
+    }
+
     public void shutdown() {
         pipeReaper.shutdown();
+        popLocker.shutdown();
     }
 
     public long getPopPipeRefreshDelay() {

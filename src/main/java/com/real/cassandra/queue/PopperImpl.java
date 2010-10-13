@@ -133,7 +133,9 @@ public class PopperImpl {
 
     private void markPipeAsPopNotActiveAndRefresh(PipeDescriptorImpl pipeDesc, PipeStatus pushStatus) {
         qRepos.updatePipeStatus(pipeDesc, pushStatus, PipeStatus.NOT_ACTIVE);
-        pipeReaper.wakeUp();
+        // TODO BTB:don't think we need to force wakeup just to count the stats.
+        // the reaper has its own delay period
+        // pipeReaper.wakeUp();
 
         // assuming only one pipe was removed during this refresh we can
         // perform better by reducing the counter so a "retry" occurs

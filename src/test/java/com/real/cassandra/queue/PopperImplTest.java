@@ -135,11 +135,6 @@ public class PopperImplTest extends CassQueueTestBase {
         }
         pusher.push("over-to-next");
         PipeDescriptorImpl pipeDesc = null;
-        // List<PipeDescriptorImpl> pipeDescList =
-        // qRepos.getOldestPopActivePipes(cq.getName(), 1);
-        // pipeDesc = pipeDescList.get(0);
-        // qRepos.updatePipeStatus(pipeDesc, PipeStatus.NOT_ACTIVE,
-        // PipeStatus.NOT_ACTIVE);
 
         for (int i = 0; i < msgCount; i++) {
             CassQMsg qMsg = popper.pop();
@@ -152,7 +147,9 @@ public class PopperImplTest extends CassQueueTestBase {
         assertEquals("should have rolled to next pipe and retrieved next msg", "over-to-next", popper.pop()
                 .getMsgData());
 
+        cq.forcePipeReaperWakeUp();
         Thread.sleep(100);
+
         pipeDesc = qRepos.getPipeDescriptor(cq.getName(), pipeDesc.getPipeId());
         assertNull("pipe descriptor should have been removed from system", pipeDesc);
     }
@@ -270,6 +267,7 @@ public class PopperImplTest extends CassQueueTestBase {
         PopperImpl popper = cq.createPopper(false);
         popper.pop();
 
+        cq.forcePipeReaperWakeUp();
         Thread.sleep(100);
 
         assertNull(qRepos.getPipeDescriptor(cq.getName(), pipeId1));

@@ -71,8 +71,7 @@ public class PusherImpl {
     }
 
     private void switchToNewPipe() {
-        PipeDescriptorImpl newPipeDesc = createNewPipe();
-        pipeDesc = newPipeDesc;
+        pipeDesc = createNewPipe();
         logger.debug("switched to new pipe : {}", pipeDesc);
     }
 
@@ -98,8 +97,13 @@ public class PusherImpl {
         }
         else if (pipeDesc.getMsgCount() >= cq.getMaxPushesPerPipe()) {
             logger.debug("new pipe needed, msg count exceeds max of {}", cq.getMaxPushesPerPipe());
+
+            // TODO BTB:could combine this with 'insert' to cut down on wire
+            // time if needed
             qRepos.updatePipeStatus(pipeDesc, PipeStatus.NOT_ACTIVE, pipeDesc.getPopStatus());
-            pipeReaper.wakeUp();
+
+            // TODO BTB:let's not do this wakup and see if performance improves
+            // pipeReaper.wakeUp();
             return true;
         }
         else {

@@ -148,19 +148,12 @@ public class CassQueueUtils {
     public static EnvProperties createEnvPropertiesWithDefaults() {
         Properties rawProps = new Properties();
         rawProps.setProperty(EnvProperties.ENV_numPipes, "4");
-        // rawProps.setProperty(EnvProperties.ENV_API_NAME,
-        // RepositoryFactoryImpl.API_PELOPS);
         rawProps.setProperty(EnvProperties.ENV_hosts, "localhost");
         rawProps.setProperty(EnvProperties.ENV_RPC_PORT, "9161");
-        rawProps.setProperty(EnvProperties.ENV_useFramedTransport, "false");
-        rawProps.setProperty(EnvProperties.ENV_minCacheConnsPerHost, "1");
-        rawProps.setProperty(EnvProperties.ENV_maxConnsPerHost, "20");
-        rawProps.setProperty(EnvProperties.ENV_targetConnsPerHost, "10");
-        rawProps.setProperty(EnvProperties.ENV_killNodeConnsOnException, "false");
-        rawProps.setProperty(EnvProperties.ENV_dropKeyspace, "true");
+        rawProps.setProperty(EnvProperties.ENV_maxActive, "16");
+        rawProps.setProperty(EnvProperties.ENV_maxIdle, "16");
         rawProps.setProperty(EnvProperties.ENV_REPLICATION_FACTOR, "1");
         rawProps.setProperty(EnvProperties.ENV_dropKeyspace, "true");
-        rawProps.setProperty(EnvProperties.ENV_truncateQueue, "true");
         return new EnvProperties(rawProps);
     }
 

@@ -5,6 +5,9 @@ import java.util.Properties;
 
 import javax.management.InstanceAlreadyExistsException;
 
+import me.prettyprint.cassandra.service.CassandraHost;
+import me.prettyprint.cassandra.service.ExhaustedPolicy;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,17 +21,13 @@ public class EnvProperties implements EnvPropertiesMXBean {
     public static final String ENV_RPC_PORT = "rpcPort";
     public static final String ENV_REPLICATION_FACTOR = "replicationFactor";
 
-    // public static final String ENV_nearFifo = "nearFifo";
+    // public static final String ENV_strictFifo = "nearFifo";
     public static final String ENV_QUEUE_NAME = "qName";
     public static final String ENV_numPipes = "numPipes";
-
-    // public static final String ENV_pushPipeIncrementDelay =
-    // "pushPipeIncrementDelay";
 
     public static final String ENV_numPushers = "numPushers";
     public static final String ENV_numPoppers = "numPoppers";
     public static final String ENV_numMsgs = "numMsgs";
-    // public static final String ENV_numMsgsPerPopper = "numMsgsPerPopper";
     public static final String ENV_pushDelay = "pushDelay";
     public static final String ENV_popDelay = "popDelay";
     public static final String ENV_maxPopWidth = "maxPopWidth";
@@ -36,11 +35,18 @@ public class EnvProperties implements EnvPropertiesMXBean {
     public static final String ENV_maxPushTimePerPipe = "maxPushTimePerPipe";
     public static final String ENV_popPipeRefreshDelay = "popPipeRefreshDelay";
 
-    public static final String ENV_minCacheConnsPerHost = "minCacheConnsPerHost";
-    public static final String ENV_targetConnsPerHost = "targetConnsPerHost";
-    public static final String ENV_maxConnsPerHost = "maxConnsPerHost";
-    public static final String ENV_killNodeConnsOnException = "killNodeConnsOnException";
-    public static final String ENV_useFramedTransport = "useFramedTransport";
+    public static final String ENV_cassandraThriftSocketTimeout = "cassandraThriftSocketTimeout";
+    public static final String ENV_exhaustedPolicy = "exhaustedPolicy";
+    public static final String ENV_lifo = "lifo";
+    public static final String ENV_maxActive = "maxActive";
+    public static final String ENV_maxIdle = "maxIdle";
+    public static final String ENV_maxWaitTimeWhenExhausted = "maxWaitTimeWhenExhausted";
+    public static final String ENV_minEvictableIdleTimeMillis = "minEvictableIdleTimeMillis";
+    public static final String ENV_retryDownedHosts = "retryDownedHosts";
+    public static final String ENV_retryDownedHostsDelayInSeconds = "retryDownedHostsDelayInSeconds";
+    public static final String ENV_retryDownedHostsQueueSize = "retryDownedHostsQueueSize";
+    public static final String ENV_timeBetweenEvictionRunsMillis = "timeBetweenEvictionRunsMillis";
+    public static final String ENV_useThriftFramedTransport = "useThriftFramedTransport";
 
     public static final String ENV_dropKeyspace = "dropKeyspace";
     public static final String ENV_truncateQueue = "truncateQueue";
@@ -179,10 +185,10 @@ public class EnvProperties implements EnvPropertiesMXBean {
         return getPropertAsBoolean("truncateQueue", false);
     }
 
-    @Override
-    public int getMinCacheConnsPerHost() {
-        return getPropertyAsInt("minCacheConnsPerHost", 0);
-    }
+    // @Override
+    // public int getMinCacheConnsPerHost() {
+    // return getPropertyAsInt("minCacheConnsPerHost", 0);
+    // }
 
     @Override
     public int getMaxConnectionsPerHost() {
@@ -192,11 +198,6 @@ public class EnvProperties implements EnvPropertiesMXBean {
     @Override
     public int getTargetConnectionsPerHost() {
         return getPropertyAsInt("targetConnsPerHost", 5);
-    }
-
-    @Override
-    public boolean getKillNodeConnectionsOnException() {
-        return getPropertAsBoolean("killNodeConnsOnException", true);
     }
 
     @Override
@@ -282,4 +283,53 @@ public class EnvProperties implements EnvPropertiesMXBean {
         setStrProperty(key, String.valueOf(value));
     }
 
+    public int getCassandraThriftSocketTimeout() {
+        return getPropertyAsInt(ENV_cassandraThriftSocketTimeout, 0);
+    }
+
+    public boolean getLifo() {
+        return getPropertAsBoolean(ENV_lifo, CassandraHost.DEFAULT_LIFO);
+    }
+
+    public ExhaustedPolicy getExhaustedPolicy() {
+        String value = rawProps.getProperty(ENV_exhaustedPolicy, "WHEN_EXHAUSTED_FAIL");
+        return ExhaustedPolicy.valueOf(value);
+    }
+
+    public int getMaxActive() {
+        return getPropertyAsInt(ENV_maxActive, CassandraHost.DEFAULT_MAX_ACTIVE);
+    }
+
+    public int getMaxIdle() {
+        return getPropertyAsInt(ENV_maxIdle, CassandraHost.DEFAULT_MAX_IDLE);
+    }
+
+    public long getMaxWaitTimeWhenExhausted() {
+        return getPropertyAsLong(ENV_maxWaitTimeWhenExhausted, CassandraHost.DEFAULT_MAX_WAITTIME_WHEN_EXHAUSTED);
+    }
+
+    public long getMinEvictableIdleTimeMillis() {
+        return getPropertyAsLong(ENV_minEvictableIdleTimeMillis, CassandraHost.DEFAULT_MIN_EVICTABLE_IDLE_TIME_MILLIS);
+    }
+
+    public boolean getRetryDownedHosts() {
+        return getPropertAsBoolean(ENV_retryDownedHosts, false);
+    }
+
+    public int getRetryDownedHostsDelayInSeconds() {
+        return getPropertyAsInt(ENV_retryDownedHostsDelayInSeconds, 1);
+    }
+
+    public int getRetryDownedHostsQueueSize() {
+        return getPropertyAsInt(ENV_retryDownedHostsQueueSize, 10);
+    }
+
+    public long getTimeBetweenEvictionRunsMillis() {
+        return getPropertyAsLong(ENV_timeBetweenEvictionRunsMillis,
+                CassandraHost.DEFAULT_TIME_BETWEEN_EVICTION_RUNS_MILLIS);
+    }
+
+    public boolean getUseThriftFramedTransport() {
+        return getPropertAsBoolean(ENV_useThriftFramedTransport, true);
+    }
 }

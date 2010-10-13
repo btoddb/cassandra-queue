@@ -1,6 +1,7 @@
 package com.real.cassandra.queue;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -75,6 +76,42 @@ public class CassQueueTest extends CassQueueTestBase {
     @Test
     public void testSimultaneousMultiplePushersMultiplePoppers() throws Exception {
         assertPushersPoppersWork(2, 4, 100, 10000, 3, 0);
+    }
+
+    @Test
+    public void testStats() throws Exception {
+        int maxPushesPerPipe = 10;
+        int maxPopWidth = 1;
+        int msgCount = maxPushesPerPipe * 4;
+
+        CassQueueImpl cq =
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, maxPopWidth,
+                        5000, false);
+
+        PusherImpl pusher = cq.createPusher();
+        PopperImpl popper = cq.createPopper(false);
+        for (int i = 0; i < msgCount + 1; i++) {
+            pusher.push("1");
+        }
+
+        cq.forcePipeReaperWakeUp();
+        Thread.sleep(100);
+
+        QueueStats qStats = qRepos.getQueueStats(cq.getName());
+        assertEquals(msgCount, qStats.getTotalPushes());
+        assertEquals(0, qStats.getTotalPops());
+
+        // popper.forceRefresh();
+        for (int i = 0; i < msgCount + 1; i++) {
+            assertNotNull("should not be null : i = " + i, popper.pop());
+        }
+
+        cq.forcePipeReaperWakeUp();
+        Thread.sleep(100);
+
+        qStats = qRepos.getQueueStats(cq.getName());
+        assertEquals(msgCount, qStats.getTotalPushes());
+        assertEquals(msgCount, qStats.getTotalPops());
     }
 
     // -----------------------
