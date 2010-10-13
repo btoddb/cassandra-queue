@@ -18,11 +18,15 @@ import org.junit.Test;
 import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.CassQueueTestBase;
 import com.real.cassandra.queue.QueueDescriptor;
+import com.real.cassandra.queue.QueueStats;
+import com.real.cassandra.queue.QueueStatsFactoryImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
-import com.real.cassandra.queue.repository.hector.QueueRepositoryImpl;
+import com.real.cassandra.queue.pipes.PipeStatus;
+import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.UuidGenerator;
 
 public class QueueRepositoryImplTest extends CassQueueTestBase {
+    private QueueStatsFactoryImpl qStatsFactory = new QueueStatsFactoryImpl();
 
     @Test
     public void testInitCassandra() throws Exception {
@@ -33,8 +37,8 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
             nameSet.add(cfDef.getName());
         }
 
-        assertTrue("didn't create '" + QueueRepositoryImpl.PIPE_STATUS_COLFAM + "' column family",
-                nameSet.contains(QueueRepositoryImpl.PIPE_STATUS_COLFAM));
+        assertTrue("didn't create '" + QueueRepositoryImpl.PIPE_PROPERTIES_COLFAM + "' column family",
+                nameSet.contains(QueueRepositoryImpl.PIPE_PROPERTIES_COLFAM));
         assertTrue("didn't create '" + QueueRepositoryImpl.QUEUE_DESCRIPTORS_COLFAM + "' column family",
                 nameSet.contains(QueueRepositoryImpl.QUEUE_DESCRIPTORS_COLFAM));
     }
@@ -116,13 +120,13 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         String msgData = "get the msg";
 
         PipeDescriptorImpl pipeDesc =
-                new PipeDescriptorImpl(qName, UuidGenerator.generateTimeUuid(), PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
+                new PipeDescriptorImpl(qName, UuidGenerator.generateTimeUuid(), PipeStatus.ACTIVE, PipeStatus.ACTIVE);
 
         UUID msgId = UuidGenerator.generateTimeUuid();
 
         pipeDesc.setMsgCount(1);
         CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
-        qRepos.insert(pipeDesc, msgId, msgData);
+        qRepos.insertMsg(pipeDesc, msgId, msgData);
 
         CassQMsg qMsgNew = qRepos.getMsg(qName, pipeDesc, msgId);
 
@@ -131,6 +135,25 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         PipeDescriptorImpl pdNew = qRepos.getPipeDescriptor(qName, pipeDesc.getPipeId());
         assertTrue("pipe descriptor should be active", pdNew.isPushActive());
         assertEquals("inserted one value, so pipe descriptor msg count should reflect this", 1, pdNew.getMsgCount());
+    }
+
+    @Test
+    public void testCreateUpdateStats() throws Exception {
+        String qName = "test_" + System.currentTimeMillis();
+        long maxPushTimeOfPipe = 20000;
+        int maxPushesPerPipe = 23;
+        int maxPopWidth = 4;
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
+
+        QueueStats qs1 = qStatsFactory.createInstance(qName, 123, 456, 1.23, 4.56);
+        qRepos.updateQueueStats(qs1);
+        QueueStats qs2 = qRepos.getQueueStats(qName);
+
+        assertEquals(qs1.getQName(), qs2.getQName());
+        assertEquals(qs1.getRecentPopsPerSec(), qs2.getRecentPopsPerSec(), 0);
+        assertEquals(qs1.getRecentPushesPerSec(), qs2.getRecentPushesPerSec(), 0);
+        assertEquals(qs1.getTotalPops(), qs2.getTotalPops());
+        assertEquals(qs1.getTotalPushes(), qs2.getTotalPushes());
     }
 
     @Test
@@ -144,13 +167,12 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
         UUID pipeId = UuidGenerator.generateTimeUuid();
-        qRepos.setPipeDescriptorStatus(new PipeDescriptorImpl(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE),
-                PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
-        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
+        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, PipeStatus.ACTIVE, PipeStatus.ACTIVE);
+        qRepos.updatePipeStatus(pipeDesc, PipeStatus.ACTIVE, PipeStatus.ACTIVE);
         for (int i = 0; i < msgCount; i++) {
             String msgData = "data-" + i;
             UUID msgId = UuidGenerator.generateTimeUuid();
-            qRepos.insert(pipeDesc, msgId, msgData);
+            qRepos.insertMsg(pipeDesc, msgId, msgData);
         }
 
         // ArrayList<CassQMsg> msgList = new ArrayList<CassQMsg>(msgCount);
@@ -176,12 +198,12 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
         UUID pipeId = UuidGenerator.generateTimeUuid();
-        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
-        qRepos.setPipeDescriptorStatus(pipeDesc, PipeDescriptorImpl.STATUS_PUSH_ACTIVE);
+        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, PipeStatus.ACTIVE, PipeStatus.ACTIVE);
+        qRepos.updatePipeStatus(pipeDesc, PipeStatus.ACTIVE, PipeStatus.ACTIVE);
         for (int i = 0; i < msgCount; i++) {
             String msgData = "data-" + i;
             UUID msgId = UuidGenerator.generateTimeUuid();
-            qRepos.insert(pipeDesc, msgId, msgData);
+            qRepos.insertMsg(pipeDesc, msgId, msgData);
         }
 
         // ArrayList<CassQMsg> msgList = new ArrayList<CassQMsg>(msgCount);
@@ -213,13 +235,12 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         ArrayList<UUID> pipeList = new ArrayList<UUID>();
         for (int i = 0; i < pipeCount; i++) {
             UUID pipeId = UuidGenerator.generateTimeUuid();
-            String status =
-                    0 == i % 2 ? PipeDescriptorImpl.STATUS_PUSH_ACTIVE : PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY;
-            qRepos.createPipeDescriptor(qName, pipeId, status, System.currentTimeMillis());
+            PipeStatus status = 0 == i % 2 ? PipeStatus.ACTIVE : PipeStatus.COMPLETED;
+            qRepos.createPipeDescriptor(qName, pipeId, status, status, System.currentTimeMillis());
             pipeList.add(pipeId);
         }
 
-        List<PipeDescriptorImpl> pipeListNew = qRepos.getOldestNonEmptyPipes(qName, pipeCount / 2);
+        List<PipeDescriptorImpl> pipeListNew = qRepos.getOldestPopActivePipes(qName, pipeCount / 2);
 
         assertEquals("should have returned same number of pipes as created", pipeList.size() / 2, pipeListNew.size());
 
@@ -246,12 +267,12 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         ArrayList<UUID> pipeList = new ArrayList<UUID>();
         for (int i = 0; i < pipeCount; i++) {
             UUID pipeId = UuidGenerator.generateTimeUuid();
-            String status = PipeDescriptorImpl.STATUS_FINISHED_AND_EMPTY;
-            qRepos.createPipeDescriptor(qName, pipeId, status, System.currentTimeMillis());
+            PipeStatus status = PipeStatus.COMPLETED;
+            qRepos.createPipeDescriptor(qName, pipeId, status, status, System.currentTimeMillis());
             pipeList.add(pipeId);
         }
 
-        List<PipeDescriptorImpl> pipeListNew = qRepos.getOldestNonEmptyPipes(qName, pipeCount + 1);
+        List<PipeDescriptorImpl> pipeListNew = qRepos.getOldestPopActivePipes(qName, pipeCount + 1);
 
         assertEquals("all pipes are finished and empty, should not have returned any", 0, pipeListNew.size());
     }

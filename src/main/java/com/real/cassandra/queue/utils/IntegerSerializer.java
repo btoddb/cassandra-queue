@@ -3,13 +3,13 @@ package com.real.cassandra.queue.utils;
 import java.nio.ByteBuffer;
 
 /**
- * Converts bytes to Long and vise a versa
+ * Converts bytes to Integer and vise a versa
  * 
- * @author Ran Tavory
+ * @author Todd Burruss
  * 
  */
 public final class IntegerSerializer {
-    private static final int INT_SIZE = 4;
+    private static final int BUF_SIZE = 4;
     private static final IntegerSerializer instance = new IntegerSerializer();
 
     public static IntegerSerializer get() {
@@ -17,16 +17,15 @@ public final class IntegerSerializer {
     }
 
     public byte[] toBytes(Integer obj) {
-        ByteBuffer bb = ByteBuffer.allocate(INT_SIZE);
+        ByteBuffer bb = ByteBuffer.allocate(BUF_SIZE);
         bb.putInt(obj);
         return bb.array();
     }
 
     public Integer fromBytes(byte[] bytes) {
-        ByteBuffer bb = ByteBuffer.allocate(INT_SIZE);
+        ByteBuffer bb = ByteBuffer.allocate(BUF_SIZE);
         bb.put(bytes);
-        bb.position(0);
-        return bb.getInt();
+        return bb.getInt(0);
     }
 
 }

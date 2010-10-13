@@ -3,7 +3,6 @@ package com.real.cassandra.queue.app;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 public abstract class PushPopAbstractBase implements Runnable {
     private static Logger logger = LoggerFactory.getLogger(PushPopAbstractBase.class);
 
@@ -30,9 +29,9 @@ public abstract class PushPopAbstractBase implements Runnable {
         theThread.start();
     }
 
-    protected abstract boolean processMsg() throws Exception;
+    protected abstract boolean processMsg();
 
-    protected abstract void shutdown() throws Exception;
+    protected abstract void shutdown();
 
     @Override
     public void run() {
@@ -45,7 +44,7 @@ public abstract class PushPopAbstractBase implements Runnable {
                     msgsProcessed++;
                 }
             }
-            catch (Exception e) {
+            catch (Throwable e) {
                 logger.error("exception while processing messages", e);
             }
 

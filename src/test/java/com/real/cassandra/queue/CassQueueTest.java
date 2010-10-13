@@ -3,7 +3,6 @@ package com.real.cassandra.queue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -15,16 +14,11 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.real.cassandra.queue.CassQMsg;
-import com.real.cassandra.queue.CassQueueFactoryImpl;
-import com.real.cassandra.queue.CassQueueImpl;
-import com.real.cassandra.queue.PopperImpl;
-import com.real.cassandra.queue.PusherImpl;
 import com.real.cassandra.queue.app.CassQueueUtils;
 import com.real.cassandra.queue.app.EnvProperties;
 import com.real.cassandra.queue.app.PushPopAbstractBase;
+import com.real.cassandra.queue.locks.LocalLockerImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
-import com.real.cassandra.queue.pipes.PipeLockerImpl;
 
 /**
  * Tests for {@link CassQueueImpl}.
@@ -70,46 +64,23 @@ public class CassQueueTest extends CassQueueTestBase {
 
     @Test
     public void testSimultaneousSinglePusherSinglePopper() throws Exception {
-        assertPushersPoppersWork(1, 1, 1000, 0, 0);
+        assertPushersPoppersWork(1, 1, 100, 1000, 0, 0);
     }
 
     @Test
     public void testSimultaneousSinglePusherMultiplePoppers() throws Exception {
-        assertPushersPoppersWork(1, 4, 10000, 0, 0);
+        assertPushersPoppersWork(1, 4, 100, 10000, 0, 0);
     }
 
     @Test
     public void testSimultaneousMultiplePushersMultiplePoppers() throws Exception {
-        assertPushersPoppersWork(2, 4, 10000, 3, 0);
+        assertPushersPoppersWork(2, 4, 100, 10000, 3, 0);
     }
-
-    @Test
-    public void testFinishedPipeRemoval() {
-        fail("functionality not implemented yet");
-    }
-
-    //
-    // @Test
-    // public void testSimultaneousMultiplePusherMultiplePopper() {
-    // cq.setNearFifoOk(true);
-    // assertPushersPoppersWork(4, 10, 10000, 4000, 2, 0);
-    // }
-    //
-    // @Test
-    // public void testShutdown() {
-    // cq.shutdown();
-    // }
-    //
-    // @Test
-    // public void testStartStopOfQueue() {
-    // fail("not implemented");
-    // }
 
     // -----------------------
 
-    private void assertPushersPoppersWork(int numPushers, int numPoppers, int numMsgs, long pushDelay, long popDelay)
-            throws Exception {
-        int maxPushesPerPipe = 100;
+    private String assertPushersPoppersWork(int numPushers, int numPoppers, int maxPushesPerPipe, int numMsgs,
+            long pushDelay, long popDelay) throws Exception {
         Set<CassQMsg> msgSet = new LinkedHashSet<CassQMsg>();
         Set<String> valueSet = new HashSet<String>();
         Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
@@ -122,13 +93,12 @@ public class CassQueueTest extends CassQueueTestBase {
         tmpProps.setNumMsgs(numMsgs);
         tmpProps.setNumPushers(numPushers);
         tmpProps.setPushDelay(pushDelay);
-        // tmpProps.setNumMsgsPerPusher(numToPushPerPusher);
         tmpProps.setNumPoppers(numPoppers);
         tmpProps.setPopDelay(popDelay);
-        // tmpProps.setNumMsgsPerPopper(numToPopPerPopper);
 
         CassQueueImpl cq =
                 cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 4, 5000, false);
+        cq.setPipeReaperProcessingDelay(100);
         List<PushPopAbstractBase> pusherSet = CassQueueUtils.startPushers(cq, tmpProps);
         List<PushPopAbstractBase> popperSet = CassQueueUtils.startPoppers(cq, popQ, tmpProps);
 
@@ -157,11 +127,15 @@ public class CassQueueTest extends CassQueueTestBase {
                 qRepos.getCountOfWaitingMsgs(cq.getName(), maxPushesPerPipe).totalMsgCount);
         assertEquals("delivered queue should be empty", 0,
                 qRepos.getCountOfPendingCommitMsgs(cq.getName(), maxPushesPerPipe).totalMsgCount);
+
+        return cq.getName();
     }
 
     @Before
     public void setupTest() throws Exception {
-        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new PipeLockerImpl());
+        cqFactory =
+                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new LocalLockerImpl(),
+                        new LocalLockerImpl());
     }
 
 }

@@ -18,7 +18,6 @@ import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.CassQueueImpl;
-import com.real.cassandra.queue.repository.RepositoryFactoryImpl;
 
 public class CassQueueUtils {
     private static Logger logger = LoggerFactory.getLogger(CassQueueUtils.class);
@@ -39,7 +38,6 @@ public class CassQueueUtils {
 
         logger.info("start monitoring for end-of-test conditions");
 
-        // long start = System.currentTimeMillis();
         long interval = System.currentTimeMillis();
         int lastPopCount = 0;
         while (!popQ.isEmpty() || !isPushPopOpFinished(pusherSet)
@@ -152,7 +150,6 @@ public class CassQueueUtils {
         rawProps.setProperty(EnvProperties.ENV_numPipes, "4");
         // rawProps.setProperty(EnvProperties.ENV_API_NAME,
         // RepositoryFactoryImpl.API_PELOPS);
-        rawProps.setProperty(EnvProperties.ENV_API_NAME, RepositoryFactoryImpl.API_HECTOR);
         rawProps.setProperty(EnvProperties.ENV_hosts, "localhost");
         rawProps.setProperty(EnvProperties.ENV_RPC_PORT, "9161");
         rawProps.setProperty(EnvProperties.ENV_useFramedTransport, "false");

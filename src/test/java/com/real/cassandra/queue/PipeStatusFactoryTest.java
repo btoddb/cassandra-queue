@@ -4,30 +4,32 @@ import static org.junit.Assert.*;
 
 import org.junit.Test;
 
+import com.real.cassandra.queue.pipes.PipeProperties;
+import com.real.cassandra.queue.pipes.PipePropertiesFactory;
 import com.real.cassandra.queue.pipes.PipeStatus;
-import com.real.cassandra.queue.pipes.PipeStatusFactory;
 
 public class PipeStatusFactoryTest {
 
     @Test
     public void createValidFromRaw() {
         long now = System.currentTimeMillis();
-        PipeStatusFactory psf = new PipeStatusFactory();
-        PipeStatus psExpected = new PipeStatus("F", 123, now);
+        PipePropertiesFactory psf = new PipePropertiesFactory();
+        PipeProperties psExpected = new PipeProperties(PipeStatus.NOT_ACTIVE, PipeStatus.ACTIVE, 123, now);
 
-        assertEquals(psExpected, psf.createInstance("F/123/" + now));
-        assertEquals(psExpected, psf.createInstance("    F/123  /" + now));
-        assertEquals(psExpected, psf.createInstance("F    /     123/  " + now));
-        assertEquals(psExpected, psf.createInstance("F/123/" + now + "   "));
-        assertEquals(psExpected, psf.createInstance("     F/123/" + now));
+        assertEquals(psExpected, psf.createInstance("N/A/123/" + now));
+        assertEquals(psExpected, psf.createInstance("    N/A/123  /" + now));
+        assertEquals(psExpected, psf.createInstance("N / A    /     123/  " + now));
+        assertEquals(psExpected, psf.createInstance("N/A/123/" + now + "   "));
+        assertEquals(psExpected, psf.createInstance("     N/A/123/" + now));
     }
 
     @Test
     public void createRawFromValid() {
         long now = System.currentTimeMillis();
-        PipeStatusFactory psf = new PipeStatusFactory();
-        String psExpected = "F/123/" + now;
+        PipePropertiesFactory psf = new PipePropertiesFactory();
+        String psExpected = "C/C/123/" + now;
 
-        assertEquals(psExpected, psf.createInstance(new PipeStatus("F", 123, now)));
+        assertEquals(psExpected,
+                psf.createInstance(new PipeProperties(PipeStatus.COMPLETED, PipeStatus.COMPLETED, 123, now)));
     }
 }

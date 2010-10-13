@@ -5,8 +5,8 @@ import org.junit.BeforeClass;
 
 import com.real.cassandra.queue.app.CassQueueUtils;
 import com.real.cassandra.queue.app.EnvProperties;
-import com.real.cassandra.queue.repository.RepositoryFactoryImpl;
-import com.real.cassandra.queue.repository.hector.QueueRepositoryImpl;
+import com.real.cassandra.queue.repository.HectorUtils;
+import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 
 public class CassQueueTestBase {
 
@@ -22,7 +22,7 @@ public class CassQueueTestBase {
     public static void setupTestClass() throws Exception {
         baseEnvProps = CassQueueUtils.createEnvPropertiesWithDefaults();
         CassQueueUtils.startCassandraInstance();
-        qRepos = new RepositoryFactoryImpl().createInstance(baseEnvProps);
+        qRepos = HectorUtils.createQueueRepository(baseEnvProps);
     }
 
     @AfterClass

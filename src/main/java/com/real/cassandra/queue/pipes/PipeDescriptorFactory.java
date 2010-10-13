@@ -4,34 +4,38 @@ import java.util.UUID;
 
 import me.prettyprint.hector.api.beans.HColumn;
 
-import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
+import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.UuidGenerator;
 
 public class PipeDescriptorFactory {
 
-    private QueueRepositoryAbstractImpl qRepos;
-    private PipeStatusFactory pipeStatusFactory = new PipeStatusFactory();
+    private QueueRepositoryImpl qRepos;
+    private PipePropertiesFactory pipeStatusFactory = new PipePropertiesFactory();
 
-    public PipeDescriptorFactory(QueueRepositoryAbstractImpl qRepos) {
+    public PipeDescriptorFactory(QueueRepositoryImpl qRepos) {
         this.qRepos = qRepos;
     }
 
-    public PipeDescriptorImpl createInstance(String qName, String status, int msgCount) throws Exception {
+    public PipeDescriptorImpl createInstance(String qName, PipeStatus pushStatus, PipeStatus popStatus, int msgCount) {
+        long now = System.currentTimeMillis();
         UUID pipeId = UuidGenerator.generateTimeUuid();
-        qRepos.createPipeDescriptor(qName, pipeId, PipeDescriptorImpl.STATUS_PUSH_ACTIVE, System.currentTimeMillis());
+        qRepos.createPipeDescriptor(qName, pipeId, pushStatus, popStatus, now);
 
-        return createInstance(qName, pipeId, status, msgCount, System.currentTimeMillis());
+        return createInstance(qName, pipeId, pushStatus, popStatus, msgCount, now);
     }
 
-    public PipeDescriptorImpl createInstance(String qName, UUID pipeId, String status, int msgCount, long startTimestamp) {
-        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, status);
+    public PipeDescriptorImpl createInstance(String qName, UUID pipeId, PipeStatus pushStatus, PipeStatus popStatus,
+            int msgCount, long startTimestamp) {
+        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, pushStatus, popStatus);
         pipeDesc.setMsgCount(msgCount);
+        pipeDesc.setStartTimestamp(startTimestamp);
         return pipeDesc;
     }
 
     public PipeDescriptorImpl createInstance(String qName, HColumn<UUID, String> col) {
-        PipeStatus ps = pipeStatusFactory.createInstance(col);
-        return createInstance(qName, col.getName(), ps.getStatus(), ps.getPushCount(), ps.getStartTimestamp());
+        PipeProperties ps = pipeStatusFactory.createInstance(col);
+        return createInstance(qName, col.getName(), ps.getPushStatus(), ps.getPopStatus(), ps.getPushCount(),
+                ps.getStartTimestamp());
     }
 
 }

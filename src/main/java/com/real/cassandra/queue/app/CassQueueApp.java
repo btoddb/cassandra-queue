@@ -15,11 +15,13 @@ import org.slf4j.LoggerFactory;
 import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.CassQueueFactoryImpl;
 import com.real.cassandra.queue.CassQueueImpl;
+import com.real.cassandra.queue.QueueStats;
+import com.real.cassandra.queue.locks.LocalLockerImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
-import com.real.cassandra.queue.pipes.PipeLockerImpl;
-import com.real.cassandra.queue.repository.hector.HectorUtils;
-import com.real.cassandra.queue.repository.hector.QueueRepositoryImpl;
+import com.real.cassandra.queue.pipes.PipeStatus;
+import com.real.cassandra.queue.repository.HectorUtils;
+import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 
 /**
  * Command line tool used for dumping queues, pipes, counts, etc. Run w/o
@@ -34,6 +36,7 @@ public class CassQueueApp {
     private static final String OPT_DUMP_PIPE = "dump-pipe";
     private static final String OPT_OLDEST_PIPES = "list-oldest-pipes";
     private static final String OPT_DUMP_QUEUE = "dump-queue";
+    private static final String OPT_QUEUE_STATS = "show-stats";
 
     private static CassQueueFactoryImpl cqFactory;
     private static QueueRepositoryImpl qRepos;
@@ -41,7 +44,7 @@ public class CassQueueApp {
 
     private static String qName;
     private static String host;
-    private static int port = 9160;
+    private static int port;
     private static int replicationFactor = 1;
     private static int maxPushesPerPipe = 5000;
     private static int maxPopWidth = 4;
@@ -55,6 +58,7 @@ public class CassQueueApp {
             options.addOption("p", OPT_DUMP_PIPE, true, "dump contents of pipe");
             options.addOption("o", OPT_OLDEST_PIPES, false, "dump UUIDs of oldest pipes");
             options.addOption("q", OPT_DUMP_QUEUE, false, "dump queue messages and string values");
+            options.addOption("s", OPT_QUEUE_STATS, false, "show queue stats");
 
             CommandLine cmdLine;
             try {
@@ -67,7 +71,7 @@ public class CassQueueApp {
                 showUsage();
                 return;
             }
-            if (2 > cmdLine.getArgList().size()) {
+            if (3 > cmdLine.getArgList().size()) {
                 showUsage();
                 return;
             }
@@ -76,6 +80,7 @@ public class CassQueueApp {
             List<String> argsList = cmdLine.getArgList();
             qName = argsList.get(0);
             host = argsList.get(1);
+            port = Integer.parseInt(argsList.get(2));
             maxPushesPerPipe = 5000;
 
             System.out.println();
@@ -100,6 +105,9 @@ public class CassQueueApp {
             else if (cmdLine.hasOption(OPT_DUMP_QUEUE)) {
                 dumpQueue(cmdLine);
             }
+            else if (cmdLine.hasOption(OPT_QUEUE_STATS)) {
+                showQueueStats();
+            }
             else {
                 logger.error("missing cmd parameter");
             }
@@ -109,10 +117,15 @@ public class CassQueueApp {
         }
     }
 
+    private static void showQueueStats() {
+        QueueStats qStats = qRepos.getQueueStats(qName);
+        System.out.println("qStats = " + qStats);
+    }
+
     private static void showUsage() {
         System.out.println();
 
-        System.out.println("usage:  " + CassQueueApp.class.getSimpleName() + " <options> <host> <port>");
+        System.out.println("usage:  " + CassQueueApp.class.getSimpleName() + " <options> <queue-name> <host> <port>");
         System.out.println();
         System.out.println("   options:");
         System.out.println();
@@ -120,6 +133,7 @@ public class CassQueueApp {
         System.out.println("   --" + OPT_DUMP_PIPE + " <pipe-id> : dump contents of pipe (pipe-id is a UUID)");
         System.out.println("   --" + OPT_OLDEST_PIPES + " : list oldest pipe descriptors in queue");
         System.out.println("   --" + OPT_COUNT + " : count number of msgs 'waiting' in queue");
+        System.out.println("   --" + OPT_QUEUE_STATS + " : show stats for specified queue");
         System.out.println();
 
         System.out.println();
@@ -160,7 +174,7 @@ public class CassQueueApp {
     private static void dumpOldestPipes(CommandLine cmdLine) throws Exception {
         System.out.println("<pipe descriptor> = <number of waiting msgs>");
         System.out.println();
-        List<PipeDescriptorImpl> pdList = qRepos.getOldestNonEmptyPipes(qName, maxPopWidth);
+        List<PipeDescriptorImpl> pdList = qRepos.getOldestPopActivePipes(qName, maxPopWidth);
         for (PipeDescriptorImpl pipeDesc : pdList) {
             System.out.println(pipeDesc.toString() + " = "
                     + qRepos.getWaitingMessagesFromPipe(pipeDesc, maxPushesPerPipe).size());
@@ -174,16 +188,22 @@ public class CassQueueApp {
         System.out.println("waiting : " + waitingCount.totalMsgCount);
         System.out.println("pending : " + pendingCount.totalMsgCount);
 
-        System.out.println("  ---");
-        for (Entry<String, Integer> entry : waitingCount.statusCounts.entrySet()) {
-            System.out.println("pipes with status, " + entry.getKey() + " = " + entry.getValue());
+        System.out.println("  --- push status counts");
+        for (Entry<PipeStatus, Integer> entry : waitingCount.pushStatusCounts.entrySet()) {
+            System.out.println("pipes with push status, " + entry.getKey() + " = " + entry.getValue());
+        }
+        System.out.println("  --- pop status counts");
+        for (Entry<PipeStatus, Integer> entry : waitingCount.popStatusCounts.entrySet()) {
+            System.out.println("pipes with pop status, " + entry.getKey() + " = " + entry.getValue());
         }
     }
 
     private static void setupQueueSystem() throws Exception {
         qRepos = HectorUtils.createQueueRepository(new String[] {
             host }, port, replicationFactor, false);
-        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new PipeLockerImpl());
+        cqFactory =
+                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new LocalLockerImpl(),
+                        new LocalLockerImpl());
         cq = cqFactory.createInstance(qName);
     }
 

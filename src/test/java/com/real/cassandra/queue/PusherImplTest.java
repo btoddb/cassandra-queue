@@ -1,6 +1,11 @@
 package com.real.cassandra.queue;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -11,14 +16,10 @@ import java.util.UUID;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.real.cassandra.queue.CassQMsg;
-import com.real.cassandra.queue.CassQueueFactoryImpl;
-import com.real.cassandra.queue.CassQueueImpl;
-import com.real.cassandra.queue.PusherImpl;
 import com.real.cassandra.queue.app.CassQueueApp;
+import com.real.cassandra.queue.locks.LocalLockerImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
-import com.real.cassandra.queue.pipes.PipeLockerImpl;
 
 public class PusherImplTest extends CassQueueTestBase {
     private CassQueueImpl cq;
@@ -67,7 +68,7 @@ public class PusherImplTest extends CassQueueTestBase {
         System.out.println("push2 = "
                 + qRepos.getPipeDescriptor(cq.getName(), pusher2.getPipeDesc().getPipeId()).getMsgCount());
 
-        List<PipeDescriptorImpl> pipeList = qRepos.getOldestNonEmptyPipes(cq.getName(), 10);
+        List<PipeDescriptorImpl> pipeList = qRepos.getOldestPopActivePipes(cq.getName(), 10);
         System.out.println("num pipes = " + pipeList.size());
         for (PipeDescriptorImpl pd : pipeList) {
             CassQueueApp.outputPipeDescription(qRepos, pd, maxPushesPerPipe);
@@ -106,7 +107,7 @@ public class PusherImplTest extends CassQueueTestBase {
             Thread.sleep(1);
         }
 
-        List<PipeDescriptorImpl> pipeList = qRepos.getOldestNonEmptyPipes(cq.getName(), 10);
+        List<PipeDescriptorImpl> pipeList = qRepos.getOldestPopActivePipes(cq.getName(), 10);
         System.out.println("num pipes = " + pipeList.size());
         for (PipeDescriptorImpl pd : pipeList) {
             CassQueueApp.outputPipeDescription(qRepos, pd, maxPushesPerPipe);
@@ -129,42 +130,6 @@ public class PusherImplTest extends CassQueueTestBase {
             PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(cq.getName(), pipeId);
             assertEquals("pipe " + pipeDesc.getPipeId() + " should have " + (numMsgs / pipeSet.size()) + " messages",
                     numMsgs / pipeSet.size(), pipeDesc.getMsgCount());
-            if (!pipeDesc.getPipeId().equals(lastPipeId)) {
-                assertFalse("pipe should not be active", pipeDesc.isPushActive());
-            }
-            else {
-                assertTrue("pipe should still be active", pipeDesc.isPushActive());
-            }
-        }
-    }
-
-    @Test
-    public void testRollAfterTimePasses() throws Exception {
-        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 1000, 10, 1, 5000, false);
-        PusherImpl pusher = cq.createPusher();
-        int numMsgs = 3;
-        ArrayList<CassQMsg> pushList = new ArrayList<CassQMsg>(numMsgs);
-
-        for (int i = 0; i < numMsgs; i++) {
-            pushList.add(pusher.push("push-" + System.currentTimeMillis() + i));
-            Thread.sleep(1001);
-        }
-
-        Set<UUID> pipeSet = new HashSet<UUID>();
-        UUID lastPipeId = null;
-        for (int i = 0; i < numMsgs; i++) {
-            CassQMsg qMsg = pushList.get(i);
-            CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor(), qMsg.getMsgId());
-            assertEquals(qMsg.getMsgData(), qMsgNew.getMsgData());
-            lastPipeId = qMsg.getPipeDescriptor().getPipeId();
-            pipeSet.add(lastPipeId);
-        }
-
-        assertEquals("should have created exactly " + numMsgs + " pipes", numMsgs, pipeSet.size());
-
-        for (UUID pipeId : pipeSet) {
-            PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(cq.getName(), pipeId);
-            assertEquals(numMsgs / pipeSet.size(), pipeDesc.getMsgCount());
             if (!pipeDesc.getPipeId().equals(lastPipeId)) {
                 assertFalse("pipe should not be active", pipeDesc.isPushActive());
             }
@@ -205,6 +170,8 @@ public class PusherImplTest extends CassQueueTestBase {
 
     @Before
     public void setupTest() throws Exception {
-        cqFactory = new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new PipeLockerImpl());
+        cqFactory =
+                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new LocalLockerImpl(),
+                        new LocalLockerImpl());
     }
 }

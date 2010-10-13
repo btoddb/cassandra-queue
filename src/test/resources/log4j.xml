@@ -64,12 +64,16 @@
     <category name="com.real.cassandra.queue">
         <priority value="info"/>
     </category>
+    <category name="me.prettyprint">
+        <priority value="info"/>
+    </category>
+    
 
     <!-- ================================================================= -->
     <!-- Setup the Root category                                           -->
     <!-- ================================================================= -->
     <root>
-        <priority value="INFO" /> 
+        <priority value="DEBUG" /> 
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
     </root>

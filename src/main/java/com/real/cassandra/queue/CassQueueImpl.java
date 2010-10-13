@@ -8,9 +8,9 @@ import javax.management.InstanceAlreadyExistsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.real.cassandra.queue.locks.LocalLockerImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
-import com.real.cassandra.queue.pipes.PipeLockerImpl;
-import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
+import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.JmxMBeanManager;
 import com.real.cassandra.queue.utils.RollingStat;
 
@@ -21,9 +21,9 @@ public class CassQueueImpl implements CassQueueMXBean {
     private long maxPushTimePerPipe;
     private int maxPushesPerPipe;
     private int maxPopWidth;
-    private QueueRepositoryAbstractImpl qRepos;
+    private QueueRepositoryImpl qRepos;
     private PipeDescriptorFactory pipeDescFactory;
-    private PipeLockerImpl popLocker;
+    private LocalLockerImpl popLocker;
     private long popPipeRefreshDelay;
 
     private PusherImpl rollbackPusher;
@@ -34,10 +34,11 @@ public class CassQueueImpl implements CassQueueMXBean {
     private RollingStat popNotEmptyStat = new RollingStat(60000);
     private RollingStat popEmptyStat = new RollingStat(60000);
     private RollingStat pushStat = new RollingStat(60000);
+    private PipeReaper pipeReaper;
 
-    public CassQueueImpl(QueueRepositoryAbstractImpl qRepos, PipeDescriptorFactory pipeDescFactory, String qName,
-            long maxPushTimePerPipe, int maxPushesPerPipe, int popWidth, PipeLockerImpl popLocker,
-            long popPipeRefreshDelay) {
+    public CassQueueImpl(QueueRepositoryImpl qRepos, PipeDescriptorFactory pipeDescFactory, String qName,
+            long maxPushTimePerPipe, int maxPushesPerPipe, int popWidth, LocalLockerImpl popLocker,
+            LocalLockerImpl queueStatsLocker, long popPipeRefreshDelay) {
         this.qName = qName;
         this.qRepos = qRepos;
         this.pipeDescFactory = pipeDescFactory;
@@ -46,8 +47,13 @@ public class CassQueueImpl implements CassQueueMXBean {
         this.maxPopWidth = popWidth;
         this.popLocker = popLocker;
         this.popPipeRefreshDelay = popPipeRefreshDelay;
+
         logger.debug("creating pusher for rollback only");
         this.rollbackPusher = createPusher();
+
+        this.pipeReaper = new PipeReaper(qName, qRepos, queueStatsLocker);
+        this.pipeReaper.start();
+
         initJmx();
     }
 
@@ -64,12 +70,12 @@ public class CassQueueImpl implements CassQueueMXBean {
         }
     }
 
-    public void commit(CassQMsg qMsg) throws Exception {
+    public void commit(CassQMsg qMsg) {
         logger.debug("commit {}", qMsg);
         qRepos.removeMsgFromPendingPipe(qMsg);
     }
 
-    public CassQMsg rollback(CassQMsg qMsg) throws Exception {
+    public CassQMsg rollback(CassQMsg qMsg) {
         logger.debug("rollback {}", qMsg);
         CassQMsg qNewMsg = rollbackPusher.push(qMsg.getMsgData());
         qRepos.removeMsgFromPendingPipe(qMsg);
@@ -78,14 +84,14 @@ public class CassQueueImpl implements CassQueueMXBean {
 
     public PusherImpl createPusher() {
         logger.debug("creating pusher for queue {}", qName);
-        PusherImpl pusher = new PusherImpl(this, qRepos, pipeDescFactory, pushStat);
+        PusherImpl pusher = new PusherImpl(this, qRepos, pipeDescFactory, pipeReaper, pushStat);
         pusherSet.add(pusher);
         return pusher;
     }
 
     public PopperImpl createPopper(boolean startPipeWatcher) {
         logger.debug("creating popper for queue {}", qName);
-        PopperImpl popper = new PopperImpl(this, qRepos, popLocker, popNotEmptyStat, popEmptyStat);
+        PopperImpl popper = new PopperImpl(this, qRepos, pipeReaper, popLocker, popNotEmptyStat, popEmptyStat);
         popperSet.add(popper);
         popper.initialize(startPipeWatcher);
         return popper;
@@ -137,8 +143,7 @@ public class CassQueueImpl implements CassQueueMXBean {
     }
 
     public void shutdown() {
-        // TODO Auto-generated method stub
-
+        pipeReaper.shutdown();
     }
 
     public long getPopPipeRefreshDelay() {
@@ -194,4 +199,7 @@ public class CassQueueImpl implements CassQueueMXBean {
         return pusherSet.size();
     }
 
+    public void setPipeReaperProcessingDelay(long delay) {
+        pipeReaper.setProcessingDelay(delay);
+    }
 }

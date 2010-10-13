@@ -7,7 +7,8 @@ import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
-import com.real.cassandra.queue.repository.QueueRepositoryAbstractImpl;
+import com.real.cassandra.queue.pipes.PipeStatus;
+import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.RollingStat;
 
 /**
@@ -21,95 +22,98 @@ import com.real.cassandra.queue.utils.RollingStat;
 public class PusherImpl {
     private static Logger logger = LoggerFactory.getLogger(PusherImpl.class);
 
-    // injected objects
-    private QueueRepositoryAbstractImpl qRepos;
+    private QueueRepositoryImpl qRepos;
     private boolean shutdownInProgress = false;
     private CassQueueImpl cq;
     private PipeDescriptorFactory pipeDescFactory;
     private CassQMsgFactory qMsgFactory = new CassQMsgFactory();
-
+    private PipeReaper pipeReaper;
     private PipeDescriptorImpl pipeDesc = null;
-    private long start;
 
     private int pushCount;
 
     private RollingStat pushStat;
 
-    public PusherImpl(CassQueueImpl cq, QueueRepositoryAbstractImpl qRepos, PipeDescriptorFactory pipeDescFactory,
-            RollingStat pushStat) {
+    public PusherImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, PipeDescriptorFactory pipeDescFactory,
+            PipeReaper pipeReaper, RollingStat pushStat) {
         this.cq = (CassQueueImpl) cq;
         this.qRepos = qRepos;
         this.pipeDescFactory = pipeDescFactory;
-        this.start = System.currentTimeMillis();
+        this.pipeReaper = pipeReaper;
         this.pushStat = pushStat;
     }
 
-    public CassQMsg push(String msgData) throws Exception {
+    public CassQMsg push(String msgData) {
         return insertInternal(qMsgFactory.createMsgId(), msgData);
     }
 
-    private CassQMsg insertInternal(UUID msgId, String msgData) throws Exception {
+    private CassQMsg insertInternal(UUID msgId, String msgData) {
         long start = System.currentTimeMillis();
 
         if (shutdownInProgress) {
             throw new IllegalStateException("cannot push messages when shutdown in progress");
         }
 
-        if (isNewPipeNeeded()) {
-            logger.debug("new pipe needed, creating one");
-            createNewPipeAndMarkOldAsFinished();
+        if (markPipeFinishedIfNeeded()) {
+            logger.debug("new pipe needed, switching to new one");
+            switchToNewPipe();
         }
 
         pipeDesc.incMsgCount();
         pushCount++;
 
         CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
-        qRepos.insert(pipeDesc, qMsg.getMsgId(), qMsg.getMsgData());
+        qRepos.insertMsg(pipeDesc, qMsg.getMsgId(), qMsg.getMsgData());
         logger.debug("pushed message : {}", qMsg);
 
         pushStat.addSample(System.currentTimeMillis() - start);
         return qMsg;
     }
 
-    private void createNewPipeAndMarkOldAsFinished() throws Exception {
-        PipeDescriptorImpl newPipeDesc =
-                pipeDescFactory.createInstance(cq.getName(), PipeDescriptorImpl.STATUS_PUSH_ACTIVE, 0);
-
-        // TODO:BTB optimize by combining setting each pipe's active status
-        // set old pipeDesc as inactive
-        if (null != pipeDesc) {
-            qRepos.setPipeDescriptorStatus(pipeDesc, PipeDescriptorImpl.STATUS_PUSH_FINISHED);
-        }
-
+    private void switchToNewPipe() {
+        PipeDescriptorImpl newPipeDesc = createNewPipe();
         pipeDesc = newPipeDesc;
-        logger.debug("created new pipe : {}", pipeDesc);
-        start = System.currentTimeMillis();
+        logger.debug("switched to new pipe : {}", pipeDesc);
     }
 
-    private boolean isNewPipeNeeded() {
+    private PipeDescriptorImpl createNewPipe() {
+        return pipeDescFactory.createInstance(cq.getName(), PipeStatus.ACTIVE, PipeStatus.ACTIVE, 0);
+    }
+
+    /**
+     * If pipe is full, but not expired then mark it as
+     * {@link PipeStatus#PUSH_FINISHED}. If it has expired, {@link PopperImpl}
+     * will handle this case to prevent race condition.
+     * 
+     * @return
+     */
+    private boolean markPipeFinishedIfNeeded() {
         if (null == pipeDesc) {
             logger.debug("new pipe needed, none exists");
             return true;
         }
-        else if (pipeDesc.getMsgCount() >= cq.getMaxPushesPerPipe()) {
-            logger.debug("new pipe needed, msg count exceeds max of {}", cq.getMaxPushesPerPipe());
-            return true;
-        }
-        else if (System.currentTimeMillis() - start > cq.getMaxPushTimePerPipe()) {
+        else if (System.currentTimeMillis() - pipeDesc.getStartTimestamp() > cq.getMaxPushTimePerPipe()) {
             logger.debug("new pipe needed, pipe has exceed expiration of {} ms", cq.getMaxPushTimePerPipe());
             return true;
         }
-
-        return false;
+        else if (pipeDesc.getMsgCount() >= cq.getMaxPushesPerPipe()) {
+            logger.debug("new pipe needed, msg count exceeds max of {}", cq.getMaxPushesPerPipe());
+            qRepos.updatePipeStatus(pipeDesc, PipeStatus.NOT_ACTIVE, pipeDesc.getPopStatus());
+            pipeReaper.wakeUp();
+            return true;
+        }
+        else {
+            return false;
+        }
     }
 
     public String getQName() {
         return cq.getName();
     }
 
-    public void shutdown() throws Exception {
+    public void shutdown() {
         shutdownInProgress = true;
-        qRepos.setPipeDescriptorStatus(pipeDesc, PipeDescriptorImpl.STATUS_PUSH_FINISHED);
+        qRepos.updatePipeStatus(pipeDesc, PipeStatus.NOT_ACTIVE, pipeDesc.getPopStatus());
     }
 
     public long getMaxPushTimeOfPipe() {

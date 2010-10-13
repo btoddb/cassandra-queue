@@ -3,23 +3,19 @@ package com.real.cassandra.queue.pipes;
 import java.util.UUID;
 
 public class PipeDescriptorImpl {
-    public static final String STATUS_PUSH_ACTIVE = "PA";
-    public static final String STATUS_PUSH_FINISHED = "PF";
-    public static final String STATUS_FINISHED_AND_EMPTY = "E";
-
     private String qName;
     private UUID pipeId;
-    private String pipeIdAsStr;
     private int msgCount;
-    private String status;
+    private PipeStatus pushStatus;
+    private PipeStatus popStatus;
     private long startTimestamp;
 
-    public PipeDescriptorImpl(String qName, UUID pipeId, String status) {
+    public PipeDescriptorImpl(String qName, UUID pipeId, PipeStatus pushStatus, PipeStatus popStatus) {
         this.qName = qName;
         this.pipeId = pipeId;
-        this.pipeIdAsStr = pipeId.toString();
         this.msgCount = 0;
-        this.status = status;
+        this.pushStatus = pushStatus;
+        this.popStatus = popStatus;
     }
 
     public UUID getPipeId() {
@@ -76,24 +72,36 @@ public class PipeDescriptorImpl {
         this.msgCount = msgCount;
     }
 
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
     public boolean isPushActive() {
-        return STATUS_PUSH_ACTIVE.equals(status);
+        return PipeStatus.ACTIVE.equals(pushStatus);
     }
 
-    public boolean isPushFinished() {
-        return STATUS_PUSH_FINISHED.equals(status);
+    public boolean isPushCompleted() {
+        return PipeStatus.COMPLETED.equals(pushStatus);
     }
 
-    public boolean isFinishedAndEmpty() {
-        return STATUS_FINISHED_AND_EMPTY.equals(status);
+    public boolean isPopActive() {
+        return PipeStatus.ACTIVE.equals(popStatus);
+    }
+
+    public boolean isPopCompleted() {
+        return PipeStatus.COMPLETED.equals(popStatus);
+    }
+
+    public PipeStatus getPushStatus() {
+        return pushStatus;
+    }
+
+    public void setPushStatus(PipeStatus pushStatus) {
+        this.pushStatus = pushStatus;
+    }
+
+    public PipeStatus getPopStatus() {
+        return popStatus;
+    }
+
+    public void setPopStatus(PipeStatus popStatus) {
+        this.popStatus = popStatus;
     }
 
     @Override
@@ -101,12 +109,16 @@ public class PipeDescriptorImpl {
         StringBuilder builder = new StringBuilder();
         builder.append("PipeDescriptorImpl [qName=");
         builder.append(qName);
-        builder.append(", pipeIdAsStr=");
-        builder.append(pipeIdAsStr);
-        builder.append(", status=");
-        builder.append(status);
+        builder.append(", pipeId=");
+        builder.append(pipeId.toString());
         builder.append(", msgCount=");
         builder.append(msgCount);
+        builder.append(", pushStatus=");
+        builder.append(pushStatus);
+        builder.append(", popStatus=");
+        builder.append(popStatus);
+        builder.append(", startTimestamp=");
+        builder.append(startTimestamp);
         builder.append("]");
         return builder.toString();
     }

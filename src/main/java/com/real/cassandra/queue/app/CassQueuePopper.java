@@ -4,11 +4,16 @@ import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.util.Queue;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.CassQueueImpl;
 import com.real.cassandra.queue.PopperImpl;
 
 public class CassQueuePopper extends PushPopAbstractBase {
+    private static Logger logger = LoggerFactory.getLogger(CassQueuePopper.class);
+
     private Queue<CassQMsg> popQ;
     private PopperImpl popper;
     private PrintWriter fWriter;
@@ -22,10 +27,11 @@ public class CassQueuePopper extends PushPopAbstractBase {
     }
 
     @Override
-    protected boolean processMsg() throws Exception {
+    protected boolean processMsg() {
         CassQMsg qMsg = popper.pop();
         if (null != qMsg) {
             popper.commit(qMsg);
+            logger.debug("commited message : {} = {}", qMsg.getMsgId(), qMsg.getMsgData());
             if (null != popQ) {
                 popQ.add(qMsg);
             }
@@ -43,7 +49,7 @@ public class CassQueuePopper extends PushPopAbstractBase {
     }
 
     @Override
-    protected void shutdown() throws Exception {
+    protected void shutdown() {
         popper.shutdown();
         fWriter.close();
     }

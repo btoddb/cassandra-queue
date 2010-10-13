@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.real</groupId>
 	<artifactId>cassandra-queue</artifactId>
-	<version>0.1.0-SNAPSHOT</version>
+	<version>0.2.0-SNAPSHOT</version>
 	<name>Cassandra Queue</name>
 	<description>Simple FIFO queue using Cassandra Database</description>
 
