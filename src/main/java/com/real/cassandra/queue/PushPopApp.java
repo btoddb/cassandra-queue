@@ -13,10 +13,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.app.CassQueueUtils;
-import com.real.cassandra.queue.app.QueueProperties;
 import com.real.cassandra.queue.app.PushPopAbstractBase;
+import com.real.cassandra.queue.app.QueueProperties;
 import com.real.cassandra.queue.locks.LocalLockerImpl;
-import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.repository.HectorUtils;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 
@@ -70,9 +69,7 @@ public class PushPopApp {
 
     private static void setupQueueSystem() throws Exception {
         qRepos = HectorUtils.createQueueRepository(envProps);
-        cqFactory =
-                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new LocalLockerImpl(),
-                        new LocalLockerImpl());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl(), new LocalLockerImpl());
         cq =
                 cqFactory.createInstance(envProps.getQName(), envProps.getMaxPushTimePerPipe(),
                         envProps.getMaxPushesPerPipe(), envProps.getMaxPopWidth(), envProps.getPopPipeRefreshDelay(),

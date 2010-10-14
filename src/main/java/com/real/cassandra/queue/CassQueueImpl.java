@@ -9,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.locks.LocalLockerImpl;
-import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.JmxMBeanManager;
 import com.real.cassandra.queue.utils.RollingStat;
@@ -22,7 +21,6 @@ public class CassQueueImpl implements CassQueueMXBean {
     private int maxPushesPerPipe;
     private int maxPopWidth;
     private QueueRepositoryImpl qRepos;
-    private PipeDescriptorFactory pipeDescFactory;
     private LocalLockerImpl popLocker;
     private long popPipeRefreshDelay;
 
@@ -36,12 +34,10 @@ public class CassQueueImpl implements CassQueueMXBean {
     private RollingStat pushStat = new RollingStat(60000);
     private PipeReaper pipeReaper;
 
-    public CassQueueImpl(QueueRepositoryImpl qRepos, PipeDescriptorFactory pipeDescFactory, String qName,
-            long maxPushTimePerPipe, int maxPushesPerPipe, int popWidth, LocalLockerImpl popLocker,
-            LocalLockerImpl queueStatsLocker, long popPipeRefreshDelay) {
+    public CassQueueImpl(QueueRepositoryImpl qRepos, String qName, long maxPushTimePerPipe, int maxPushesPerPipe,
+            int popWidth, LocalLockerImpl popLocker, LocalLockerImpl queueStatsLocker, long popPipeRefreshDelay) {
         this.qName = qName;
         this.qRepos = qRepos;
-        this.pipeDescFactory = pipeDescFactory;
         this.maxPushTimePerPipe = maxPushTimePerPipe;
         this.maxPushesPerPipe = maxPushesPerPipe;
         this.maxPopWidth = popWidth;
@@ -84,7 +80,7 @@ public class CassQueueImpl implements CassQueueMXBean {
 
     public PusherImpl createPusher() {
         logger.debug("creating pusher for queue {}", qName);
-        PusherImpl pusher = new PusherImpl(this, qRepos, pipeDescFactory, pushStat);
+        PusherImpl pusher = new PusherImpl(this, qRepos, pushStat);
         pusherSet.add(pusher);
         return pusher;
     }

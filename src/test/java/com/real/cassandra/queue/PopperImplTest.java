@@ -13,7 +13,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.real.cassandra.queue.locks.LocalLockerImpl;
-import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
 import com.real.cassandra.queue.utils.MyIp;
@@ -283,8 +282,6 @@ public class PopperImplTest extends CassQueueTestBase {
 
     @Before
     public void setupTest() throws Exception {
-        cqFactory =
-                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new LocalLockerImpl(),
-                        new LocalLockerImpl());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl(), new LocalLockerImpl());
     }
 }

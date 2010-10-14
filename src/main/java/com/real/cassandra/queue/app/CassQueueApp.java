@@ -18,7 +18,6 @@ import com.real.cassandra.queue.CassQueueFactoryImpl;
 import com.real.cassandra.queue.CassQueueImpl;
 import com.real.cassandra.queue.QueueStats;
 import com.real.cassandra.queue.locks.LocalLockerImpl;
-import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
 import com.real.cassandra.queue.repository.HectorUtils;
@@ -208,9 +207,7 @@ public class CassQueueApp {
         QueueProperties envProps = new QueueProperties(rawProps);
 
         qRepos = HectorUtils.createQueueRepository(envProps);
-        cqFactory =
-                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new LocalLockerImpl(),
-                        new LocalLockerImpl());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl(), new LocalLockerImpl());
         cq = cqFactory.createInstance(qName);
     }
 

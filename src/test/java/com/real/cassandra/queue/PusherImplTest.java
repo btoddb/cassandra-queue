@@ -18,7 +18,6 @@ import org.junit.Test;
 
 import com.real.cassandra.queue.app.CassQueueApp;
 import com.real.cassandra.queue.locks.LocalLockerImpl;
-import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 
 public class PusherImplTest extends CassQueueTestBase {
@@ -74,7 +73,8 @@ public class PusherImplTest extends CassQueueTestBase {
 
         assertNotSame(pusher1.getPipeDesc(), pusher2.getPipeDesc());
         PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(pusher1.getPipeDesc().getPipeId());
-        assertEquals("should have inserted " + numMsgs + " into pipe : " + pipeDesc.toString(), numMsgs, pipeDesc.getPushCount());
+        assertEquals("should have inserted " + numMsgs + " into pipe : " + pipeDesc.toString(), numMsgs,
+                pipeDesc.getPushCount());
         pipeDesc = qRepos.getPipeDescriptor(pusher2.getPipeDesc().getPipeId());
         assertEquals("should have inserted " + numMsgs + " into pipe", numMsgs, pipeDesc.getPushCount());
 
@@ -168,8 +168,6 @@ public class PusherImplTest extends CassQueueTestBase {
 
     @Before
     public void setupTest() throws Exception {
-        cqFactory =
-                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new LocalLockerImpl(),
-                        new LocalLockerImpl());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl(), new LocalLockerImpl());
     }
 }

@@ -16,10 +16,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.real.cassandra.queue.app.CassQueueUtils;
-import com.real.cassandra.queue.app.QueueProperties;
 import com.real.cassandra.queue.app.PushPopAbstractBase;
+import com.real.cassandra.queue.app.QueueProperties;
 import com.real.cassandra.queue.locks.LocalLockerImpl;
-import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 
 /**
  * Tests for {@link CassQueueImpl}.
@@ -170,9 +169,7 @@ public class CassQueueTest extends CassQueueTestBase {
 
     @Before
     public void setupTest() throws Exception {
-        cqFactory =
-                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new LocalLockerImpl(),
-                        new LocalLockerImpl());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl(), new LocalLockerImpl());
     }
 
 }

@@ -6,7 +6,6 @@ import org.apache.cassandra.utils.UUIDGen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
@@ -27,7 +26,6 @@ public class PusherImpl {
     private QueueRepositoryImpl qRepos;
     private boolean shutdownInProgress = false;
     private CassQueueImpl cq;
-    private PipeDescriptorFactory pipeDescFactory;
     private CassQMsgFactory qMsgFactory = new CassQMsgFactory();
     private PipeDescriptorImpl pipeDesc = null;
 
@@ -35,11 +33,9 @@ public class PusherImpl {
 
     private RollingStat pushStat;
 
-    public PusherImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, PipeDescriptorFactory pipeDescFactory,
-            RollingStat pushStat) {
+    public PusherImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, RollingStat pushStat) {
         this.cq = (CassQueueImpl) cq;
         this.qRepos = qRepos;
-        this.pipeDescFactory = pipeDescFactory;
         this.pushStat = pushStat;
     }
 
