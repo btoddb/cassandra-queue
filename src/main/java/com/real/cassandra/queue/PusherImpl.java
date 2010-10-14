@@ -2,6 +2,7 @@ package com.real.cassandra.queue;
 
 import java.util.UUID;
 
+import org.apache.cassandra.utils.UUIDGen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,6 +10,7 @@ import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
+import com.real.cassandra.queue.utils.MyIp;
 import com.real.cassandra.queue.utils.RollingStat;
 
 /**
@@ -27,7 +29,6 @@ public class PusherImpl {
     private CassQueueImpl cq;
     private PipeDescriptorFactory pipeDescFactory;
     private CassQMsgFactory qMsgFactory = new CassQMsgFactory();
-    private PipeReaper pipeReaper;
     private PipeDescriptorImpl pipeDesc = null;
 
     private int pushCount;
@@ -35,11 +36,10 @@ public class PusherImpl {
     private RollingStat pushStat;
 
     public PusherImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, PipeDescriptorFactory pipeDescFactory,
-            PipeReaper pipeReaper, RollingStat pushStat) {
+            RollingStat pushStat) {
         this.cq = (CassQueueImpl) cq;
         this.qRepos = qRepos;
         this.pipeDescFactory = pipeDescFactory;
-        this.pipeReaper = pipeReaper;
         this.pushStat = pushStat;
     }
 
@@ -59,7 +59,7 @@ public class PusherImpl {
             switchToNewPipe();
         }
 
-        pipeDesc.incMsgCount();
+        pipeDesc.incPushCount();
         pushCount++;
 
         CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
@@ -76,7 +76,7 @@ public class PusherImpl {
     }
 
     private PipeDescriptorImpl createNewPipe() {
-        return pipeDescFactory.createInstance(cq.getName(), PipeStatus.ACTIVE, PipeStatus.ACTIVE, 0);
+        return qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
     }
 
     /**
@@ -95,12 +95,12 @@ public class PusherImpl {
             logger.debug("new pipe needed, pipe has exceed expiration of {} ms", cq.getMaxPushTimePerPipe());
             return true;
         }
-        else if (pipeDesc.getMsgCount() >= cq.getMaxPushesPerPipe()) {
+        else if (pipeDesc.getPushCount() >= cq.getMaxPushesPerPipe()) {
             logger.debug("new pipe needed, msg count exceeds max of {}", cq.getMaxPushesPerPipe());
 
             // TODO BTB:could combine this with 'insert' to cut down on wire
             // time if needed
-            qRepos.updatePipeStatus(pipeDesc, PipeStatus.NOT_ACTIVE, pipeDesc.getPopStatus());
+            qRepos.updatePipePushStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
 
             // TODO BTB:let's not do this wakup and see if performance improves
             // pipeReaper.wakeUp();
@@ -117,7 +117,7 @@ public class PusherImpl {
 
     public void shutdown() {
         shutdownInProgress = true;
-        qRepos.updatePipeStatus(pipeDesc, PipeStatus.NOT_ACTIVE, pipeDesc.getPopStatus());
+        qRepos.updatePipePushStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
     }
 
     public long getMaxPushTimeOfPipe() {

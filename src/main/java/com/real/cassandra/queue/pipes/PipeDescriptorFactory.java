@@ -1,41 +1,64 @@
 package com.real.cassandra.queue.pipes;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
+import me.prettyprint.cassandra.serializers.BytesSerializer;
+import me.prettyprint.cassandra.serializers.IntegerSerializer;
+import me.prettyprint.cassandra.serializers.LongSerializer;
+import me.prettyprint.cassandra.serializers.StringSerializer;
+import me.prettyprint.hector.api.beans.ColumnSlice;
 import me.prettyprint.hector.api.beans.HColumn;
+import me.prettyprint.hector.api.factory.HFactory;
 
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
-import com.real.cassandra.queue.utils.UuidGenerator;
 
 public class PipeDescriptorFactory {
 
-    private QueueRepositoryImpl qRepos;
-    private PipePropertiesFactory pipeStatusFactory = new PipePropertiesFactory();
-
-    public PipeDescriptorFactory(QueueRepositoryImpl qRepos) {
-        this.qRepos = qRepos;
+    public PipeDescriptorImpl createInstance(String qName, UUID pipeId) {
+        return new PipeDescriptorImpl(qName, pipeId);
     }
 
-    public PipeDescriptorImpl createInstance(String qName, PipeStatus pushStatus, PipeStatus popStatus, int msgCount) {
-        long now = System.currentTimeMillis();
-        UUID pipeId = UuidGenerator.generateTimeUuid();
-        qRepos.createPipeDescriptor(qName, pipeId, pushStatus, popStatus, now);
+    public Set<HColumn<String, byte[]>> createInstance(PipeDescriptorImpl pipeDesc) {
+        Set<HColumn<String, byte[]>> colSet = new HashSet<HColumn<String, byte[]>>();
 
-        return createInstance(qName, pipeId, pushStatus, popStatus, msgCount, now);
+        colSet.add(HFactory.createColumn(QueueRepositoryImpl.PDESC_COLNAME_QUEUE_NAME,
+                StringSerializer.get().toBytes(pipeDesc.getQName()), StringSerializer.get(), BytesSerializer.get()));
+        colSet.add(HFactory.createColumn(QueueRepositoryImpl.PDESC_COLNAME_PUSH_STATUS,
+                StringSerializer.get().toBytes(pipeDesc.getPushStatus().getName()), StringSerializer.get(),
+                BytesSerializer.get()));
+        colSet.add(HFactory.createColumn(QueueRepositoryImpl.PDESC_COLNAME_POP_STATUS,
+                StringSerializer.get().toBytes(pipeDesc.getPopStatus().getName()), StringSerializer.get(),
+                BytesSerializer.get()));
+        colSet.add(HFactory.createColumn(QueueRepositoryImpl.PDESC_COLNAME_PUSH_COUNT,
+                IntegerSerializer.get().toBytes(pipeDesc.getPushCount()), StringSerializer.get(), BytesSerializer.get()));
+        colSet.add(HFactory.createColumn(QueueRepositoryImpl.PDESC_COLNAME_POP_COUNT,
+                IntegerSerializer.get().toBytes(pipeDesc.getPopCount()), StringSerializer.get(), BytesSerializer.get()));
+        colSet.add(HFactory.createColumn(QueueRepositoryImpl.PDESC_COLNAME_START_TIMESTAMP, LongSerializer.get()
+                .toBytes(pipeDesc.getStartTimestamp()), StringSerializer.get(), BytesSerializer.get()));
+        return colSet;
     }
 
-    public PipeDescriptorImpl createInstance(String qName, UUID pipeId, PipeStatus pushStatus, PipeStatus popStatus,
-            int msgCount, long startTimestamp) {
-        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, pushStatus, popStatus);
-        pipeDesc.setMsgCount(msgCount);
-        pipeDesc.setStartTimestamp(startTimestamp);
+    public PipeDescriptorImpl createInstance(UUID pipeId, ColumnSlice<String, byte[]> colSlice) {
+        if (colSlice.getColumns().isEmpty()) {
+            return null;
+        }
+
+        PipeDescriptorImpl pipeDesc =
+                new PipeDescriptorImpl(StringSerializer.get().fromBytes(
+                        colSlice.getColumnByName(QueueRepositoryImpl.PDESC_COLNAME_QUEUE_NAME).getValue()), pipeId);
+        pipeDesc.setPushStatus(PipeStatus.getInstance(StringSerializer.get().fromBytes(
+                colSlice.getColumnByName(QueueRepositoryImpl.PDESC_COLNAME_PUSH_STATUS).getValue())));
+        pipeDesc.setPopStatus(PipeStatus.getInstance(StringSerializer.get().fromBytes(
+                colSlice.getColumnByName(QueueRepositoryImpl.PDESC_COLNAME_POP_STATUS).getValue())));
+
+        pipeDesc.setPushCount(IntegerSerializer.get().fromBytes(
+                colSlice.getColumnByName(QueueRepositoryImpl.PDESC_COLNAME_PUSH_COUNT).getValue()));
+        pipeDesc.setPopCount(IntegerSerializer.get().fromBytes(
+                colSlice.getColumnByName(QueueRepositoryImpl.PDESC_COLNAME_POP_COUNT).getValue()));
+        pipeDesc.setStartTimestamp(LongSerializer.get().fromBytes(
+                colSlice.getColumnByName(QueueRepositoryImpl.PDESC_COLNAME_START_TIMESTAMP).getValue()));
         return pipeDesc;
     }
-
-    public PipeDescriptorImpl createInstance(String qName, HColumn<UUID, String> col) {
-        PipeProperties ps = pipeStatusFactory.createInstance(col);
-        return createInstance(qName, col.getName(), ps.getPushStatus(), ps.getPopStatus(), ps.getPushCount(),
-                ps.getStartTimestamp());
-    }
-
 }

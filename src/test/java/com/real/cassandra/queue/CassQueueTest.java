@@ -171,7 +171,7 @@ public class CassQueueTest extends CassQueueTestBase {
     @Before
     public void setupTest() throws Exception {
         cqFactory =
-                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new LocalLockerImpl(),
+                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new LocalLockerImpl(),
                         new LocalLockerImpl());
     }
 

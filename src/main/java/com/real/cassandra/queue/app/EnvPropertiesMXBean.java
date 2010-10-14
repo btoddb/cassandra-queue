@@ -5,13 +5,15 @@ public interface EnvPropertiesMXBean {
 
     String getHostArr();
 
+    int getMaxActive();
+
+    int getMaxIdle();
+
     int getRpcPort();
 
     int getReplicationFactor();
 
     int getNumPushers();
-
-    int getNumMsgs();
 
     int getNumPoppers();
 
@@ -19,23 +21,9 @@ public interface EnvPropertiesMXBean {
 
     long getPopDelay();
 
+    int getNumMsgs();
+
     // boolean isStrictFifo();
-
-    boolean getDropKeyspace();
-
-    boolean getTruncateQueue();
-
-    // int getMinCacheConnsPerHost();
-
-    int getMaxConnectionsPerHost();
-
-    int getTargetConnectionsPerHost();
-
-    boolean getUseFramedTransport();
-
-    long getPipeCheckDelay();
-
-    long getPushPipeIncrementDelay();
 
     void setNumPoppers(int value);
 
@@ -44,5 +32,7 @@ public interface EnvPropertiesMXBean {
     void setNumPushers(int value);
 
     void setPopDelay(long value);
+
+    void setNumMsgs(int numMsgs);
 
 }

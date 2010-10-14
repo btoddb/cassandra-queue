@@ -5,17 +5,26 @@ import java.util.UUID;
 public class PipeDescriptorImpl {
     private String qName;
     private UUID pipeId;
-    private int msgCount;
+    private int pushCount;
+    private int popCount;
     private PipeStatus pushStatus;
     private PipeStatus popStatus;
     private long startTimestamp;
 
     public PipeDescriptorImpl(String qName, UUID pipeId, PipeStatus pushStatus, PipeStatus popStatus) {
-        this.qName = qName;
-        this.pipeId = pipeId;
-        this.msgCount = 0;
+        this(qName, pipeId);
         this.pushStatus = pushStatus;
         this.popStatus = popStatus;
+    }
+
+    public PipeDescriptorImpl(String qName, UUID pipeId) {
+        this.qName = qName;
+        this.pipeId = pipeId;
+        this.pushCount = 0;
+        this.popCount = 0;
+        this.pushStatus = PipeStatus.ACTIVE;
+        this.popStatus = PipeStatus.ACTIVE;
+        this.startTimestamp = System.currentTimeMillis();
     }
 
     public UUID getPipeId() {
@@ -26,12 +35,16 @@ public class PipeDescriptorImpl {
         return qName;
     }
 
-    public int incMsgCount() {
-        return ++msgCount;
+    public int incPushCount() {
+        return ++pushCount;
     }
 
-    public int getMsgCount() {
-        return msgCount;
+    public int incPopCount() {
+        return ++popCount;
+    }
+
+    public int getPushCount() {
+        return pushCount;
     }
 
     public long getStartTimestamp() {
@@ -68,8 +81,8 @@ public class PipeDescriptorImpl {
         return true;
     }
 
-    public void setMsgCount(int msgCount) {
-        this.msgCount = msgCount;
+    public void setPushCount(int msgCount) {
+        this.pushCount = msgCount;
     }
 
     public boolean isPushActive() {
@@ -104,17 +117,27 @@ public class PipeDescriptorImpl {
         this.popStatus = popStatus;
     }
 
+    public int getPopCount() {
+        return popCount;
+    }
+
+    public void setPopCount(int popCount) {
+        this.popCount = popCount;
+    }
+
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("PipeDescriptorImpl [qName=");
         builder.append(qName);
         builder.append(", pipeId=");
-        builder.append(pipeId.toString());
-        builder.append(", msgCount=");
-        builder.append(msgCount);
+        builder.append(pipeId);
+        builder.append(", pushCount=");
+        builder.append(pushCount);
         builder.append(", pushStatus=");
         builder.append(pushStatus);
+        builder.append(", popCount=");
+        builder.append(popCount);
         builder.append(", popStatus=");
         builder.append(popStatus);
         builder.append(", startTimestamp=");

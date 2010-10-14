@@ -87,6 +87,7 @@ public class CassQueueApp {
             System.out.println();
             System.out.println("qName : " + qName);
             System.out.println("host  : " + host);
+            System.out.println("port  : " + port);
             System.out.println();
 
             setupQueueSystem();
@@ -149,7 +150,7 @@ public class CassQueueApp {
 
     private static void dumpPipe(CommandLine cmdLine) throws Exception {
         String pipeIdAsStr = cmdLine.getOptionValue(OPT_DUMP_PIPE);
-        PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(qName, UUID.fromString(pipeIdAsStr));
+        PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(UUID.fromString(pipeIdAsStr));
         outputPipeDescription(qRepos, pipeDesc, maxPushesPerPipe);
     }
 
@@ -163,7 +164,7 @@ public class CassQueueApp {
         for (CassQMsg qMsg : msgList) {
             System.out.println("waiting msg : " + qMsg.toString());
         }
-        msgList = qRepos.getDeliveredMessagesFromPipe(pipeDesc, maxPushesPerPipe + 1);
+        msgList = qRepos.getPendingMessagesFromPipe(pipeDesc, maxPushesPerPipe + 1);
         if (msgList.isEmpty()) {
             System.out.println("pending: <pipe is empty>");
         }
@@ -202,13 +203,13 @@ public class CassQueueApp {
     private static void setupQueueSystem() throws Exception {
         Properties rawProps = new Properties();
         rawProps.put(QueueProperties.ENV_hosts, host);
-        rawProps.put(QueueProperties.ENV_RPC_PORT, port);
+        rawProps.put(QueueProperties.ENV_RPC_PORT, String.valueOf(port));
         rawProps.put(QueueProperties.ENV_REPLICATION_FACTOR, replicationFactor);
         QueueProperties envProps = new QueueProperties(rawProps);
 
         qRepos = HectorUtils.createQueueRepository(envProps);
         cqFactory =
-                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new LocalLockerImpl(),
+                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new LocalLockerImpl(),
                         new LocalLockerImpl());
         cq = cqFactory.createInstance(qName);
     }

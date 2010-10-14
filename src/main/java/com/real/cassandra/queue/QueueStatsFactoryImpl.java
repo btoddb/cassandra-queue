@@ -5,7 +5,6 @@ import me.prettyprint.hector.api.beans.ColumnSlice;
 
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.DoubleSerializer;
-import com.real.cassandra.queue.utils.IntegerSerializer;
 
 public class QueueStatsFactoryImpl {
 

@@ -101,46 +101,49 @@ public class PipeReaper implements Runnable {
 
     private void rollUpPushStatsFromPipe(PipeDescriptorImpl pipeDesc) {
         QueueStats qStats = qRepos.getQueueStats(qName);
-        qStats.incTotalPushes(pipeDesc.getMsgCount());
-        updatePipeStatsWithRetry(pipeDesc, qStats, PipeStatus.COMPLETED, pipeDesc.getPopStatus());
+        qStats.incTotalPushes(pipeDesc.getPushCount());
+        // TODO:BTB may want to break this into its on 'insert' call
+        qRepos.updateQueueStats(qStats);
+        qRepos.updatePipePushStatus(pipeDesc, PipeStatus.COMPLETED);
     }
 
     private void rollUpPopStatsFromPipe(PipeDescriptorImpl pipeDesc) {
         QueueStats qStats = qRepos.getQueueStats(qName);
-        qStats.incTotalPops(pipeDesc.getMsgCount());
-        updatePipeStatsWithRetry(pipeDesc, qStats, pipeDesc.getPushStatus(), PipeStatus.COMPLETED);
+        // TODO:BTB this should be changed to getPopCount when implemented
+        qStats.incTotalPops(pipeDesc.getPushCount());
+        // TODO:BTB may want to break this into its on 'insert' call
+        qRepos.updateQueueStats(qStats);
+        qRepos.updatePipePopStatus(pipeDesc, PipeStatus.COMPLETED);
     }
 
-    private void updatePipeStatsWithRetry(PipeDescriptorImpl pipeDesc, QueueStats qStats, PipeStatus pushStatus,
-            PipeStatus popStatus) {
-        int numRetries = 5;
-        for (int i = 0; i < numRetries; i++) {
-            try {
-                // the stats are frozen because of locking so can be retried
-                // without worry about adding too many
-                qRepos.updateQueueStats(qStats);
-
-                // a popper using this pipe could also be changing the status.
-                // this is ok because the popper will simply try to use the pipe
-                // again, finding the "reset" state and set it properly
-                qRepos.updatePipeStatus(pipeDesc, pushStatus, popStatus);
-                break;
-            }
-            catch (Throwable e) {
-                logger.error("exception while updating queue stats and setting push/pop status", e);
-                try {
-                    Thread.sleep(50);
-                }
-                catch (InterruptedException ee) {
-                    Thread.interrupted();
-                    // do nothing else
-                }
-            }
-        }
-    }
+    // private void updatePipeStatsWithRetry(PipeDescriptorImpl pipeDesc,
+    // QueueStats qStats, PipeStatus pushStatus,
+    // PipeStatus popStatus) {
+    // int numRetries = 5;
+    // for (int i = 0; i < numRetries; i++) {
+    // try {
+    // // the stats are frozen because of locking so can be retried
+    // // without worry about adding too many
+    // qRepos.updateQueueStats(qStats);
+    // break;
+    // }
+    // catch (Throwable e) {
+    // logger.error("exception while updating queue stats and setting push/pop status",
+    // e);
+    // try {
+    // Thread.sleep(50);
+    // }
+    // catch (InterruptedException ee) {
+    // Thread.interrupted();
+    // // do nothing else
+    // }
+    // }
+    // }
+    // }
 
     public void shutdown() {
         stopProcessing = true;
+        theThread.interrupt();
     }
 
     public void setProcessingDelay(long processingDelay) {

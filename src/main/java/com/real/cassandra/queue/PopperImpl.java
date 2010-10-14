@@ -23,16 +23,14 @@ public class PopperImpl {
     private LocalLockerImpl popLocker;
     private long nextPipeCounter;
     private PipeWatcher pipeWatcher;
-    private PipeReaper pipeReaper;
 
     private RollingStat popNotEmptyStat;
     private RollingStat popEmptyStat;
 
-    public PopperImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, PipeReaper pipeReaper, LocalLockerImpl popLocker,
+    public PopperImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, LocalLockerImpl popLocker,
             RollingStat popNotEmptyStat, RollingStat popEmptyStat) {
         this.cq = cq;
         this.qRepos = qRepos;
-        this.pipeReaper = pipeReaper;
         this.popLocker = popLocker;
         this.popNotEmptyStat = popNotEmptyStat;
         this.popEmptyStat = popEmptyStat;
@@ -83,6 +81,7 @@ public class PopperImpl {
 
                     if (null != qMsg) {
                         popNotEmptyStat.addSample(System.currentTimeMillis() - start);
+                        qRepos.updatePipePopCount(pipeDesc, pipeDesc.incPopCount());
                         return qMsg;
                     }
 
@@ -117,13 +116,15 @@ public class PopperImpl {
         if (!pipeDesc.isPushActive()) {
             // no race condition here with push status because the pusher is no
             // longer active
-            markPipeAsPopNotActiveAndRefresh(pipeDesc, pipeDesc.getPushStatus());
+            markPipeAsPopNotActiveAndRefresh(pipeDesc);
             logger.debug("pipe is not push active and empty, marking pop not active: {}", pipeDesc.toString());
         }
         else if (pipeTimeoutExpired(pipeDesc)) {
             // no race condition here because the pusher does not do anything
             // with expired pipes
-            markPipeAsPopNotActiveAndRefresh(pipeDesc, PipeStatus.NOT_ACTIVE);
+            qRepos.updatePipePushStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
+
+            markPipeAsPopNotActiveAndRefresh(pipeDesc);
             logger.debug("pipe has expired, marking pop not active : {}", pipeDesc.toString());
         }
         else {
@@ -131,8 +132,8 @@ public class PopperImpl {
         }
     }
 
-    private void markPipeAsPopNotActiveAndRefresh(PipeDescriptorImpl pipeDesc, PipeStatus pushStatus) {
-        qRepos.updatePipeStatus(pipeDesc, pushStatus, PipeStatus.NOT_ACTIVE);
+    private void markPipeAsPopNotActiveAndRefresh(PipeDescriptorImpl pipeDesc) {
+        qRepos.updatePipePopStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
         // TODO BTB:don't think we need to force wakeup just to count the stats.
         // the reaper has its own delay period
         // pipeReaper.wakeUp();

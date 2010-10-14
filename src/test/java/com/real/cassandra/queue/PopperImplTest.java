@@ -38,11 +38,13 @@ public class PopperImplTest extends CassQueueTestBase {
         List<PipeDescriptorImpl> pipeDescList = qRepos.getOldestPopActivePipes(cq.getName(), 1);
         PipeDescriptorImpl pipeDesc = pipeDescList.get(0);
 
-        assertNull("msg should have been moved from waiting to delivered", qRepos.getOldestMsgFromWaitingPipe(pipeDesc));
+        assertNull("msg should have been moved from waiting to pending", qRepos.getOldestMsgFromWaitingPipe(pipeDesc));
         CassQMsg qDelivMsg = qRepos.getOldestMsgFromDeliveredPipe(pipeDesc);
-        assertEquals("msg pushed isn't msg in delivered pipe", qMsgPush, qDelivMsg);
-        assertEquals("msg pushed has different value than msg in delivered pipe", qMsgPush.getMsgData(),
+        assertEquals("msg pushed isn't msg in pending pipe", qMsgPush, qDelivMsg);
+        assertEquals("msg pushed has different value than msg in pending pipe", qMsgPush.getMsgData(),
                 qDelivMsg.getMsgData());
+        assertEquals(1, pipeDesc.getPushCount());
+        assertEquals(1, pipeDesc.getPopCount());
     }
 
     @Test
@@ -58,6 +60,10 @@ public class PopperImplTest extends CassQueueTestBase {
             msgList.add(pusher.push("data-" + System.currentTimeMillis() + "-" + i));
         }
 
+        PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(pusher.getPipeDesc().getPipeId());
+        assertEquals(msgCount, pipeDesc.getPushCount());
+        assertEquals(0, pipeDesc.getPopCount());
+
         for (PopperImpl popper : popperArr) {
             popper.forceRefresh();
         }
@@ -70,9 +76,9 @@ public class PopperImplTest extends CassQueueTestBase {
         }
 
         List<PipeDescriptorImpl> pipeDescList = qRepos.getOldestPopActivePipes(cq.getName(), 1);
-        PipeDescriptorImpl pipeDesc = pipeDescList.get(0);
+        pipeDesc = pipeDescList.get(0);
 
-        assertNull("all msgs should have been moved from waiting to delivered",
+        assertNull("all msgs should have been moved from waiting to pending",
                 qRepos.getOldestMsgFromWaitingPipe(pipeDesc));
 
         for (int i = 0; i < msgCount; i++) {
@@ -138,7 +144,7 @@ public class PopperImplTest extends CassQueueTestBase {
 
         for (int i = 0; i < msgCount; i++) {
             CassQMsg qMsg = popper.pop();
-            pipeDesc = qRepos.getPipeDescriptor(cq.getName(), qMsg.getPipeDescriptor().getPipeId());
+            pipeDesc = qRepos.getPipeDescriptor(qMsg.getPipeDescriptor().getPipeId());
             assertEquals("pop status should still be " + PipeStatus.ACTIVE, PipeStatus.ACTIVE, pipeDesc.getPopStatus());
         }
 
@@ -150,7 +156,7 @@ public class PopperImplTest extends CassQueueTestBase {
         cq.forcePipeReaperWakeUp();
         Thread.sleep(100);
 
-        pipeDesc = qRepos.getPipeDescriptor(cq.getName(), pipeDesc.getPipeId());
+        pipeDesc = qRepos.getPipeDescriptor(pipeDesc.getPipeId());
         assertNull("pipe descriptor should have been removed from system", pipeDesc);
     }
 
@@ -201,15 +207,15 @@ public class PopperImplTest extends CassQueueTestBase {
         for (int i = numMsgs; 0 < i; i--) {
             List<PipeDescriptorImpl> pdList = qRepos.getOldestPopActivePipes(cq.getName(), numMsgs * 2);
             PipeDescriptorImpl pipeDesc = pdList.get(0);
-            assertEquals("as messages are commited, should be removed from delivered pipe", i, qRepos
-                    .getDeliveredMessagesFromPipe(pipeDesc, numMsgs * 2).size());
+            assertEquals("as messages are commited, should be removed from pending pipe", i, qRepos
+                    .getPendingMessagesFromPipe(pipeDesc, numMsgs * 2).size());
             popper.commit(msgList.remove(0));
         }
 
         List<PipeDescriptorImpl> pdList = qRepos.getOldestPopActivePipes(cq.getName(), numMsgs * 2);
         PipeDescriptorImpl pipeDesc = pdList.get(0);
-        assertEquals("commiting is complete, shouldn't be any messages in delivered pipe", 0, qRepos
-                .getDeliveredMessagesFromPipe(pipeDesc, numMsgs * 2).size());
+        assertEquals("commiting is complete, shouldn't be any messages in pending pipe", 0, qRepos
+                .getPendingMessagesFromPipe(pipeDesc, numMsgs * 2).size());
         assertEquals("commiting is complete, shouldn't be any messages in waiting pipe", 0, qRepos
                 .getWaitingMessagesFromPipe(pipeDesc, numMsgs * 2).size());
     }
@@ -232,8 +238,8 @@ public class PopperImplTest extends CassQueueTestBase {
         for (int i = numMsgs; 0 < i; i--) {
             List<PipeDescriptorImpl> pdList = qRepos.getOldestPopActivePipes(cq.getName(), numMsgs * 2);
             PipeDescriptorImpl pipeDesc = pdList.get(0);
-            assertEquals("as messages are commited, should be removed from delivered pipe", i, qRepos
-                    .getDeliveredMessagesFromPipe(pipeDesc, numMsgs * 2).size());
+            assertEquals("as messages are commited, should be removed from pending pipe", i, qRepos
+                    .getPendingMessagesFromPipe(pipeDesc, numMsgs * 2).size());
             if (0 == i % 2) {
                 popper.commit(msgList.remove(0));
             }
@@ -244,8 +250,8 @@ public class PopperImplTest extends CassQueueTestBase {
 
         List<PipeDescriptorImpl> pdList = qRepos.getOldestPopActivePipes(cq.getName(), numMsgs * 2);
         assertEquals("should now be an extra pipe with rollbacks", 2, pdList.size());
-        assertEquals("commiting/rollback is complete, shouldn't be any messages in delivered pipe", 0, qRepos
-                .getDeliveredMessagesFromPipe(pdList.get(0), numMsgs * 2).size());
+        assertEquals("commiting/rollback is complete, shouldn't be any messages in pending pipe", 0, qRepos
+                .getPendingMessagesFromPipe(pdList.get(0), numMsgs * 2).size());
         assertEquals("commiting/rollback is complete, should be " + numMsgs / 2 + "messages in waiting pipe",
                 numMsgs / 2, qRepos.getWaitingMessagesFromPipe(pdList.get(1), numMsgs * 2).size());
 
@@ -261,17 +267,16 @@ public class PopperImplTest extends CassQueueTestBase {
         CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, 5000, false);
         UUID pipeId1 = UUIDGen.makeType1UUIDFromHost(MyIp.get());
         UUID pipeId2 = UUIDGen.makeType1UUIDFromHost(MyIp.get());
-        qRepos.createPipeDescriptor(cq.getName(), pipeId1, PipeStatus.ACTIVE, PipeStatus.ACTIVE, 1);
-        qRepos.createPipeDescriptor(cq.getName(), pipeId2, PipeStatus.ACTIVE, PipeStatus.ACTIVE,
-                System.currentTimeMillis());
+        qRepos.createPipeDescriptor(cq.getName(), pipeId1, 1);
+        qRepos.createPipeDescriptor(cq.getName(), pipeId2, System.currentTimeMillis());
         PopperImpl popper = cq.createPopper(false);
         popper.pop();
 
         cq.forcePipeReaperWakeUp();
         Thread.sleep(100);
 
-        assertNull(qRepos.getPipeDescriptor(cq.getName(), pipeId1));
-        assertEquals(PipeStatus.ACTIVE, qRepos.getPipeDescriptor(cq.getName(), pipeId2).getPopStatus());
+        assertNull(qRepos.getPipeDescriptor(pipeId1));
+        assertEquals(PipeStatus.ACTIVE, qRepos.getPipeDescriptor(pipeId2).getPopStatus());
     }
 
     // -------------------------
@@ -279,7 +284,7 @@ public class PopperImplTest extends CassQueueTestBase {
     @Before
     public void setupTest() throws Exception {
         cqFactory =
-                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new LocalLockerImpl(),
+                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new LocalLockerImpl(),
                         new LocalLockerImpl());
     }
 }

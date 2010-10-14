@@ -84,14 +84,14 @@ public class CassQueueImpl implements CassQueueMXBean {
 
     public PusherImpl createPusher() {
         logger.debug("creating pusher for queue {}", qName);
-        PusherImpl pusher = new PusherImpl(this, qRepos, pipeDescFactory, pipeReaper, pushStat);
+        PusherImpl pusher = new PusherImpl(this, qRepos, pipeDescFactory, pushStat);
         pusherSet.add(pusher);
         return pusher;
     }
 
     public PopperImpl createPopper(boolean startPipeWatcher) {
         logger.debug("creating popper for queue {}", qName);
-        PopperImpl popper = new PopperImpl(this, qRepos, pipeReaper, popLocker, popNotEmptyStat, popEmptyStat);
+        PopperImpl popper = new PopperImpl(this, qRepos, popLocker, popNotEmptyStat, popEmptyStat);
         popperSet.add(popper);
         popper.initialize(startPipeWatcher);
         return popper;

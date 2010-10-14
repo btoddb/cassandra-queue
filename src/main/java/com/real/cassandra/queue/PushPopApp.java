@@ -71,7 +71,7 @@ public class PushPopApp {
     private static void setupQueueSystem() throws Exception {
         qRepos = HectorUtils.createQueueRepository(envProps);
         cqFactory =
-                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(qRepos), new LocalLockerImpl(),
+                new CassQueueFactoryImpl(qRepos, new PipeDescriptorFactory(), new LocalLockerImpl(),
                         new LocalLockerImpl());
         cq =
                 cqFactory.createInstance(envProps.getQName(), envProps.getMaxPushTimePerPipe(),

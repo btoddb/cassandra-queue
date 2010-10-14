@@ -13,6 +13,7 @@ import java.util.UUID;
 import me.prettyprint.hector.api.ddl.HCfDef;
 import me.prettyprint.hector.api.ddl.HKsDef;
 
+import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Test;
 
 import com.real.cassandra.queue.CassQMsg;
@@ -22,7 +23,7 @@ import com.real.cassandra.queue.QueueStats;
 import com.real.cassandra.queue.QueueStatsFactoryImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
-import com.real.cassandra.queue.repository.QueueRepositoryImpl;
+import com.real.cassandra.queue.utils.MyIp;
 import com.real.cassandra.queue.utils.UuidGenerator;
 
 public class QueueRepositoryImplTest extends CassQueueTestBase {
@@ -37,10 +38,12 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
             nameSet.add(cfDef.getName());
         }
 
-        assertTrue("didn't create '" + QueueRepositoryImpl.PIPE_PROPERTIES_COLFAM + "' column family",
-                nameSet.contains(QueueRepositoryImpl.PIPE_PROPERTIES_COLFAM));
         assertTrue("didn't create '" + QueueRepositoryImpl.QUEUE_DESCRIPTORS_COLFAM + "' column family",
                 nameSet.contains(QueueRepositoryImpl.QUEUE_DESCRIPTORS_COLFAM));
+        assertTrue("didn't create '" + QueueRepositoryImpl.PIPE_DESCRIPTOR_COLFAM + "' column family",
+                nameSet.contains(QueueRepositoryImpl.PIPE_DESCRIPTOR_COLFAM));
+        assertTrue("didn't create '" + QueueRepositoryImpl.QUEUE_PIPE_CNXN_COLFAM + "' column family",
+                nameSet.contains(QueueRepositoryImpl.QUEUE_PIPE_CNXN_COLFAM));
     }
 
     @Test
@@ -116,15 +119,12 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         int maxPopWidth = 4;
 
         qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
-
-        String msgData = "get the msg";
-
-        PipeDescriptorImpl pipeDesc =
-                new PipeDescriptorImpl(qName, UuidGenerator.generateTimeUuid(), PipeStatus.ACTIVE, PipeStatus.ACTIVE);
+        PipeDescriptorImpl pipeDesc = qRepos.createPipeDescriptor(qName, UUIDGen.makeType1UUIDFromHost(MyIp.get()));
 
         UUID msgId = UuidGenerator.generateTimeUuid();
+        String msgData = "get the msg";
 
-        pipeDesc.setMsgCount(1);
+        pipeDesc.setPushCount(1);
         CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
         qRepos.insertMsg(pipeDesc, msgId, msgData);
 
@@ -132,9 +132,9 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
 
         assertEquals("inserted value is not equal to the retrieved value", qMsg.getMsgData(), qMsgNew.getMsgData());
 
-        PipeDescriptorImpl pdNew = qRepos.getPipeDescriptor(qName, pipeDesc.getPipeId());
+        PipeDescriptorImpl pdNew = qRepos.getPipeDescriptor(pipeDesc.getPipeId());
         assertTrue("pipe descriptor should be active", pdNew.isPushActive());
-        assertEquals("inserted one value, so pipe descriptor msg count should reflect this", 1, pdNew.getMsgCount());
+        assertEquals("inserted one value, so pipe descriptor msg count should reflect this", 1, pdNew.getPushCount());
     }
 
     @Test
@@ -167,8 +167,9 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
         UUID pipeId = UuidGenerator.generateTimeUuid();
-        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, PipeStatus.ACTIVE, PipeStatus.ACTIVE);
-        qRepos.updatePipeStatus(pipeDesc, PipeStatus.ACTIVE, PipeStatus.ACTIVE);
+        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId);
+        qRepos.updatePipePushStatus(pipeDesc, PipeStatus.ACTIVE);
+        qRepos.updatePipePopStatus(pipeDesc, PipeStatus.ACTIVE);
         for (int i = 0; i < msgCount; i++) {
             String msgData = "data-" + i;
             UUID msgId = UuidGenerator.generateTimeUuid();
@@ -198,8 +199,9 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
         UUID pipeId = UuidGenerator.generateTimeUuid();
-        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId, PipeStatus.ACTIVE, PipeStatus.ACTIVE);
-        qRepos.updatePipeStatus(pipeDesc, PipeStatus.ACTIVE, PipeStatus.ACTIVE);
+        PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId);
+        qRepos.updatePipePushStatus(pipeDesc, PipeStatus.ACTIVE);
+        qRepos.updatePipePopStatus(pipeDesc, PipeStatus.ACTIVE);
         for (int i = 0; i < msgCount; i++) {
             String msgData = "data-" + i;
             UUID msgId = UuidGenerator.generateTimeUuid();
@@ -235,8 +237,10 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         ArrayList<UUID> pipeList = new ArrayList<UUID>();
         for (int i = 0; i < pipeCount; i++) {
             UUID pipeId = UuidGenerator.generateTimeUuid();
+            PipeDescriptorImpl pipeDesc = qRepos.createPipeDescriptor(qName, pipeId);
             PipeStatus status = 0 == i % 2 ? PipeStatus.ACTIVE : PipeStatus.COMPLETED;
-            qRepos.createPipeDescriptor(qName, pipeId, status, status, System.currentTimeMillis());
+            qRepos.updatePipePushStatus(pipeDesc, status);
+            qRepos.updatePipePopStatus(pipeDesc, status);
             pipeList.add(pipeId);
         }
 
@@ -267,8 +271,10 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         ArrayList<UUID> pipeList = new ArrayList<UUID>();
         for (int i = 0; i < pipeCount; i++) {
             UUID pipeId = UuidGenerator.generateTimeUuid();
+            PipeDescriptorImpl pipeDesc = qRepos.createPipeDescriptor(qName, pipeId);
             PipeStatus status = PipeStatus.COMPLETED;
-            qRepos.createPipeDescriptor(qName, pipeId, status, status, System.currentTimeMillis());
+            qRepos.updatePipePushStatus(pipeDesc, status);
+            qRepos.updatePipePopStatus(pipeDesc, status);
             pipeList.add(pipeId);
         }
 

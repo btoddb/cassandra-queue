@@ -16,7 +16,6 @@ import com.real.cassandra.queue.utils.JmxMBeanManager;
 public class QueueProperties implements EnvPropertiesMXBean {
     private static Logger logger = LoggerFactory.getLogger(QueueProperties.class);
 
-    public static final String ENV_API_NAME = "apiName";
     public static final String ENV_hosts = "hosts";
     public static final String ENV_RPC_PORT = "rpcPort";
     public static final String ENV_REPLICATION_FACTOR = "replicationFactor";
@@ -90,6 +89,14 @@ public class QueueProperties implements EnvPropertiesMXBean {
         }
     }
 
+    public boolean getDropKeyspace() {
+        return getPropertyAsBoolean(ENV_dropKeyspace, false);
+    }
+
+    public boolean getTruncateQueue() {
+        return getPropertyAsBoolean(ENV_truncateQueue, false);
+    }
+
     @Override
     public String getHostArr() {
         if (null == hostArr) {
@@ -135,14 +142,10 @@ public class QueueProperties implements EnvPropertiesMXBean {
         return getPropertyAsInt(ENV_numMsgs, 10);
     }
 
+    @Override
     public void setNumMsgs(int numMsgs) {
         setIntProperty(ENV_numMsgs, numMsgs);
     }
-
-    // @Override
-    // public void setNumMsgsPerPopper(int value) {
-    // setIntProperty(ENV_numMsgsPerPopper, value);
-    // }
 
     @Override
     public int getNumPoppers() {
@@ -174,50 +177,9 @@ public class QueueProperties implements EnvPropertiesMXBean {
         setLongProperty(ENV_popDelay, value);
     }
 
-    @Override
-    public boolean getDropKeyspace() {
-        return getPropertAsBoolean("dropKeyspace", false);
-    }
-
-    @Override
-    public boolean getTruncateQueue() {
-        return getPropertAsBoolean("truncateQueue", false);
-    }
-
-    // @Override
-    // public int getMinCacheConnsPerHost() {
-    // return getPropertyAsInt("minCacheConnsPerHost", 0);
-    // }
-
-    @Override
-    public int getMaxConnectionsPerHost() {
-        return getPropertyAsInt("maxConnsPerHost", 5);
-    }
-
-    @Override
-    public int getTargetConnectionsPerHost() {
-        return getPropertyAsInt("targetConnsPerHost", 5);
-    }
-
-    @Override
-    public boolean getUseFramedTransport() {
-        return getPropertAsBoolean("useFramedTransport", true);
-    }
-
-    @Override
-    public long getPipeCheckDelay() {
-        return getPropertyAsLong("pipeCheckDelay", 100);
-    }
-
-    @Override
     public long getPushPipeIncrementDelay() {
         return getPropertyAsLong("pushPipeIncrementDelay", 1 * 1000 * 60);
     }
-
-    // @Override
-    // public void setPushPipeIncrementDelay(long value) {
-    // setLongProperty(ENV_pushPipeIncrementDelay, value);
-    // }
 
     public int getMaxPushesPerPipe() {
         return getPropertyAsInt(ENV_maxPushesPerPipe, 100);
@@ -235,11 +197,57 @@ public class QueueProperties implements EnvPropertiesMXBean {
         return getPropertyAsLong(ENV_maxPushTimePerPipe, 10 * 60000);
     }
 
-    public String getApiName() {
-        return rawProps.getProperty(ENV_API_NAME);
+    public int getCassandraThriftSocketTimeout() {
+        return getPropertyAsInt(ENV_cassandraThriftSocketTimeout, 0);
     }
 
-    public boolean getPropertAsBoolean(String propName, boolean defaultValue) {
+    public boolean getLifo() {
+        return getPropertyAsBoolean(ENV_lifo, CassandraHost.DEFAULT_LIFO);
+    }
+
+    public ExhaustedPolicy getExhaustedPolicy() {
+        String value = rawProps.getProperty(ENV_exhaustedPolicy, "WHEN_EXHAUSTED_FAIL");
+        return ExhaustedPolicy.valueOf(value);
+    }
+
+    public int getMaxActive() {
+        return getPropertyAsInt(ENV_maxActive, CassandraHost.DEFAULT_MAX_ACTIVE);
+    }
+
+    public int getMaxIdle() {
+        return getPropertyAsInt(ENV_maxIdle, CassandraHost.DEFAULT_MAX_IDLE);
+    }
+
+    public long getMaxWaitTimeWhenExhausted() {
+        return getPropertyAsLong(ENV_maxWaitTimeWhenExhausted, CassandraHost.DEFAULT_MAX_WAITTIME_WHEN_EXHAUSTED);
+    }
+
+    public long getMinEvictableIdleTimeMillis() {
+        return getPropertyAsLong(ENV_minEvictableIdleTimeMillis, CassandraHost.DEFAULT_MIN_EVICTABLE_IDLE_TIME_MILLIS);
+    }
+
+    public boolean getRetryDownedHosts() {
+        return getPropertyAsBoolean(ENV_retryDownedHosts, false);
+    }
+
+    public int getRetryDownedHostsDelayInSeconds() {
+        return getPropertyAsInt(ENV_retryDownedHostsDelayInSeconds, 1);
+    }
+
+    public int getRetryDownedHostsQueueSize() {
+        return getPropertyAsInt(ENV_retryDownedHostsQueueSize, 10);
+    }
+
+    public long getTimeBetweenEvictionRunsMillis() {
+        return getPropertyAsLong(ENV_timeBetweenEvictionRunsMillis,
+                CassandraHost.DEFAULT_TIME_BETWEEN_EVICTION_RUNS_MILLIS);
+    }
+
+    public boolean getUseThriftFramedTransport() {
+        return getPropertyAsBoolean(ENV_useThriftFramedTransport, true);
+    }
+
+    public boolean getPropertyAsBoolean(String propName, boolean defaultValue) {
         String asStr = rawProps.getProperty(propName);
         if (null == asStr) {
             logger.info("'" + propName + "' property not specified, using " + defaultValue);
@@ -280,55 +288,5 @@ public class QueueProperties implements EnvPropertiesMXBean {
 
     private void setLongProperty(String key, long value) {
         setStrProperty(key, String.valueOf(value));
-    }
-
-    public int getCassandraThriftSocketTimeout() {
-        return getPropertyAsInt(ENV_cassandraThriftSocketTimeout, 0);
-    }
-
-    public boolean getLifo() {
-        return getPropertAsBoolean(ENV_lifo, CassandraHost.DEFAULT_LIFO);
-    }
-
-    public ExhaustedPolicy getExhaustedPolicy() {
-        String value = rawProps.getProperty(ENV_exhaustedPolicy, "WHEN_EXHAUSTED_FAIL");
-        return ExhaustedPolicy.valueOf(value);
-    }
-
-    public int getMaxActive() {
-        return getPropertyAsInt(ENV_maxActive, CassandraHost.DEFAULT_MAX_ACTIVE);
-    }
-
-    public int getMaxIdle() {
-        return getPropertyAsInt(ENV_maxIdle, CassandraHost.DEFAULT_MAX_IDLE);
-    }
-
-    public long getMaxWaitTimeWhenExhausted() {
-        return getPropertyAsLong(ENV_maxWaitTimeWhenExhausted, CassandraHost.DEFAULT_MAX_WAITTIME_WHEN_EXHAUSTED);
-    }
-
-    public long getMinEvictableIdleTimeMillis() {
-        return getPropertyAsLong(ENV_minEvictableIdleTimeMillis, CassandraHost.DEFAULT_MIN_EVICTABLE_IDLE_TIME_MILLIS);
-    }
-
-    public boolean getRetryDownedHosts() {
-        return getPropertAsBoolean(ENV_retryDownedHosts, false);
-    }
-
-    public int getRetryDownedHostsDelayInSeconds() {
-        return getPropertyAsInt(ENV_retryDownedHostsDelayInSeconds, 1);
-    }
-
-    public int getRetryDownedHostsQueueSize() {
-        return getPropertyAsInt(ENV_retryDownedHostsQueueSize, 10);
-    }
-
-    public long getTimeBetweenEvictionRunsMillis() {
-        return getPropertyAsLong(ENV_timeBetweenEvictionRunsMillis,
-                CassandraHost.DEFAULT_TIME_BETWEEN_EVICTION_RUNS_MILLIS);
-    }
-
-    public boolean getUseThriftFramedTransport() {
-        return getPropertAsBoolean(ENV_useThriftFramedTransport, true);
     }
 }
