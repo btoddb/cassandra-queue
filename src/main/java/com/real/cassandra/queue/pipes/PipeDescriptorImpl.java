@@ -2,7 +2,9 @@ package com.real.cassandra.queue.pipes;
 
 import java.util.UUID;
 
-public class PipeDescriptorImpl {
+import com.real.cassandra.queue.Descriptor;
+
+public class PipeDescriptorImpl implements Descriptor {
     private String qName;
     private UUID pipeId;
     private int pushCount;
@@ -25,6 +27,11 @@ public class PipeDescriptorImpl {
         this.pushStatus = PipeStatus.ACTIVE;
         this.popStatus = PipeStatus.ACTIVE;
         this.startTimestamp = System.currentTimeMillis();
+    }
+
+    @Override
+    public UUID getId() {
+        return getPipeId();
     }
 
     public UUID getPipeId() {

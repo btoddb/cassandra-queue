@@ -2,7 +2,7 @@ package com.real.cassandra.queue.pipes;
 
 public enum PipeStatus {
     // the names are stored in the database, so don't change them. you can
-    // changed the actually enum (ie MY_ACCT) all day long with no problems
+    // change the actually enum (ie MY_ACCT) all day long with no problems
 
     ACTIVE("A"),
 

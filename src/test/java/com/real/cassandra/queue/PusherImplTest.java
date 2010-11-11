@@ -148,7 +148,7 @@ public class PusherImplTest extends CassQueueTestBase {
             pipeSet.add(qMsg.getPipeDescriptor().getPipeId());
         }
 
-        pusher.shutdown();
+        pusher.shutdownAndWait();
 
         try {
             pusher.push("push-" + System.currentTimeMillis() + numMsgs);

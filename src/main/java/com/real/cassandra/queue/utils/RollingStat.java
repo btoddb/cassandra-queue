@@ -17,7 +17,7 @@ public class RollingStat implements Runnable {
 
     private Object dataMonitor = new Object();
 
-    private boolean keepGoing = true;
+    private boolean stopProcessing = false;
     private Thread theThread;
 
     public RollingStat(long windowSizeInMillis) {
@@ -29,7 +29,7 @@ public class RollingStat implements Runnable {
     }
 
     public void run() {
-        while (keepGoing) {
+        while (!stopProcessing) {
             try {
                 Thread.sleep(500);
             }
@@ -129,7 +129,7 @@ public class RollingStat implements Runnable {
     }
 
     public void shutdown() {
-        keepGoing = false;
+        stopProcessing = true;
         theThread.interrupt();
     }
 

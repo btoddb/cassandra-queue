@@ -116,7 +116,7 @@ public class QueueRepositoryImpl {
      * Creates the queue descriptor if doesn't exists, otherwise uses values
      * from database disregarding the parameters passed from client. Issues
      * warning if parameters don't match database.
-     * 
+     *
      * @param qName
      * @param maxPushTimePerPipe
      * @param maxPushesPerPipe
@@ -488,6 +488,10 @@ public class QueueRepositoryImpl {
         m.execute();
     }
 
+    /**
+     * Truncates the data only. Descriptors, Stats, Pipes, all stay as is.
+     * @param cq Cassandra queue to truncate
+     */
     public void truncateQueueData(CassQueueImpl cq) {
         String qName = cq.getName();
 
@@ -505,12 +509,13 @@ public class QueueRepositoryImpl {
             cluster.releaseClient(client);
         }
 
-        truncateQueuePipeCnxn(cq);
-
-        Mutator<String> m = HFactory.createMutator(keyspace, StringSerializer.get());
-        m.addDeletion(qName, QUEUE_PIPE_CNXN_COLFAM, null, UUIDSerializer.get());
-        m.addDeletion(qName, QUEUE_STATS_COLFAM, null, UUIDSerializer.get());
-        m.execute();
+        // truncateQueuePipeCnxn(cq);
+        // Mutator<String> m = HFactory.createMutator(keyspace,
+        // StringSerializer.get());
+        // m.addDeletion(qName, QUEUE_PIPE_CNXN_COLFAM, null,
+        // UUIDSerializer.get());
+        // m.addDeletion(qName, QUEUE_STATS_COLFAM, null, UUIDSerializer.get());
+        // m.execute();
     }
 
     public void dropQueue(CassQueueImpl cq) {
@@ -579,12 +584,12 @@ public class QueueRepositoryImpl {
         return pipeDescFactory.createInstance(pipeId, q.execute().get());
     }
 
-    protected CountResult getCountOfMsgsAndStatus(String qName, final String colFamName, int maxMsgCount) {
+    protected CountResult getCountOfMsgsAndStatus(String qName, final String colFamName, int maxPageSize) {
         final CountResult result = new CountResult();
         final CountQuery<byte[], byte[]> countQuery =
                 HFactory.createCountQuery(keyspace, BytesSerializer.get(), BytesSerializer.get());
         countQuery.setColumnFamily(colFamName);
-        countQuery.setRange(new byte[] {}, new byte[] {}, maxMsgCount);
+        countQuery.setRange(new byte[] {}, new byte[] {}, maxPageSize);
 
         ColumnIterator rawMsgColIter = new ColumnIterator();
         rawMsgColIter.doIt(cluster, QUEUE_KEYSPACE_NAME, QUEUE_PIPE_CNXN_COLFAM, qName.getBytes(),
@@ -644,7 +649,7 @@ public class QueueRepositoryImpl {
     /**
      * Perform default initialization of the repository. Intended use is for
      * spring 'init-method'
-     * 
+     *
      */
     public void init() {
         initKeyspace(false);
@@ -660,7 +665,7 @@ public class QueueRepositoryImpl {
 
     /**
      * Initialize cassandra server for use with queues.
-     * 
+     *
      * @param forceRecreate
      *            if true will drop the keyspace and recreate it.
      */

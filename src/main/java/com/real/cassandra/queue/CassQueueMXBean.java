@@ -1,5 +1,6 @@
 package com.real.cassandra.queue;
 
+
 public interface CassQueueMXBean {
     String JMX_MBEAN_OBJ_NAME_PREFIX = "com.real.cassq:type=Queue-";
 
@@ -38,4 +39,9 @@ public interface CassQueueMXBean {
     double getPushPerSecondLocal();
 
     long getPushCountCluster();
+
+    double getPopLockerAvgTime();
+    
+    double getLockTryAvtCount();
+
 }

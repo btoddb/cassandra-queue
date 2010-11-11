@@ -15,7 +15,10 @@ import org.slf4j.LoggerFactory;
 import com.real.cassandra.queue.app.CassQueueUtils;
 import com.real.cassandra.queue.app.PushPopAbstractBase;
 import com.real.cassandra.queue.app.QueueProperties;
-import com.real.cassandra.queue.locks.LocalLockerImpl;
+import com.real.cassandra.queue.app.WorkerThreadWatcher;
+import com.real.cassandra.queue.locks.CagesLockerImpl;
+import com.real.cassandra.queue.locks.Locker;
+import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.repository.HectorUtils;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 
@@ -31,11 +34,16 @@ public class PushPopApp {
     private static QueueRepositoryImpl qRepos;
     private static QueueProperties envProps;
     private static CassQueueImpl cq;
+    private static Locker<PipeDescriptorImpl> popLocker;
+    private static Locker<QueueDescriptor> queueStatsLocker;
 
     public static void main(String[] args) throws Exception {
         logger.info("setting up app properties");
         parseAppProperties();
 
+        String ZK_CONNECT_STRING = "kv-app07.dev.real.com:2181,kv-app08.dev.real.com:2181,kv-app09.dev.real.com:2181";
+        popLocker = new CagesLockerImpl<PipeDescriptorImpl>("/pipes/", ZK_CONNECT_STRING, 6000, 30);
+        queueStatsLocker = new CagesLockerImpl<QueueDescriptor>("/queue-stats/", ZK_CONNECT_STRING, 6000, 30);
         logger.info("setting queuing system");
         setupQueueSystem();
 
@@ -47,12 +55,18 @@ public class PushPopApp {
                 + envProps.getNumPoppers());
 
         Queue<CassQMsg> popQ = new ConcurrentLinkedQueue<CassQMsg>();
-        List<PushPopAbstractBase> pusherSet = CassQueueUtils.startPushers(cq, envProps);
-        List<PushPopAbstractBase> popperSet = CassQueueUtils.startPoppers(cq, popQ, envProps);
+        WorkerThreadWatcher pusherWtw = CassQueueUtils.startPushers(cq, envProps);
+        WorkerThreadWatcher popperWtw = CassQueueUtils.startPoppers(cq, popQ, envProps);
+        List<PushPopAbstractBase> pusherSet = pusherWtw.getWorkerList();
+        List<PushPopAbstractBase> popperSet = popperWtw.getWorkerList();
 
         CassQueueUtils.monitorPushersPoppers(popQ, pusherSet, popperSet, null, null);
 
         shutdownQueueMgrAndPool();
+
+        pusherWtw.shutdownAndWait();
+        popperWtw.shutdownAndWait();
+
     }
 
     // -----------------------
@@ -69,7 +83,7 @@ public class PushPopApp {
 
     private static void setupQueueSystem() throws Exception {
         qRepos = HectorUtils.createQueueRepository(envProps);
-        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl(), new LocalLockerImpl());
+        cqFactory = new CassQueueFactoryImpl(qRepos, popLocker, queueStatsLocker);
         cq =
                 cqFactory.createInstance(envProps.getQName(), envProps.getMaxPushTimePerPipe(),
                         envProps.getMaxPushesPerPipe(), envProps.getMaxPopWidth(), envProps.getPopPipeRefreshDelay(),
@@ -81,7 +95,7 @@ public class PushPopApp {
     }
 
     private static void shutdownQueueMgrAndPool() {
-        cq.shutdown();
+        cq.shutdownAndWait();
     }
 
 }

@@ -178,7 +178,7 @@ public class PopperImplTest extends CassQueueTestBase {
 
         popper.forceRefresh();
         popper.pop();
-        popper.shutdown();
+        popper.shutdownAndWait();
 
         try {
             popper.pop();

@@ -23,7 +23,7 @@ public class CassQueuePopper extends PushPopAbstractBase {
         super(envProps, QueueProperties.ENV_popDelay);
         this.popQ = popQ;
         this.popper = cq.createPopper(true);
-        this.fWriter = new PrintWriter(new FileWriter(String.format("popper.%03d", popperId)));
+        this.fWriter = new PrintWriter(new FileWriter(String.format("target/popper.%03d", popperId)));
     }
 
     @Override
@@ -49,8 +49,8 @@ public class CassQueuePopper extends PushPopAbstractBase {
     }
 
     @Override
-    protected void shutdown() {
-        popper.shutdown();
+    protected void shutdownAndWait() {
+        popper.shutdownAndWait();
         fWriter.close();
     }
 }

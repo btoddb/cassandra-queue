@@ -4,6 +4,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
+import com.real.cassandra.queue.repository.QueueRepositoryImpl;
+
 import me.prettyprint.cassandra.serializers.BytesSerializer;
 import me.prettyprint.cassandra.serializers.IntegerSerializer;
 import me.prettyprint.cassandra.serializers.LongSerializer;
@@ -11,8 +13,6 @@ import me.prettyprint.cassandra.serializers.StringSerializer;
 import me.prettyprint.hector.api.beans.ColumnSlice;
 import me.prettyprint.hector.api.beans.HColumn;
 import me.prettyprint.hector.api.factory.HFactory;
-
-import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 
 public class PipeDescriptorFactory {
 
@@ -45,6 +45,9 @@ public class PipeDescriptorFactory {
             return null;
         }
 
+        if(colSlice.getColumnByName(QueueRepositoryImpl.PDESC_COLNAME_QUEUE_NAME) == null) {
+            System.out.println("Null col slice");
+        }
         PipeDescriptorImpl pipeDesc =
                 new PipeDescriptorImpl(StringSerializer.get().fromBytes(
                         colSlice.getColumnByName(QueueRepositoryImpl.PDESC_COLNAME_QUEUE_NAME).getValue()), pipeId);

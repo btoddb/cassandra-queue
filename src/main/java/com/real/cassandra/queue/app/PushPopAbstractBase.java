@@ -21,17 +21,17 @@ public abstract class PushPopAbstractBase implements Runnable {
         this.delayPropName = delayPropName;
     }
 
-    public void start(int numMsgsToPush) {
+    public void start(int numMsgsToPush, int threadNum) {
         this.numMsgsToProcess = numMsgsToPush;
         theThread = new Thread(this);
         theThread.setDaemon(true);
-        theThread.setName(getClass().getSimpleName());
+        theThread.setName(getClass().getSimpleName()+"-"+threadNum);
         theThread.start();
     }
 
     protected abstract boolean processMsg();
 
-    protected abstract void shutdown();
+    protected abstract void shutdownAndWait();
 
     @Override
     public void run() {
@@ -54,6 +54,7 @@ public abstract class PushPopAbstractBase implements Runnable {
                     Thread.sleep(delay);
                 }
                 catch (InterruptedException e) {
+                    logger.debug("Interrupted while sleeping. Shutting down?");
                     // ignore
                 }
             }
@@ -61,7 +62,7 @@ public abstract class PushPopAbstractBase implements Runnable {
         }
 
         try {
-            shutdown();
+            shutdownAndWait();
         }
         catch (Exception e) {
             logger.error("exception while shutting down " + this.getClass().getSimpleName(), e);
@@ -89,12 +90,22 @@ public abstract class PushPopAbstractBase implements Runnable {
         }
     }
 
+    public boolean isThreadAlive() {
+        return theThread.isAlive();
+    }
+
     public boolean isFinished() {
         return msgsProcessed == numMsgsToProcess;
     }
 
-    public void setStopProcessing(boolean stopProcessing) {
-        this.stopProcessing = stopProcessing;
+    /**
+     * This method does not block. Parent thread can call
+     * {@link #isThreadAlive()} to check status.
+     */
+    public void shutdown() {
+        // do not block - parent will call isThreadAlive
+        stopProcessing = true;
+        Thread.interrupted();
     }
 
 }

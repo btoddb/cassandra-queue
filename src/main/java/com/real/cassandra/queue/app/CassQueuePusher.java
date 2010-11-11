@@ -24,7 +24,7 @@ public class CassQueuePusher extends PushPopAbstractBase {
         super(envProps, QueueProperties.ENV_pushDelay);
         this.numGen = numGen;
         this.pusher = cq.createPusher();
-        this.fWriter = new PrintWriter(new FileWriter(String.format("pusher.%03d", pusherId)));
+        this.fWriter = new PrintWriter(new FileWriter(String.format("target/pusher.%03d", pusherId)));
     }
 
     @Override
@@ -47,8 +47,8 @@ public class CassQueuePusher extends PushPopAbstractBase {
     }
 
     @Override
-    protected void shutdown() {
-        pusher.shutdown();
+    protected void shutdownAndWait() {
+        pusher.shutdownAndWait();
         fWriter.close();
     }
 }

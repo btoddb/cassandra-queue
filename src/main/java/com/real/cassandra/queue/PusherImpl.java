@@ -13,7 +13,7 @@ import com.real.cassandra.queue.utils.MyIp;
 import com.real.cassandra.queue.utils.RollingStat;
 
 /**
- * An instance of {@link Pusher} that implements a "pipe per pusher thread"
+ * An instance of {@link PusherImpl} that implements a "pipe per pusher thread"
  * model using Cassandra as persistent storage. This object is not thread safe!
  * As the previous statement implies one {@link PusherImpl} instance is required
  * per thread. object is not guarateed thread safe.
@@ -28,6 +28,7 @@ public class PusherImpl {
     private CassQueueImpl cq;
     private CassQMsgFactory qMsgFactory = new CassQMsgFactory();
     private PipeDescriptorImpl pipeDesc = null;
+    private boolean working = false;
 
     private int pushCount;
 
@@ -40,7 +41,14 @@ public class PusherImpl {
     }
 
     public CassQMsg push(String msgData) {
-        return insertInternal(qMsgFactory.createMsgId(), msgData);
+        // for shutdown sync'ing
+        working = true;
+        try {
+            return insertInternal(qMsgFactory.createMsgId(), msgData);
+        }
+        finally {
+            working = false;
+        }
     }
 
     private CassQMsg insertInternal(UUID msgId, String msgData) {
@@ -77,7 +85,7 @@ public class PusherImpl {
 
     /**
      * If pipe is full, but not expired then mark it as
-     * {@link PipeStatus#PUSH_FINISHED}. If it has expired, {@link PopperImpl}
+     * {@link PipeStatus#NOT_ACTIVE}. If it has expired, {@link PopperImpl}
      * will handle this case to prevent race condition.
      * 
      * @return
@@ -111,9 +119,21 @@ public class PusherImpl {
         return cq.getName();
     }
 
-    public void shutdown() {
+    public void shutdownAndWait() {
         shutdownInProgress = true;
-        qRepos.updatePipePushStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
+        while (working) {
+            try {
+                Thread.sleep(100);
+            }
+            catch (InterruptedException e) {
+                Thread.interrupted();
+                // do nothing
+            }
+        }
+
+        if (null != pipeDesc) {
+            qRepos.updatePipePushStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
+        }
     }
 
     public long getMaxPushTimeOfPipe() {

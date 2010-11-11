@@ -2,7 +2,6 @@ package com.real.cassandra.queue.app;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.Queue;
@@ -157,93 +156,31 @@ public class CassQueueUtils {
         return new QueueProperties(rawProps);
     }
 
-    public static List<PushPopAbstractBase> startPushers(CassQueueImpl cq, QueueProperties envProps) {
-        List<PushPopAbstractBase> retList = new ArrayList<PushPopAbstractBase>(envProps.getNumPushers());
-        WorkerThreadWatcher ptw = new PusherThreadWatcher(envProps, cq, retList);
+    public static WorkerThreadWatcher startPushers(CassQueueImpl cq, QueueProperties envProps) {
+        WorkerThreadWatcher ptw = new PusherThreadWatcher(envProps, cq);
         ptw.start();
-        return retList;
+        return ptw;
     }
 
-    public static List<PushPopAbstractBase> startPoppers(CassQueueImpl cq, Queue<CassQMsg> popQ, QueueProperties envProps) {
-        List<PushPopAbstractBase> retList = new ArrayList<PushPopAbstractBase>(envProps.getNumPoppers());
-        WorkerThreadWatcher ptw = new PopperThreadWatcher(envProps, cq, retList, popQ);
+    public static WorkerThreadWatcher startPoppers(CassQueueImpl cq, Queue<CassQMsg> popQ, QueueProperties envProps) {
+        WorkerThreadWatcher ptw = new PopperThreadWatcher(envProps, cq, popQ);
         ptw.start();
-        return retList;
-    }
-
-    static abstract class WorkerThreadWatcher implements Runnable {
-        protected QueueProperties envProps;
-        protected List<PushPopAbstractBase> workerList;
-        protected CassQueueImpl cq;
-
-        private Thread theThread;
-
-        public WorkerThreadWatcher(QueueProperties envProps, CassQueueImpl cq, List<PushPopAbstractBase> workerList) {
-            this.envProps = envProps;
-            this.cq = cq;
-            this.workerList = workerList;
-        }
-
-        public void start() {
-            theThread = new Thread(this);
-            theThread.setDaemon(true);
-            theThread.setName(getClass().getSimpleName());
-            theThread.start();
-        }
-
-        @Override
-        public void run() {
-            for (;;) {
-                if (getTargetSize() != workerList.size()) {
-                    try {
-                        adjustWorkers();
-                    }
-                    catch (Exception e) {
-                        logger.error("exception while adjusting workers", e);
-                    }
-                }
-                try {
-                    Thread.sleep(1000);
-                }
-                catch (InterruptedException e) {
-                    logger.error("exception while sleeping - ignoring", e);
-                    Thread.interrupted();
-                }
-            }
-        }
-
-        private void adjustWorkers() throws Exception {
-            while (getTargetSize() != workerList.size()) {
-                int newSize = getTargetSize();
-                int currSize = workerList.size();
-                if (newSize < currSize) {
-                    PushPopAbstractBase popper = workerList.remove(newSize);
-                    popper.setStopProcessing(true);
-                }
-                else if (newSize > currSize) {
-                    addWorker();
-                }
-            }
-        }
-
-        protected abstract int getTargetSize();
-
-        protected abstract void addWorker() throws Exception;
+        return ptw;
     }
 
     static class PusherThreadWatcher extends WorkerThreadWatcher {
         private int pusherId = 0;
         private AtomicLong numGen = new AtomicLong();
 
-        public PusherThreadWatcher(QueueProperties envProps, CassQueueImpl cq, List<PushPopAbstractBase> workerList) {
-            super(envProps, cq, workerList);
+        public PusherThreadWatcher(QueueProperties envProps, CassQueueImpl cq) {
+            super(envProps, cq);
         }
 
         @Override
         protected void addWorker() throws IOException {
             CassQueuePusher cqPusher = new CassQueuePusher(pusherId++, cq, numGen, envProps);
             workerList.add(cqPusher);
-            cqPusher.start(envProps.getNumMsgs() / envProps.getNumPushers());
+            cqPusher.start(envProps.getNumMsgs() / envProps.getNumPushers(), pusherId);
         }
 
         @Override
@@ -256,9 +193,8 @@ public class CassQueueUtils {
         private Queue<CassQMsg> popQ;
         private int popperId = 0;
 
-        public PopperThreadWatcher(QueueProperties envProps, CassQueueImpl cq, List<PushPopAbstractBase> workerList,
-                Queue<CassQMsg> popQ) {
-            super(envProps, cq, workerList);
+        public PopperThreadWatcher(QueueProperties envProps, CassQueueImpl cq, Queue<CassQMsg> popQ) {
+            super(envProps, cq);
             this.popQ = popQ;
         }
 
@@ -266,7 +202,7 @@ public class CassQueueUtils {
         protected void addWorker() throws Exception {
             CassQueuePopper cqPopper = new CassQueuePopper(popperId++, cq, envProps, popQ);
             workerList.add(cqPopper);
-            cqPopper.start(envProps.getNumMsgs() / envProps.getNumPoppers());
+            cqPopper.start(envProps.getNumMsgs() / envProps.getNumPoppers(), popperId);
 
         }
 

@@ -1,11 +1,13 @@
 package com.real.cassandra.queue;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.locks.LocalLockerImpl;
+import com.real.cassandra.queue.locks.Locker;
+import com.real.cassandra.queue.locks.ObjectLock;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
@@ -15,25 +17,30 @@ public class PopperImpl {
     private static Logger logger = LoggerFactory.getLogger(PopperImpl.class);
 
     private static final int PUSHER_TIMEOUT_DELAY = 10000;
-    private Object pipeWatcherMonObj = new Object();
+    private final Object pipeWatcherMonObj = new Object();
     private CassQueueImpl cq;
     private QueueRepositoryImpl qRepos;
     private boolean shutdownInProgress = false;
     private List<PipeDescriptorImpl> pipeDescList;
-    private LocalLockerImpl popLocker;
+    private Locker<PipeDescriptorImpl> popLocker;
     private long nextPipeCounter;
     private PipeWatcher pipeWatcher;
 
     private RollingStat popNotEmptyStat;
     private RollingStat popEmptyStat;
+    private RollingStat popLockerStat;
+    private RollingStat lockerTryCountStat;
+    private boolean working = false;
 
-    public PopperImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, LocalLockerImpl popLocker,
-            RollingStat popNotEmptyStat, RollingStat popEmptyStat) {
+    public PopperImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, Locker<PipeDescriptorImpl> popLocker,
+            RollingStat popNotEmptyStat, RollingStat popEmptyStat, RollingStat popLockerStat, RollingStat lockerTryCountStat) {
         this.cq = cq;
         this.qRepos = qRepos;
         this.popLocker = popLocker;
         this.popNotEmptyStat = popNotEmptyStat;
         this.popEmptyStat = popEmptyStat;
+        this.popLockerStat = popLockerStat;
+        this.lockerTryCountStat = lockerTryCountStat;
     }
 
     public void initialize(boolean startPipeWatcher) {
@@ -50,9 +57,10 @@ public class PopperImpl {
             throw new IllegalStateException("cannot pop messages when shutdown in progress");
         }
 
-        try {
-            PipeDescriptorImpl pipeDesc = null;
+        ObjectLock<PipeDescriptorImpl> pipeLock = null;
 
+        working = true;
+        try {
             // make sure we try all pipes to get a msg. we go +1 for the case
             // where only maxPopPipeWidth = 1 and haven't loaded any pipe
             // descriptors yet
@@ -60,14 +68,14 @@ public class PopperImpl {
                 logger.debug("iteration {} of {}", i, cq.getMaxPopWidth() + 1);
 
                 try {
-                    pipeDesc = pickAndLockPipe();
+                    pipeLock = pickAndLockPipe();
 
                     // if can't find a pipe to lock, try again
-                    if (null == pipeDesc) {
+                    if (null == pipeLock) {
                         logger.debug("could not find a pipe to lock, trying again if retries left");
                         continue;
                     }
-
+                    PipeDescriptorImpl pipeDesc = pipeLock.getLockedObj();
                     CassQMsg qMsg;
                     try {
                         qMsg = retrieveOldestMsgFromPipe(pipeDesc);
@@ -85,12 +93,12 @@ public class PopperImpl {
                         return qMsg;
                     }
 
-                    checkIfPipeCanBeMarkedPopFinished(pipeDesc);
+                    checkIfPipeCanBeMarkedPopFinished(pipeDesc.getPipeId());
                 }
                 finally {
-                    if (null != pipeDesc) {
-                        logger.debug("releasing pipe : {}", pipeDesc.toString());
-                        popLocker.release(pipeDesc);
+                    if (null != pipeLock) {
+                        logger.debug("releasing pipe : {}", pipeLock.getLockedObj().toString());
+                        popLocker.release(pipeLock);
                     }
                 }
             }
@@ -99,36 +107,54 @@ public class PopperImpl {
             return null;
         }
         catch (Exception e) {
-            throw new CassQueueException("exception while pop'ing", e);
+            throw new CassQueueException(
+                    (pipeLock != null && pipeLock.getLockedObj() != null ? "exception while pop'ing from pipeDesc : "
+                            + pipeLock.getLockedObj() : "exception while selecting/locking a pipe"), e);
+        }
+        finally {
+            working = false;
         }
     }
 
     /**
-     * If pipe is {@link PipeStatus#PUSH_FINISHED} or expired then mark as
+     * If pipe is note {@link PipeStatus#ACTIVE} or is expired then mark as
      * {@link PipeStatus#NOT_ACTIVE}. This method marks expired pipes as
-     * {@link PipeStatus#PUSH_FINISHED} instead of {@link PusherImpl} to avoid
-     * race condition.
+     * {@link PipeStatus#NOT_ACTIVE} instead of {@link PusherImpl} to avoid race
+     * condition.
      * 
-     * @param pipeDesc
+     * @param pipeId
      */
-    private void checkIfPipeCanBeMarkedPopFinished(PipeDescriptorImpl pipeDesc) {
-        // if this pipe is finished or expired, mark as pop finished
-        if (!pipeDesc.isPushActive()) {
-            // no race condition here with push status because the pusher is no
-            // longer active
-            markPipeAsPopNotActiveAndRefresh(pipeDesc);
-            logger.debug("pipe is not push active and empty, marking pop not active: {}", pipeDesc.toString());
-        }
-        else if (pipeTimeoutExpired(pipeDesc)) {
-            // no race condition here because the pusher does not do anything
-            // with expired pipes
-            qRepos.updatePipePushStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
+    private void checkIfPipeCanBeMarkedPopFinished(UUID pipeId) {
 
-            markPipeAsPopNotActiveAndRefresh(pipeDesc);
-            logger.debug("pipe has expired, marking pop not active : {}", pipeDesc.toString());
+        // it possible the cached pipe descriptor was removed by reaper, so
+        // check if it's still there first
+        PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(pipeId);
+
+        if (pipeDesc != null) {
+            // if this pipe is finished or expired, mark as pop finished
+            if (!pipeDesc.isPushActive() && pipeDesc.isPopActive()) {
+                // no race condition here with push status because the pusher is
+                // no
+                // longer active
+                markPipeAsPopNotActiveAndRefresh(pipeDesc);
+                logger.debug("pipe is not push active and empty, marking pop not active: {}", pipeDesc.toString());
+            }
+            else if (pipeTimeoutExpired(pipeDesc) && pipeDesc.isPopActive()) {
+
+                // no race condition here because the pusher does not do
+                // anything
+                // with expired pipes
+                qRepos.updatePipePushStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
+
+                markPipeAsPopNotActiveAndRefresh(pipeDesc);
+                logger.debug("pipe has expired, marking pop not active : {}", pipeDesc.toString());
+            }
+            else {
+                logger.debug("pipe is not ready to be removed : {}", pipeDesc.toString());
+            }
         }
         else {
-            logger.debug("pipe is not ready to be removed : {}", pipeDesc);
+            logger.debug("pipe no longer exists, not checking status : {}", pipeId);
         }
     }
 
@@ -181,7 +207,9 @@ public class PopperImpl {
         return qMsg;
     }
 
-    private PipeDescriptorImpl pickAndLockPipe() throws Exception {
+    private ObjectLock<PipeDescriptorImpl> pickAndLockPipe() throws Exception {
+        ObjectLock<PipeDescriptorImpl> lock = null;
+
         if (null == pipeDescList || pipeDescList.isEmpty()) {
             logger.debug("no non-empty non-finished pipe descriptors found - signaled refresh");
             forceRefresh();
@@ -191,30 +219,56 @@ public class PopperImpl {
         // sync with the pipe watcher thread
         synchronized (pipeWatcherMonObj) {
             int width = pipeDescList.size() < cq.getMaxPopWidth() ? pipeDescList.size() : cq.getMaxPopWidth();
-            for (int i = 0; i < width; i++) {
-                PipeDescriptorImpl pipeDesc = pipeDescList.get((int) (nextPipeCounter++ % width));
-                if (popLocker.lock(pipeDesc)) {
-                    logger.debug("locked pipe : " + pipeDesc);
-                    return pipeDesc;
+            int tryCount = 0;
+            for (; tryCount < width && lock == null; tryCount++) {
+                PipeDescriptorImpl cachedPipeDesc = pipeDescList.get((int) (nextPipeCounter++ % width));
+                long start = System.currentTimeMillis();
+                lock = popLocker.lock(cachedPipeDesc);
+                popLockerStat.addSample(System.currentTimeMillis() - start);
+                if (lock != null) {
+                    logger.debug("locked pipe : " + cachedPipeDesc);
+                    PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(cachedPipeDesc.getPipeId());
+
+                    // unusual race condition, but don't want to read from
+                    // cassandra unless we get the lock, but the reaper could
+                    // have removed descriptor in the mean time
+                    if (pipeDesc == null) {
+                        logger.debug("Locked pipe, but already deleted {}", cachedPipeDesc.getPipeId());
+                        popLocker.release(lock);
+                        lock = null;
+                    }
                 }
             }
-            logger.debug("no pipe available for locking, num pipes tried = {}", width);
+
+            lockerTryCountStat.addSample(tryCount);
+
+            if (lock == null) {
+                logger.debug("no pipe available for locking, num pipes tried = {}", width);
+            }
         }
 
-        return null;
+        return lock;
     }
 
     public String getQName() {
         return cq.getName();
     }
 
-    public void shutdown() {
+    public void shutdownAndWait() {
         shutdownInProgress = true;
-        if (null != pipeWatcher) {
-            pipeWatcher.stopProcessing();
+        while (working) {
+            try {
+                Thread.sleep(100);
+            }
+            catch (InterruptedException e) {
+                Thread.interrupted();
+                // do nothing
+            }
         }
 
-        // TODO:BTB do stuff here for shutdown
+        if (null != pipeWatcher) {
+            pipeWatcher.shutdownAndWait();
+        }
     }
 
     public void forceRefresh() {
@@ -255,8 +309,18 @@ public class PopperImpl {
             theThread.interrupt();
         }
 
-        public void stopProcessing() {
+        public void shutdownAndWait() {
             stopProcessing = true;
+            theThread.interrupt();
+            while (theThread.isAlive()) {
+                try {
+                    Thread.sleep(100);
+                }
+                catch (InterruptedException e) {
+                    Thread.interrupted();
+                    // do nothing
+                }
+            }
         }
 
         @Override

@@ -149,6 +149,7 @@ public class CassQueueApp {
 
     private static void dumpPipe(CommandLine cmdLine) throws Exception {
         String pipeIdAsStr = cmdLine.getOptionValue(OPT_DUMP_PIPE);
+        System.out.println("pipeId = " + pipeIdAsStr);
         PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(UUID.fromString(pipeIdAsStr));
         outputPipeDescription(qRepos, pipeDesc, maxPushesPerPipe);
     }
@@ -208,12 +209,12 @@ public class CassQueueApp {
 
         qRepos = HectorUtils.createQueueRepository(envProps);
         cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl(), new LocalLockerImpl());
-        cq = cqFactory.createInstance(qName);
+        cq = cqFactory.createInstance(qName, false);
     }
 
     private static void shutdownQueueMgrAndPool() {
         if (null != cq) {
-            cq.shutdown();
+            cq.shutdownAndWait();
         }
     }
 

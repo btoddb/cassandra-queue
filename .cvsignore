@@ -10,3 +10,4 @@ cassandra-data
 .settings
 popper.*
 pusher.*
+.git

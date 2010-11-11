@@ -67,12 +67,54 @@
 					<source>1.6</source>
 					<target>1.6</target>
 				</configuration>
+
 			</plugin>
+            
+            <!-- create source jars just prior to repo install-->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <argLine>-Xmx1024m</argLine>
+                    <!--<argLine>-Xmx1024m -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=8050</argLine>-->
+                    <!-- skip our integration tests -->
+                    <excludes>
+                        <exclude>**/integration/**</exclude>
+                    </excludes>
                 </configuration>
+
+                <executions>
+                    <!-- integration test settings -->
+                    <execution>
+                        <id>integration-tests</id>
+                        <phase>integration-test</phase>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <skip>false</skip>
+                            <excludes>
+                                <exclude>none</exclude>
+                            </excludes>
+                            <includes>
+                                <include>**/integration/**/*Test.java</include>
+                            </includes>
+                        </configuration>
+                    </execution>
+                </executions>                
             </plugin>            
 		</plugins>
 	</build>
@@ -87,9 +129,24 @@
 				<role>Principal Engineer</role>
 			</roles>
 		</developer>
+		<developer>
+			<id>aebaugh</id>
+			<name>Andrew Ebaugh</name>
+			<email>aebaugh@real.com</email>
+			<organization>RealNetworks</organization>
+			<roles>
+				<role>Lead SDE</role>
+			</roles>
+		</developer>
 	</developers>
 
 	<dependencies>
+        <dependency>
+            <groupId>org.wyki.zookeeper</groupId>
+            <artifactId>cages</artifactId>
+            <version>0.806-SNAPSHOT</version>
+        </dependency>
+
         <dependency>
             <groupId>me.prettyprint</groupId>
             <artifactId>hector</artifactId>

@@ -8,7 +8,8 @@ import javax.management.InstanceAlreadyExistsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.real.cassandra.queue.locks.LocalLockerImpl;
+import com.real.cassandra.queue.locks.Locker;
+import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.JmxMBeanManager;
 import com.real.cassandra.queue.utils.RollingStat;
@@ -21,7 +22,7 @@ public class CassQueueImpl implements CassQueueMXBean {
     private int maxPushesPerPipe;
     private int maxPopWidth;
     private QueueRepositoryImpl qRepos;
-    private LocalLockerImpl popLocker;
+    private Locker<PipeDescriptorImpl> popLocker;
     private long popPipeRefreshDelay;
 
     private PusherImpl rollbackPusher;
@@ -32,14 +33,18 @@ public class CassQueueImpl implements CassQueueMXBean {
     private RollingStat popNotEmptyStat = new RollingStat(60000);
     private RollingStat popEmptyStat = new RollingStat(60000);
     private RollingStat pushStat = new RollingStat(60000);
+    private RollingStat popLockerStat = new RollingStat(60000);
+    private RollingStat lockerTryCountStat = new RollingStat(60000);
+    
     private PipeReaper pipeReaper;
 
-    public CassQueueImpl(QueueRepositoryImpl qRepos, String qName, long maxPushTimePerPipe, int maxPushesPerPipe,
-            int popWidth, LocalLockerImpl popLocker, LocalLockerImpl queueStatsLocker, long popPipeRefreshDelay) {
-        this.qName = qName;
+    public CassQueueImpl(QueueRepositoryImpl qRepos, QueueDescriptor qDesc, boolean startReaper, int popWidth,
+                         Locker<PipeDescriptorImpl> popLocker, Locker<QueueDescriptor> queueStatsLocker,
+            long popPipeRefreshDelay) {
+        this.qName = qDesc.getName();
         this.qRepos = qRepos;
-        this.maxPushTimePerPipe = maxPushTimePerPipe;
-        this.maxPushesPerPipe = maxPushesPerPipe;
+        this.maxPushTimePerPipe = qDesc.getMaxPushTimeOfPipe();
+        this.maxPushesPerPipe = qDesc.getMaxPushesPerPipe();
         this.maxPopWidth = popWidth;
         this.popLocker = popLocker;
         this.popPipeRefreshDelay = popPipeRefreshDelay;
@@ -47,8 +52,10 @@ public class CassQueueImpl implements CassQueueMXBean {
         logger.debug("creating pusher for rollback only");
         this.rollbackPusher = createPusher();
 
-        this.pipeReaper = new PipeReaper(qName, qRepos, queueStatsLocker);
-        this.pipeReaper.start();
+        if (startReaper) {
+            this.pipeReaper = new PipeReaper(qDesc, qRepos, queueStatsLocker);
+            this.pipeReaper.start();
+        }
 
         initJmx();
     }
@@ -87,7 +94,7 @@ public class CassQueueImpl implements CassQueueMXBean {
 
     public PopperImpl createPopper(boolean startPipeWatcher) {
         logger.debug("creating popper for queue {}", qName);
-        PopperImpl popper = new PopperImpl(this, qRepos, popLocker, popNotEmptyStat, popEmptyStat);
+        PopperImpl popper = new PopperImpl(this, qRepos, popLocker, popNotEmptyStat, popEmptyStat,popLockerStat, lockerTryCountStat);
         popperSet.add(popper);
         popper.initialize(startPipeWatcher);
         return popper;
@@ -142,9 +149,22 @@ public class CassQueueImpl implements CassQueueMXBean {
         pipeReaper.wakeUp();
     }
 
-    public void shutdown() {
-        pipeReaper.shutdown();
-        popLocker.shutdown();
+    public void shutdownAndWait() {
+        for (PusherImpl pusher : pusherSet) {
+            pusher.shutdownAndWait();
+        }
+
+        for (PopperImpl popper : popperSet) {
+            popper.shutdownAndWait();
+        }
+
+        if (null != pipeReaper) {
+            pipeReaper.shutdownAndWait();
+        }
+
+        if (null != popLocker) {
+            popLocker.shutdownAndWait();
+        }
     }
 
     public long getPopPipeRefreshDelay() {
@@ -214,5 +234,15 @@ public class CassQueueImpl implements CassQueueMXBean {
 
     public void setPipeReaperProcessingDelay(long delay) {
         pipeReaper.setProcessingDelay(delay);
+    }
+
+    @Override
+    public double getLockTryAvtCount() {
+        return lockerTryCountStat.getAvgOfValues();
+    }
+
+    @Override
+    public double getPopLockerAvgTime() {
+        return popLockerStat.getAvgOfValues();
     }
 }
