@@ -9,6 +9,7 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.utils.MyIp;
+import com.real.cassandra.queue.utils.UuidGenerator;
 
 public class CassQMsgFactory {
 
@@ -21,7 +22,7 @@ public class CassQMsgFactory {
     }
 
     public CassQMsg createInstance(PipeDescriptorImpl pipeDesc, Column col) {
-        return createInstance(pipeDesc, UUIDGen.makeType1UUID(col.getName()), new String(col.getValue()));
+        return createInstance(pipeDesc, UuidGenerator.createInstance(col.getName()), new String(col.getValue()));
     }
 
     public UUID createMsgId() {

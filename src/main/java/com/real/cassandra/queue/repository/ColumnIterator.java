@@ -2,7 +2,7 @@ package com.real.cassandra.queue.repository;
 
 import java.util.List;
 
-import me.prettyprint.cassandra.serializers.BytesSerializer;
+import me.prettyprint.cassandra.serializers.BytesArraySerializer;
 import me.prettyprint.hector.api.Cluster;
 import me.prettyprint.hector.api.Keyspace;
 import me.prettyprint.hector.api.beans.ColumnSlice;
@@ -21,7 +21,7 @@ public class ColumnIterator {
 
     public void doIt(Cluster cluster, String keyspaceName, String colFamName, byte[] rowKey,
             byte[] lastColName, ColumnOperator op) {
-        BytesSerializer bs = BytesSerializer.get();
+        BytesArraySerializer bs = BytesArraySerializer.get();
         Keyspace keyspace = HFactory.createKeyspace(keyspaceName, cluster);
         SliceQuery<byte[], byte[], byte[]> sliceQuery = HFactory.createSliceQuery(keyspace, bs, bs, bs);
         sliceQuery.setColumnFamily(colFamName);

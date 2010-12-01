@@ -11,12 +11,15 @@ import java.util.Set;
 import java.util.UUID;
 
 import me.prettyprint.cassandra.model.QuorumAllConsistencyLevelPolicy;
-import me.prettyprint.cassandra.serializers.BytesSerializer;
+import me.prettyprint.cassandra.serializers.BytesArraySerializer;
 import me.prettyprint.cassandra.serializers.IntegerSerializer;
 import me.prettyprint.cassandra.serializers.LongSerializer;
 import me.prettyprint.cassandra.serializers.StringSerializer;
 import me.prettyprint.cassandra.serializers.UUIDSerializer;
-import me.prettyprint.cassandra.service.CassandraClient;
+import me.prettyprint.cassandra.service.Operation;
+import me.prettyprint.cassandra.service.OperationType;
+import me.prettyprint.cassandra.service.ThriftCfDef;
+import me.prettyprint.cassandra.service.ThriftKsDef;
 import me.prettyprint.hector.api.Cluster;
 import me.prettyprint.hector.api.Keyspace;
 import me.prettyprint.hector.api.beans.ColumnSlice;
@@ -24,6 +27,7 @@ import me.prettyprint.hector.api.beans.HColumn;
 import me.prettyprint.hector.api.beans.OrderedRows;
 import me.prettyprint.hector.api.beans.Row;
 import me.prettyprint.hector.api.ddl.HKsDef;
+import me.prettyprint.hector.api.exceptions.HectorException;
 import me.prettyprint.hector.api.factory.HFactory;
 import me.prettyprint.hector.api.mutation.Mutator;
 import me.prettyprint.hector.api.query.ColumnQuery;
@@ -34,9 +38,9 @@ import me.prettyprint.hector.api.query.SliceQuery;
 
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.thrift.Cassandra.Client;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.KsDef;
+import org.apache.cassandra.thrift.Cassandra.Client;
 import org.apache.cassandra.utils.UUIDGen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,6 +55,7 @@ import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
 import com.real.cassandra.queue.utils.DoubleSerializer;
+import com.real.cassandra.queue.utils.UuidGenerator;
 
 public class QueueRepositoryImpl {
     private static Logger logger = LoggerFactory.getLogger(QueueRepositoryImpl.class);
@@ -116,7 +121,7 @@ public class QueueRepositoryImpl {
      * Creates the queue descriptor if doesn't exists, otherwise uses values
      * from database disregarding the parameters passed from client. Issues
      * warning if parameters don't match database.
-     *
+     * 
      * @param qName
      * @param maxPushTimePerPipe
      * @param maxPushesPerPipe
@@ -178,20 +183,21 @@ public class QueueRepositoryImpl {
         if (null != qDesc) {
             if (qDesc.getMaxPushesPerPipe() != maxPushesPerPipe || qDesc.getMaxPushTimeOfPipe() != maxPushTimePerPipe
                     || qDesc.getMaxPopWidth() != maxPopWidth) {
-                logger.warn("Queue Descriptor already exists and you passed in parameters that do not match what is already there - using parameters from database");
+                logger
+                        .warn("Queue Descriptor already exists and you passed in parameters that do not match what is already there - using parameters from database");
             }
             return qDesc;
         }
 
         createQueueDescriptor(qName, maxPushTimePerPipe, maxPushesPerPipe, maxPopWidth, popPipeRefreshDelay);
-        return getQueueDescriptorFactory().createInstance(qName, maxPushTimePerPipe, maxPushesPerPipe);
+        return getQueueDescriptorFactory().createInstance(qName, maxPushTimePerPipe, maxPushesPerPipe,maxPopWidth, popPipeRefreshDelay);
 
     }
 
     public Set<QueueDescriptor> getQueueDescriptors() {
         RangeSlicesQuery<String, String, byte[]> q =
                 HFactory.createRangeSlicesQuery(keyspace, StringSerializer.get(), StringSerializer.get(),
-                        BytesSerializer.get());
+                        BytesArraySerializer.get());
         q.setRange("", "", false, 100);
         q.setKeys("", "");
         q.setColumnFamily(QUEUE_DESCRIPTORS_COLFAM);
@@ -217,7 +223,7 @@ public class QueueRepositoryImpl {
     public QueueDescriptor getQueueDescriptor(String qName) {
         SliceQuery<String, String, byte[]> q =
                 HFactory.createSliceQuery(keyspace, StringSerializer.get(), StringSerializer.get(),
-                        BytesSerializer.get());
+                        BytesArraySerializer.get());
         q.setRange("", "", false, 100);
         q.setColumnFamily(QUEUE_DESCRIPTORS_COLFAM);
         q.setKey(qName);
@@ -239,50 +245,42 @@ public class QueueRepositoryImpl {
         m.execute();
     }
 
-    public String createKeyspace(KsDef ksDef) {
-        CassandraClient client = cluster.borrowClient();
-        try {
-            Client thriftClient = client.getCassandra();
-            return thriftClient.system_add_keyspace(ksDef);
-        }
-        catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        finally {
-            cluster.releaseClient(client);
-        }
+    public String createKeyspace(final KsDef ksDef) {
+        return cluster.addKeyspace(new ThriftKsDef(ksDef));
     }
 
     protected Map<String, List<String>> getSchemaVersionMap() {
-        Map<String, List<String>> schemaMap;
-        CassandraClient client = cluster.borrowClient();
-        try {
-            Client thriftClient = client.getCassandra();
-            schemaMap = thriftClient.describe_schema_versions();
-        }
-        catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        finally {
-            cluster.releaseClient(client);
-        }
+        Operation<Map<String, List<String>>> op = new Operation<Map<String, List<String>>>(OperationType.META_READ) {
+            @Override
+            public Map<String, List<String>> execute(Client cassandra) throws HectorException {
+                try {
+                    return cassandra.describe_schema_versions();
+                }
+                catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
 
-        return schemaMap;
+            }
+        };
+        cluster.getConnectionManager().operateWithFailover(op);
+        return op.getResult();
     }
 
     protected String dropKeyspace() {
-        CassandraClient client = cluster.borrowClient();
-        try {
-            Client thriftClient = client.getCassandra();
-            return thriftClient.system_drop_keyspace(QUEUE_KEYSPACE_NAME);
-        }
-        catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        finally {
-            cluster.releaseClient(client);
-        }
+        Operation<String> op = new Operation<String>(OperationType.META_WRITE) {
+            @Override
+            public String execute(Client cassandra) throws HectorException {
+                try {
+                    return cassandra.system_drop_keyspace(QUEUE_KEYSPACE_NAME);
+                }
+                catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
 
+            }
+        };
+        cluster.getConnectionManager().operateWithFailover(op);
+        return op.getResult();
     }
 
     protected boolean isKeyspaceExists() {
@@ -301,7 +299,7 @@ public class QueueRepositoryImpl {
 
         // add insert into waiting
         HColumn<UUID, byte[]> colMsg =
-                HFactory.createColumn(msgId, msgData.getBytes(), UUIDSerializer.get(), BytesSerializer.get());
+                HFactory.createColumn(msgId, msgData.getBytes(), UUIDSerializer.get(), BytesArraySerializer.get());
         m.addInsertion(pipeDesc.getPipeId(), formatWaitingColFamName(pipeDesc.getQName()), colMsg);
 
         // update push count
@@ -332,8 +330,8 @@ public class QueueRepositoryImpl {
     public void updatePipePopCount(PipeDescriptorImpl pipeDesc, int popCount) {
         Mutator<UUID> m = HFactory.createMutator(keyspace, UUIDSerializer.get());
         HColumn<String, Integer> col =
-                HFactory.createColumn(PDESC_COLNAME_POP_COUNT, popCount, StringSerializer.get(),
-                        IntegerSerializer.get());
+                HFactory.createColumn(PDESC_COLNAME_POP_COUNT, popCount, StringSerializer.get(), IntegerSerializer
+                        .get());
         m.insert(pipeDesc.getPipeId(), PIPE_DESCRIPTOR_COLFAM, col);
     }
 
@@ -395,7 +393,8 @@ public class QueueRepositoryImpl {
 
     protected List<CassQMsg> getOldestMsgsFromPipe(String colFameName, PipeDescriptorImpl pipeDesc, int maxMsgs) {
         SliceQuery<UUID, UUID, byte[]> q =
-                HFactory.createSliceQuery(keyspace, UUIDSerializer.get(), UUIDSerializer.get(), BytesSerializer.get());
+                HFactory.createSliceQuery(keyspace, UUIDSerializer.get(), UUIDSerializer.get(), BytesArraySerializer
+                        .get());
         q.setColumnFamily(colFameName);
         q.setKey(pipeDesc.getPipeId());
         q.setRange(null, null, false, maxMsgs);
@@ -439,7 +438,7 @@ public class QueueRepositoryImpl {
                 new ColumnIterator.ColumnOperator() {
                     @Override
                     public boolean execute(HColumn<byte[], byte[]> col) {
-                        UUID msgId = UUIDGen.makeType1UUID(col.getName());
+                        UUID msgId = UuidGenerator.createInstance(col.getName());
                         String msgData = new String(col.getValue());
                         CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
                         result.add(qMsg);
@@ -456,7 +455,7 @@ public class QueueRepositoryImpl {
         Mutator<UUID> m = HFactory.createMutator(keyspace, UUIDSerializer.get());
         HColumn<UUID, byte[]> col =
                 HFactory.createColumn(qMsg.getMsgId(), qMsg.getMsgData().getBytes(), UUIDSerializer.get(),
-                        BytesSerializer.get());
+                        BytesArraySerializer.get());
         m.addInsertion(pipeDesc.getPipeId(), formatPendingColFamName(qName), col);
         m.addDeletion(pipeDesc.getPipeId(), formatWaitingColFamName(qName), qMsg.getMsgId(), UUIDSerializer.get());
         m.execute();
@@ -474,7 +473,7 @@ public class QueueRepositoryImpl {
                     @Override
                     public boolean execute(HColumn<byte[], byte[]> col) {
                         UUID pipeId = UUIDSerializer.get().fromBytes(col.getName());
-                        m.addDeletion(pipeId, PIPE_DESCRIPTOR_COLFAM, null, BytesSerializer.get());
+                        m.addDeletion(pipeId, PIPE_DESCRIPTOR_COLFAM, null, BytesArraySerializer.get());
                         count++;
                         if (count > 10) {
                             m.execute();
@@ -490,61 +489,45 @@ public class QueueRepositoryImpl {
 
     /**
      * Truncates the data only. Descriptors, Stats, Pipes, all stay as is.
-     * @param cq Cassandra queue to truncate
+     * 
+     * @param cq
+     *            Cassandra queue to truncate
      */
-    public void truncateQueueData(CassQueueImpl cq) {
-        String qName = cq.getName();
+    public void truncateQueueData(final CassQueueImpl cq) {
+        Operation<Void> op = new Operation<Void>(OperationType.META_WRITE) {
+            @Override
+            public Void execute(Client cassandra) throws HectorException {
+                try {
+                    cassandra.set_keyspace(QUEUE_KEYSPACE_NAME);
+                    cassandra.truncate(formatWaitingColFamName(cq.getName()));
+                    cassandra.truncate(formatPendingColFamName(cq.getName()));
+                    return null;
+                }
+                catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
 
-        CassandraClient client = cluster.borrowClient();
-        try {
-            Client thriftClient = client.getCassandra();
-            thriftClient.set_keyspace(QUEUE_KEYSPACE_NAME);
-            thriftClient.truncate(formatWaitingColFamName(qName));
-            thriftClient.truncate(formatPendingColFamName(qName));
-        }
-        catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        finally {
-            cluster.releaseClient(client);
-        }
-
-        // truncateQueuePipeCnxn(cq);
-        // Mutator<String> m = HFactory.createMutator(keyspace,
-        // StringSerializer.get());
-        // m.addDeletion(qName, QUEUE_PIPE_CNXN_COLFAM, null,
-        // UUIDSerializer.get());
-        // m.addDeletion(qName, QUEUE_STATS_COLFAM, null, UUIDSerializer.get());
-        // m.execute();
+            }
+        };
+        cluster.getConnectionManager().operateWithFailover(op);
     }
 
     public void dropQueue(CassQueueImpl cq) {
-        String qName = cq.getName();
-
-        CassandraClient client = cluster.borrowClient();
-        try {
-            Client thriftClient = client.getCassandra();
-            thriftClient.system_drop_column_family(formatWaitingColFamName(qName));
-            thriftClient.system_drop_column_family(formatPendingColFamName(qName));
-        }
-        catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        finally {
-            cluster.releaseClient(client);
-        }
+        cluster.dropColumnFamily(QUEUE_KEYSPACE_NAME, formatWaitingColFamName(cq.getName()));
+        cluster.dropColumnFamily(QUEUE_KEYSPACE_NAME, formatPendingColFamName(cq.getName()));
 
         truncateQueuePipeCnxn(cq);
 
         Mutator<String> m = HFactory.createMutator(keyspace, StringSerializer.get());
-        m.addDeletion(qName, QUEUE_PIPE_CNXN_COLFAM, null, UUIDSerializer.get());
-        m.addDeletion(qName, QUEUE_STATS_COLFAM, null, UUIDSerializer.get());
+        m.addDeletion(cq.getName(), QUEUE_PIPE_CNXN_COLFAM, null, UUIDSerializer.get());
+        m.addDeletion(cq.getName(), QUEUE_STATS_COLFAM, null, UUIDSerializer.get());
         m.execute();
     }
 
     public CassQMsg getMsg(String qName, PipeDescriptorImpl pipeDesc, UUID msgId) {
         ColumnQuery<UUID, UUID, byte[]> q =
-                HFactory.createColumnQuery(keyspace, UUIDSerializer.get(), UUIDSerializer.get(), BytesSerializer.get());
+                HFactory.createColumnQuery(keyspace, UUIDSerializer.get(), UUIDSerializer.get(), BytesArraySerializer
+                        .get());
         q.setColumnFamily(formatWaitingColFamName(qName));
         q.setKey(pipeDesc.getPipeId());
         q.setName(msgId);
@@ -560,11 +543,12 @@ public class QueueRepositoryImpl {
         PipeDescriptorImpl pipeDesc = pipeDescFactory.createInstance(qName, pipeId);
         pipeDesc.setStartTimestamp(startTimestamp);
 
-        Mutator<byte[]> m = HFactory.createMutator(keyspace, BytesSerializer.get());
+        Mutator<byte[]> m = HFactory.createMutator(keyspace, BytesArraySerializer.get());
 
         Set<HColumn<String, byte[]>> colSet = pipeDescFactory.createInstance(pipeDesc);
+        byte[] pipeIdAsBytes = UUIDSerializer.get().toBytes(pipeId);
         for (HColumn<String, byte[]> colDesc : colSet) {
-            m.addInsertion(UUIDSerializer.get().toBytes(pipeId), PIPE_DESCRIPTOR_COLFAM, colDesc);
+            m.addInsertion(pipeIdAsBytes, PIPE_DESCRIPTOR_COLFAM, colDesc);
         }
 
         HColumn<UUID, Long> colCnxn =
@@ -577,8 +561,9 @@ public class QueueRepositoryImpl {
 
     public PipeDescriptorImpl getPipeDescriptor(UUID pipeId) {
         SliceQuery<UUID, String, byte[]> q =
-                HFactory.createSliceQuery(keyspace, UUIDSerializer.get(), StringSerializer.get(), BytesSerializer.get());
-        q.setRange("", "", false, MAX_PIPE_DESCRIPTOR_COLUMNS);
+                HFactory.createSliceQuery(keyspace, UUIDSerializer.get(), StringSerializer.get(), BytesArraySerializer
+                        .get());
+        q.setRange(null, null, false, MAX_PIPE_DESCRIPTOR_COLUMNS);
         q.setColumnFamily(PIPE_DESCRIPTOR_COLFAM);
         q.setKey(pipeId);
         return pipeDescFactory.createInstance(pipeId, q.execute().get());
@@ -587,7 +572,7 @@ public class QueueRepositoryImpl {
     protected CountResult getCountOfMsgsAndStatus(String qName, final String colFamName, int maxPageSize) {
         final CountResult result = new CountResult();
         final CountQuery<byte[], byte[]> countQuery =
-                HFactory.createCountQuery(keyspace, BytesSerializer.get(), BytesSerializer.get());
+                HFactory.createCountQuery(keyspace, BytesArraySerializer.get(), BytesArraySerializer.get());
         countQuery.setColumnFamily(colFamName);
         countQuery.setRange(new byte[] {}, new byte[] {}, maxPageSize);
 
@@ -624,18 +609,7 @@ public class QueueRepositoryImpl {
 
     public String createColumnFamily(CfDef colFamDef) {
         logger.debug("creating column family, {}", colFamDef.getName());
-        CassandraClient client = cluster.borrowClient();
-        try {
-            Client thriftClient = client.getCassandra();
-            thriftClient.set_keyspace(QUEUE_KEYSPACE_NAME);
-            return thriftClient.system_add_column_family(colFamDef);
-        }
-        catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        finally {
-            cluster.releaseClient(client);
-        }
+        return cluster.addColumnFamily(new ThriftCfDef(colFamDef));
     }
 
     protected QueueDescriptorFactoryImpl getQueueDescriptorFactory() {
@@ -649,7 +623,7 @@ public class QueueRepositoryImpl {
     /**
      * Perform default initialization of the repository. Intended use is for
      * spring 'init-method'
-     *
+     * 
      */
     public void init() {
         initKeyspace(false);
@@ -665,7 +639,7 @@ public class QueueRepositoryImpl {
 
     /**
      * Initialize cassandra server for use with queues.
-     *
+     * 
      * @param forceRecreate
      *            if true will drop the keyspace and recreate it.
      */
@@ -688,18 +662,18 @@ public class QueueRepositoryImpl {
 
     private KsDef createKeyspaceDefinition() {
         ArrayList<CfDef> cfDefList = new ArrayList<CfDef>(2);
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_DESCRIPTORS_COLFAM)
-                .setComparator_type(BytesType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(1000)
-                .setGc_grace_seconds(GC_GRACE_SECS));
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_STATS_COLFAM)
-                .setComparator_type(BytesType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(0)
-                .setGc_grace_seconds(GC_GRACE_SECS));
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, PIPE_DESCRIPTOR_COLFAM)
-                .setComparator_type(BytesType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(0)
-                .setGc_grace_seconds(GC_GRACE_SECS));
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_PIPE_CNXN_COLFAM)
-                .setComparator_type(TimeUUIDType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(0)
-                .setGc_grace_seconds(GC_GRACE_SECS));
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_DESCRIPTORS_COLFAM).setComparator_type(
+                BytesType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(1000).setGc_grace_seconds(
+                GC_GRACE_SECS));
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_STATS_COLFAM).setComparator_type(
+                BytesType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(
+                GC_GRACE_SECS));
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, PIPE_DESCRIPTOR_COLFAM).setComparator_type(
+                BytesType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(
+                GC_GRACE_SECS));
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_PIPE_CNXN_COLFAM).setComparator_type(
+                TimeUUIDType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(
+                GC_GRACE_SECS));
 
         return new KsDef(QUEUE_KEYSPACE_NAME, STRATEGY_CLASS_NAME, getReplicationFactor(), cfDefList);
     }
@@ -711,10 +685,6 @@ public class QueueRepositoryImpl {
         }
 
         return null != schemaMap && schemaMap.containsKey(version) && 1 == schemaMap.size();
-    }
-
-    public int getNumberOfNodesInCluster() {
-        return cluster.getClusterHosts(true).size();
     }
 
     public static String formatWaitingColFamName(String qName) {
@@ -810,7 +780,7 @@ public class QueueRepositoryImpl {
     public QueueStats getQueueStats(String qName) {
         SliceQuery<String, String, byte[]> q =
                 HFactory.createSliceQuery(keyspace, StringSerializer.get(), StringSerializer.get(),
-                        BytesSerializer.get());
+                        BytesArraySerializer.get());
         q.setRange("", "", false, 100);
         q.setColumnFamily(QUEUE_STATS_COLFAM);
         q.setKey(qName);
@@ -825,16 +795,16 @@ public class QueueRepositoryImpl {
 
     public void updateQueueStats(QueueStats qStats) {
         Mutator<String> m = HFactory.createMutator(keyspace, StringSerializer.get());
-        m.addInsertion(qStats.getQName(), QUEUE_STATS_COLFAM, HFactory.createColumn(QSTATS_COLNAME_TOTAL_PUSHES,
-                qStats.getTotalPushes(), StringSerializer.get(), LongSerializer.get()));
-        m.addInsertion(qStats.getQName(), QUEUE_STATS_COLFAM, HFactory.createColumn(QSTATS_COLNAME_TOTAL_POPS,
-                qStats.getTotalPops(), StringSerializer.get(), LongSerializer.get()));
+        m.addInsertion(qStats.getQName(), QUEUE_STATS_COLFAM, HFactory.createColumn(QSTATS_COLNAME_TOTAL_PUSHES, qStats
+                .getTotalPushes(), StringSerializer.get(), LongSerializer.get()));
+        m.addInsertion(qStats.getQName(), QUEUE_STATS_COLFAM, HFactory.createColumn(QSTATS_COLNAME_TOTAL_POPS, qStats
+                .getTotalPops(), StringSerializer.get(), LongSerializer.get()));
         m.addInsertion(qStats.getQName(), QUEUE_STATS_COLFAM, HFactory.createColumn(
                 QSTATS_COLNAME_RECENT_PUSHES_PER_SEC, DoubleSerializer.get().toBytes(qStats.getRecentPushesPerSec()),
-                StringSerializer.get(), BytesSerializer.get()));
+                StringSerializer.get(), BytesArraySerializer.get()));
         m.addInsertion(qStats.getQName(), QUEUE_STATS_COLFAM, HFactory.createColumn(QSTATS_COLNAME_RECENT_POPS_PER_SEC,
                 DoubleSerializer.get().toBytes(qStats.getRecentPopsPerSec()), StringSerializer.get(),
-                BytesSerializer.get()));
+                BytesArraySerializer.get()));
         m.execute();
     }
 
@@ -843,8 +813,8 @@ public class QueueRepositoryImpl {
     }
 
     public void removePipeDescriptor(String qName, UUID pipeId) {
-        Mutator<byte[]> m = HFactory.createMutator(keyspace, BytesSerializer.get());
-        m.addDeletion(UUIDSerializer.get().toBytes(pipeId), PIPE_DESCRIPTOR_COLFAM, null, BytesSerializer.get());
+        Mutator<byte[]> m = HFactory.createMutator(keyspace, BytesArraySerializer.get());
+        m.addDeletion(UUIDSerializer.get().toBytes(pipeId), PIPE_DESCRIPTOR_COLFAM, null, BytesArraySerializer.get());
         m.delete(StringSerializer.get().toBytes(qName), QUEUE_PIPE_CNXN_COLFAM, pipeId, UUIDSerializer.get());
         m.execute();
     }

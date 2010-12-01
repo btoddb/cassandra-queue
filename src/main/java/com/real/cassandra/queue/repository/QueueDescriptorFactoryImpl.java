@@ -8,10 +8,12 @@ import com.real.cassandra.queue.utils.IntegerSerializer;
 
 public class QueueDescriptorFactoryImpl {
 
-    public QueueDescriptor createInstance(String qName, long maxPushTimeOfPipe, int maxPushesPerPipe) {
+    public QueueDescriptor createInstance(String qName, long maxPushTimeOfPipe, int maxPushesPerPipe, int maxPopWidth, long popPipeRefreshDelay) {
         QueueDescriptor qDesc = new QueueDescriptor(qName);
         qDesc.setMaxPushTimeOfPipe(maxPushTimeOfPipe);
         qDesc.setMaxPushesPerPipe(maxPushesPerPipe);
+        qDesc.setMaxPopWidth(maxPopWidth);
+        qDesc.setPopPipeRefreshDelay(popPipeRefreshDelay);
         return qDesc;
     }
 

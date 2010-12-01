@@ -42,8 +42,8 @@ public class PushPopApp {
         parseAppProperties();
 
         String ZK_CONNECT_STRING = "kv-app07.dev.real.com:2181,kv-app08.dev.real.com:2181,kv-app09.dev.real.com:2181";
-        popLocker = new CagesLockerImpl<PipeDescriptorImpl>("/pipes/", ZK_CONNECT_STRING, 6000, 30);
-        queueStatsLocker = new CagesLockerImpl<QueueDescriptor>("/queue-stats/", ZK_CONNECT_STRING, 6000, 30);
+        popLocker = new CagesLockerImpl<PipeDescriptorImpl>("/pipes", ZK_CONNECT_STRING, 6000, 30);
+        queueStatsLocker = new CagesLockerImpl<QueueDescriptor>("/queue-stats", ZK_CONNECT_STRING, 6000, 30);
         logger.info("setting queuing system");
         setupQueueSystem();
 

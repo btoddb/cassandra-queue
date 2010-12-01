@@ -218,8 +218,8 @@ public class DistCassQueueTest extends CassQueueTestBase {
 
     @Before
     public void setupTest() throws Exception {
-        popLocker = new CagesLockerImpl<PipeDescriptorImpl>("/pipes/", ZK_CONNECT_STRING, 6000, 30);
-        queueStatsLocker = new CagesLockerImpl<QueueDescriptor>("/queue-stats/", ZK_CONNECT_STRING, 6000, 30);
+        popLocker = new CagesLockerImpl<PipeDescriptorImpl>("/pipes", ZK_CONNECT_STRING, 6000, 30);
+        queueStatsLocker = new CagesLockerImpl<QueueDescriptor>("/queue-stats", ZK_CONNECT_STRING, 6000, 30);
         cqFactory = new CassQueueFactoryImpl(qRepos, popLocker, queueStatsLocker);
     }
 

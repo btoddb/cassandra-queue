@@ -11,3 +11,4 @@ cassandra-data
 popper.*
 pusher.*
 .git
+.idea

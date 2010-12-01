@@ -12,8 +12,8 @@ import org.wyki.zookeeper.cages.ZkSessionManager;
 import com.real.cassandra.queue.Descriptor;
 
 /**
- * Distributed version of {@link LocalLockerImpl}, uses Zookeeper cages to gain mutex over
- * shared lock paths, and performing operations on data values those values symbolically represent.
+ * Distributed version of {@link LocalLockerImpl} that uses Zookeeper/cages to gain mutex over
+ * shared lock paths, and perform operations on data values those values symbolically represent.
  *
  * Clients call {@link #lock(com.real.cassandra.queue.Descriptor)} to gain access and
  * {@link #release(ObjectLock)} when leaving critical section.
@@ -52,7 +52,7 @@ public class CagesLockerImpl<I extends Descriptor> implements Locker<I> {
 
     @Override
     public ObjectLock<I> lock(I object) {
-        DistributedLock writeLock = new DistributedLock(lockPath + object.getId().toString());
+        DistributedLock writeLock = new DistributedLock(lockPath, object.getId().toString());
         ObjectLock<I> lock = null;
 
         try {
@@ -63,8 +63,14 @@ public class CagesLockerImpl<I extends Descriptor> implements Locker<I> {
             }
         }
         catch (ZkCagesException e) {
-            logger.warn(String.format("Lock acquire for id %s failed with error code %s",
-                    object.getId(), e.getErrorCode().name()), e);
+            if(e.getKeeperException() != null) {
+                logger.warn(String.format("Lock acquire for id %s failed with error code %s and zookeeper exception %s",
+                        object.getId(), e.getErrorCode().name(), e.getKeeperException().getMessage()), e.getKeeperException());
+            }
+            else {
+                logger.warn(String.format("Lock acquire for id %s failed with error code %s",
+                        object.getId(), e.getErrorCode().name()), e);
+            }
         }
         catch (InterruptedException e) {
             logger.warn("Interrupted trying to acquire lock for object {}", object.getId());
