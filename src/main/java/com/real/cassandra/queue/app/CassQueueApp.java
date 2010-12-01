@@ -1,9 +1,9 @@
 package com.real.cassandra.queue.app;
 
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.Map.Entry;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.CassQueueFactoryImpl;
 import com.real.cassandra.queue.CassQueueImpl;
+import com.real.cassandra.queue.QueueDescriptor;
 import com.real.cassandra.queue.QueueStats;
 import com.real.cassandra.queue.locks.LocalLockerImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
@@ -208,7 +209,7 @@ public class CassQueueApp {
         QueueProperties envProps = new QueueProperties(rawProps);
 
         qRepos = HectorUtils.createQueueRepository(envProps);
-        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl(), new LocalLockerImpl());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl<PipeDescriptorImpl>(), new LocalLockerImpl<QueueDescriptor>());
         cq = cqFactory.createInstance(qName, false);
     }
 

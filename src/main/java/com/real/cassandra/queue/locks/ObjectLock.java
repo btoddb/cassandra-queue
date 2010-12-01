@@ -30,7 +30,7 @@ public class ObjectLock<I> {
         if (this == o) return true;
         if (o == null || !getClass().equals(o.getClass())) return false;
 
-        ObjectLock that = (ObjectLock) o;
+        ObjectLock<?> that = (ObjectLock<?>) o;
 
         if (lockedObj != null ? !lockedObj.equals(that.lockedObj) : that.lockedObj != null) return false;
         if (lock != null ? !lock.equals(that.lock) : that.lock != null) return false;

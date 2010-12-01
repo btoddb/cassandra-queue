@@ -26,7 +26,7 @@ import me.prettyprint.hector.api.beans.ColumnSlice;
 import me.prettyprint.hector.api.beans.HColumn;
 import me.prettyprint.hector.api.beans.OrderedRows;
 import me.prettyprint.hector.api.beans.Row;
-import me.prettyprint.hector.api.ddl.HKsDef;
+import me.prettyprint.hector.api.ddl.KeyspaceDefinition;
 import me.prettyprint.hector.api.exceptions.HectorException;
 import me.prettyprint.hector.api.factory.HFactory;
 import me.prettyprint.hector.api.mutation.Mutator;
@@ -284,8 +284,8 @@ public class QueueRepositoryImpl {
     }
 
     protected boolean isKeyspaceExists() {
-        List<HKsDef> ksDefList = cluster.describeKeyspaces();
-        for (HKsDef ksDef : ksDefList) {
+        List<KeyspaceDefinition> ksDefList = cluster.describeKeyspaces();
+        for (KeyspaceDefinition ksDef : ksDefList) {
             if (ksDef.getName().equals(QUEUE_KEYSPACE_NAME)) {
                 return true;
             }
@@ -602,8 +602,8 @@ public class QueueRepositoryImpl {
         return result;
     }
 
-    public HKsDef getKeyspaceDefinition() {
-        HKsDef ksDef = cluster.describeKeyspace(QUEUE_KEYSPACE_NAME);
+    public KeyspaceDefinition getKeyspaceDefinition() {
+        KeyspaceDefinition ksDef = cluster.describeKeyspace(QUEUE_KEYSPACE_NAME);
         return ksDef;
     }
 

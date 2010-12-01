@@ -135,7 +135,23 @@
 		</developer>
 	</developers>
 
-	<dependencies>
+	<dependencies>      
+        <dependency>
+            <groupId>me.prettyprint</groupId>
+            <artifactId>hector</artifactId>
+            <version>0.7.0-20</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-log4j12</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>jcl-over-slf4j</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+	
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>zookeeper</artifactId>

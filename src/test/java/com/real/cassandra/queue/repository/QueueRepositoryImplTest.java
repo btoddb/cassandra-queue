@@ -10,8 +10,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import me.prettyprint.hector.api.ddl.HCfDef;
-import me.prettyprint.hector.api.ddl.HKsDef;
+import me.prettyprint.hector.api.ddl.ColumnFamilyDefinition;
+import me.prettyprint.hector.api.ddl.KeyspaceDefinition;
 
 import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Test;
@@ -31,10 +31,10 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
 
     @Test
     public void testInitCassandra() throws Exception {
-        HKsDef ksDef = qRepos.getKeyspaceDefinition();
+        KeyspaceDefinition ksDef = qRepos.getKeyspaceDefinition();
 
         Set<String> nameSet = new HashSet<String>();
-        for (HCfDef cfDef : ksDef.getCfDefs()) {
+        for (ColumnFamilyDefinition cfDef : ksDef.getCfDefs()) {
             nameSet.add(cfDef.getName());
         }
 
@@ -54,11 +54,11 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         int maxPopWidth = 4;
         qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, maxPopWidth, 1000);
 
-        HKsDef ksDef = qRepos.getKeyspaceDefinition();
-        List<HCfDef> cfList = ksDef.getCfDefs();
+        KeyspaceDefinition ksDef = qRepos.getKeyspaceDefinition();
+        List<ColumnFamilyDefinition> cfList = ksDef.getCfDefs();
 
         Set<String> nameSet = new HashSet<String>();
-        for (HCfDef cfDef : cfList) {
+        for (ColumnFamilyDefinition cfDef : cfList) {
             nameSet.add(cfDef.getName());
         }
 

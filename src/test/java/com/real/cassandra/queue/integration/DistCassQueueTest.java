@@ -86,12 +86,12 @@ public class DistCassQueueTest extends CassQueueTestBase {
 
     @Test
     public void testSimultaneousSinglePusherMultiplePoppers() throws Exception {
-        assertPushersPoppersWork(1, 4, 100, 10000, 0, 0);
+        assertPushersPoppersWork(1, 4, 100, 2000, 0, 0);
     }
 
     @Test
     public void testSimultaneousMultiplePushersMultiplePoppers() throws Exception {
-        assertPushersPoppersWork(2, 4, 100, 10000, 3, 0);
+        assertPushersPoppersWork(2, 4, 100, 2000, 3, 0);
     }
 
     @Test
