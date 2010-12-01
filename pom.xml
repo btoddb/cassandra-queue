@@ -7,11 +7,6 @@
 	<name>Cassandra Queue</name>
 	<description>Simple FIFO queue using Cassandra Database</description>
 
-	<properties>
-	   <spring.version>3.0.3.RELEASE</spring.version> 
-		<spring-integration.version>2.0.0.M6</spring-integration.version>
-	</properties>
-
     <repositories>
         <repository>
             <snapshots />
@@ -166,7 +161,7 @@
 		<dependency>
 			<groupId>org.apache.cassandra</groupId>
 			<artifactId>apache-cassandra</artifactId>
-			<version>0.7.0-RC1-SNAPSHOT</version>
+			<version>0.7.0-rc1</version>
 		</dependency>
 
         <dependency>
