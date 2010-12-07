@@ -161,7 +161,7 @@
         <dependency>
         	<groupId>com.real.maps</groupId>
         	<artifactId>hector-object-mapper</artifactId>
-        	<version>0.2.5-SNAPSHOT</version>
+        	<version>0.2.5</version>
         	<exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
