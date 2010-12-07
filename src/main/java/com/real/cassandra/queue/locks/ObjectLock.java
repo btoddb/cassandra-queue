@@ -5,7 +5,6 @@ package com.real.cassandra.queue.locks;
  * represents that exclusive access is given to the object, or whatever it represents. 
  *
  * @author Andrew Ebaugh
- * @version $Id: ObjectLock.java,v 1.1 2010/10/29 20:33:03 aebaugh Exp $
  */
 public class ObjectLock<I> {
 
