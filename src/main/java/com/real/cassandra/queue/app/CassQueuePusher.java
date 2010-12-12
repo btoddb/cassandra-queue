@@ -40,7 +40,7 @@ public class CassQueuePusher extends PushPopAbstractBase {
             // do nothing
         }
         CassQMsg qMsg = pusher.push(msgData);
-        logger.debug("pushed message : {} = {}", qMsg.getMsgId(), qMsg.getMsgData());
+        logger.debug("pushed message : {} = {}", qMsg.getMsgId(), qMsg.getMsgDesc());
         fWriter.println(System.currentTimeMillis() + "," + msgData);
         fWriter.flush();
         return true;

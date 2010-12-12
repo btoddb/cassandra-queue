@@ -11,7 +11,9 @@ public class PipeDescriptorImpl implements Descriptor {
     private int popCount;
     private PipeStatus pushStatus;
     private PipeStatus popStatus;
-    private long startTimestamp;
+    private UUID popOwner;
+    private long pushStartTimestamp;
+    private Long popOwnTimestamp;
 
     public PipeDescriptorImpl(String qName, UUID pipeId, PipeStatus pushStatus, PipeStatus popStatus) {
         this(qName, pipeId);
@@ -26,7 +28,7 @@ public class PipeDescriptorImpl implements Descriptor {
         this.popCount = 0;
         this.pushStatus = PipeStatus.ACTIVE;
         this.popStatus = PipeStatus.ACTIVE;
-        this.startTimestamp = System.currentTimeMillis();
+        this.pushStartTimestamp = System.currentTimeMillis();
     }
 
     @Override
@@ -54,12 +56,12 @@ public class PipeDescriptorImpl implements Descriptor {
         return pushCount;
     }
 
-    public long getStartTimestamp() {
-        return startTimestamp;
+    public long getPushStartTimestamp() {
+        return pushStartTimestamp;
     }
 
-    public void setStartTimestamp(long startTimestamp) {
-        this.startTimestamp = startTimestamp;
+    public void setPushStartTimestamp(long pushStartTimestamp) {
+        this.pushStartTimestamp = pushStartTimestamp;
     }
 
     @Override
@@ -148,8 +150,24 @@ public class PipeDescriptorImpl implements Descriptor {
         builder.append(", popStatus=");
         builder.append(popStatus);
         builder.append(", startTimestamp=");
-        builder.append(startTimestamp);
+        builder.append(pushStartTimestamp);
         builder.append("]");
         return builder.toString();
+    }
+
+    public UUID getPopOwner() {
+        return popOwner;
+    }
+
+    public void setPopOwner(UUID popOwner) {
+        this.popOwner = popOwner;
+    }
+
+    public void setPopOwnTimestamp(long popOwnTimestamp) {
+        this.popOwnTimestamp = popOwnTimestamp;
+    }
+
+    public Long getPopOwnTimestamp() {
+        return popOwnTimestamp;
     }
 }

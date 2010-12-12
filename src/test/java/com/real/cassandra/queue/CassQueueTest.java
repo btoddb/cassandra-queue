@@ -1,5 +1,10 @@
 package com.real.cassandra.queue;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -15,12 +20,6 @@ import com.real.cassandra.queue.app.PushPopAbstractBase;
 import com.real.cassandra.queue.app.QueueProperties;
 import com.real.cassandra.queue.app.WorkerThreadWatcher;
 import com.real.cassandra.queue.locks.LocalLockerImpl;
-import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Tests for {@link CassQueueImpl}.
@@ -32,16 +31,17 @@ public class CassQueueTest extends CassQueueTestBase {
     // LoggerFactory.getLogger(CassQueueTest.class);
 
     private static CassQueueFactoryImpl cqFactory;
-    private static LocalLockerImpl<PipeDescriptorImpl> localPopLocker = new LocalLockerImpl<PipeDescriptorImpl>();
-    private static LocalLockerImpl<QueueDescriptor> localQueueStatsLocker = new LocalLockerImpl<QueueDescriptor>();
+    private static LocalLockerImpl<QueueDescriptor> queueStatsLocker;
+    private static LocalLockerImpl<QueueDescriptor> pipeCollectionLocker;
+
 
     @Test
     public void testTruncate() throws Exception {
         int maxPushesPerPipe = 2;
         CassQueueImpl cq =
-                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 1, 5000, false);
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
         PusherImpl pusher = cq.createPusher();
-        PopperImpl popper = cq.createPopper(false);
+        PopperImpl popper = cq.createPopper();
 
         int numMsgs = 20;
         for (int i = 0; i < numMsgs; i++) {
@@ -75,27 +75,20 @@ public class CassQueueTest extends CassQueueTestBase {
     }
 
     @Test
-    public void testSimultaneousSinglePusherMultiplePoppers() throws Exception {
-        assertPushersPoppersWork(1, 4, 100, 10000, 0, 0);
-    }
-
-    @Test
     public void testSimultaneousMultiplePushersMultiplePoppers() throws Exception {
-        assertPushersPoppersWork(2, 4, 100, 10000, 3, 0);
+        assertPushersPoppersWork(5, 10, 100, 10000, 2, 0);
     }
 
     @Test
     public void testStats() throws Exception {
         int maxPushesPerPipe = 10;
-        int maxPopWidth = 1;
         int msgCount = maxPushesPerPipe * 4;
 
         CassQueueImpl cq =
-                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, maxPopWidth,
-                        5000, false);
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
 
         PusherImpl pusher = cq.createPusher();
-        PopperImpl popper = cq.createPopper(false);
+        PopperImpl popper = cq.createPopper();
         for (int i = 0; i < msgCount + 1; i++) {
             pusher.push("1");
         }
@@ -143,7 +136,7 @@ public class CassQueueTest extends CassQueueTestBase {
         tmpProps.setPopDelay(popDelay);
 
         CassQueueImpl cq =
-                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 4, 5000, false);
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
         cq.setPipeReaperProcessingDelay(100);
         WorkerThreadWatcher pusherWtw = CassQueueUtils.startPushers(cq, tmpProps);
         WorkerThreadWatcher popperWtw = CassQueueUtils.startPoppers(cq, popQ, tmpProps);
@@ -187,32 +180,23 @@ public class CassQueueTest extends CassQueueTestBase {
     private void assertLockerCountsAreCorrect() {
 
         System.out.println(
-                "Pop lock acquire count: "+localPopLocker.getLockCount()+
-                ", release count: "+localPopLocker.getReleaseCount());
-
-        System.out.println(
-                "Queue stats lock acquire count: "+localQueueStatsLocker.getLockCount()+"" +
-                ", release count: "+localQueueStatsLocker.getReleaseCount());
-
-        assertTrue("popLocker acquire count should equals release; " +
-                "acquire: " + localPopLocker.getLockCount() + ", release: " + localPopLocker.getReleaseCount(),
-                localPopLocker.getLockCount() == localPopLocker.getReleaseCount());
+                "Queue stats lock acquire count: "+queueStatsLocker.getLockCount()+"" +
+                ", release count: "+queueStatsLocker.getReleaseCount());
 
         assertTrue("queueStatsLocker acquire count should equals release; " +
-                "acquire: " + localQueueStatsLocker.getLockCount() + ", release: " + localQueueStatsLocker.getReleaseCount(),
-                localQueueStatsLocker.getLockCount() == localQueueStatsLocker.getReleaseCount());
-                
-        assertTrue("localPopLocker should be empty after shutdown, but has " + localPopLocker.getMap().size()
-                + " locks still active (" + localPopLocker.getLockCount() + ", " + localPopLocker.getReleaseCount()
-                + ")", localPopLocker.getMap().isEmpty());
-        assertTrue("localQueueStatsLocker should be empty after shutdown, but has "
-                + localQueueStatsLocker.getMap().size() + " locks still active(" + localQueueStatsLocker.getLockCount()
-                + ", " + localQueueStatsLocker.getReleaseCount() + ")", localQueueStatsLocker.getMap().isEmpty());
+                "acquire: " + queueStatsLocker.getLockCount() + ", release: " + queueStatsLocker.getReleaseCount(),
+                queueStatsLocker.getLockCount() == queueStatsLocker.getReleaseCount());
+        
+        assertTrue("queueStatsLocker should be empty after shutdown, but has "
+                + queueStatsLocker.getMap().size() + " locks still active(" + queueStatsLocker.getLockCount()
+                + ", " + queueStatsLocker.getReleaseCount() + ")", queueStatsLocker.getMap().isEmpty());
     }
 
     @Before
     public void setupTest() throws Exception {
-        cqFactory = new CassQueueFactoryImpl(qRepos, localPopLocker, localQueueStatsLocker);
+        queueStatsLocker = new LocalLockerImpl<QueueDescriptor>();
+        pipeCollectionLocker = new LocalLockerImpl<QueueDescriptor>();
+        cqFactory = new CassQueueFactoryImpl(qRepos, queueStatsLocker, pipeCollectionLocker);
     }
 
 }

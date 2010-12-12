@@ -37,10 +37,10 @@ public class LocalLockerImpl<I extends Descriptor> implements Locker<I> {
     public ObjectLock<I> lock(I object) {
         ObjectLock<I> lock = null;
             synchronized (mapMonObj) {
-                ObjectLock<I> existingLock = lockObjMap.get(object);
+                ObjectLock<I> existingLock = lockObjMap.get(object.getId());
                 if (null == existingLock) {
                     lock = new ObjectLock<I>(object, LOCK);
-                    lockObjMap.put(object, lock);
+                    lockObjMap.put(object.getId(), lock);
                     lockCount.incrementAndGet();
                 }
             }
@@ -73,7 +73,7 @@ public class LocalLockerImpl<I extends Descriptor> implements Locker<I> {
     @Override
     public void release(ObjectLock<I> objectLock) {
         if (null != objectLock) {
-            lockObjMap.remove(objectLock.getLockedObj());
+            lockObjMap.remove(objectLock.getLockedObj().getId());
             releaseCount.incrementAndGet();
             logger.debug("removed lock for object {}", objectLock.getLockedObj().getId().toString());
         }

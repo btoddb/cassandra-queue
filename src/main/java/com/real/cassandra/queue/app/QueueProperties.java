@@ -289,4 +289,8 @@ public class QueueProperties implements EnvPropertiesMXBean {
     private void setLongProperty(String key, long value) {
         setStrProperty(key, String.valueOf(value));
     }
+
+    public long getTransactionTimeout() {
+        return 60000;
+    }
 }

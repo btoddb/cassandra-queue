@@ -18,10 +18,6 @@ public interface CassQueueMXBean {
 
     void setMaxPushesPerPipe(int maxPushesPerPipe);
 
-    int getMaxPopWidth();
-
-    void setMaxPopWidth(int maxPopWidth);
-
     long getPopCountLocalNotEmpty();
 
     long getPopCountLocalEmpty();
@@ -39,9 +35,5 @@ public interface CassQueueMXBean {
     double getPushPerSecondLocal();
 
     long getPushCountCluster();
-
-    double getPopLockerAvgTime();
-    
-    double getLockTryAvtCount();
 
 }

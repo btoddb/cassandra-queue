@@ -2,18 +2,36 @@ package com.real.cassandra.queue;
 
 import java.io.Serializable;
 
+import com.real.cassandra.queue.repository.QueueRepositoryImpl;
+import com.real.hom.annotations.Column;
+import com.real.hom.annotations.Entity;
+import com.real.hom.annotations.Id;
+import com.real.hom.annotations.Table;
+
+@Entity
+@Table(QueueRepositoryImpl.QUEUE_DESCRIPTORS_COLFAM)
 public class QueueDescriptor implements Descriptor {
+    @Id
+    @Column("name")
     private String name;
-    private long maxPushTimeOfPipe;
+    
+    @Column("maxPushTimePerPipe")
+    private long maxPushTimePerPipe;
+    
+    @Column("maxPushesPerPipe")
     private int maxPushesPerPipe;
-    private int maxPopWidth;
-    private long popPipeRefreshDelay;
+    
+    @Column("transactionTimeout")
+    private long transactionTimeout;
 
     @Override
     public Serializable getId() {
         return getName();
     }
 
+    public QueueDescriptor() {
+    }
+    
     public QueueDescriptor(String name) {
         this.name = name;
     }
@@ -22,12 +40,12 @@ public class QueueDescriptor implements Descriptor {
         return name;
     }
 
-    public void setMaxPushTimeOfPipe(long maxPushTimeOfPipe) {
-        this.maxPushTimeOfPipe = maxPushTimeOfPipe;
+    public void setMaxPushTimePerPipe(long maxPushTimePerPipe) {
+        this.maxPushTimePerPipe = maxPushTimePerPipe;
     }
 
-    public long getMaxPushTimeOfPipe() {
-        return maxPushTimeOfPipe;
+    public long getMaxPushTimePerPipe() {
+        return maxPushTimePerPipe;
     }
 
     public void setMaxPushesPerPipe(int maxPushesPerPipe) {
@@ -38,20 +56,16 @@ public class QueueDescriptor implements Descriptor {
         return maxPushesPerPipe;
     }
 
-    public void setMaxPopWidth(int maxPopWidth) {
-        this.maxPopWidth = maxPopWidth;
+    public long getTransactionTimeout() {
+        return transactionTimeout;
     }
 
-    public int getMaxPopWidth() {
-        return maxPopWidth;
+    public void setTransactionTimeout(long transactionTimeout) {
+        this.transactionTimeout = transactionTimeout;
     }
 
-    public long getPopPipeRefreshDelay() {
-        return popPipeRefreshDelay;
-    }
-
-    public void setPopPipeRefreshDelay(long popPipeRefreshDelay) {
-        this.popPipeRefreshDelay = popPipeRefreshDelay;
+    public void setName(String name) {
+        this.name = name;
     }
 
 }

@@ -18,7 +18,6 @@ import com.real.cassandra.queue.app.QueueProperties;
 import com.real.cassandra.queue.app.WorkerThreadWatcher;
 import com.real.cassandra.queue.locks.CagesLockerImpl;
 import com.real.cassandra.queue.locks.Locker;
-import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.repository.HectorUtils;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 
@@ -34,15 +33,14 @@ public class PushPopApp {
     private static QueueRepositoryImpl qRepos;
     private static QueueProperties envProps;
     private static CassQueueImpl cq;
-    private static Locker<PipeDescriptorImpl> popLocker;
     private static Locker<QueueDescriptor> queueStatsLocker;
+    private static Locker<QueueDescriptor> pipeCollectionLocker;
 
     public static void main(String[] args) throws Exception {
         logger.info("setting up app properties");
         parseAppProperties();
 
         String ZK_CONNECT_STRING = "kv-app07.dev.real.com:2181,kv-app08.dev.real.com:2181,kv-app09.dev.real.com:2181";
-        popLocker = new CagesLockerImpl<PipeDescriptorImpl>("/pipes", ZK_CONNECT_STRING, 6000, 30);
         queueStatsLocker = new CagesLockerImpl<QueueDescriptor>("/queue-stats", ZK_CONNECT_STRING, 6000, 30);
         logger.info("setting queuing system");
         setupQueueSystem();
@@ -83,11 +81,10 @@ public class PushPopApp {
 
     private static void setupQueueSystem() throws Exception {
         qRepos = HectorUtils.createQueueRepository(envProps);
-        cqFactory = new CassQueueFactoryImpl(qRepos, popLocker, queueStatsLocker);
+        cqFactory = new CassQueueFactoryImpl(qRepos, queueStatsLocker, pipeCollectionLocker);
         cq =
-                cqFactory.createInstance(envProps.getQName(), envProps.getMaxPushTimePerPipe(),
-                        envProps.getMaxPushesPerPipe(), envProps.getMaxPopWidth(), envProps.getPopPipeRefreshDelay(),
-                        false);
+                cqFactory.createInstance(envProps.getQName(), envProps.getMaxPushTimePerPipe(), envProps
+                        .getMaxPushesPerPipe(), false);
         if (envProps.getTruncateQueue()) {
             cq.truncate();
             Thread.sleep(2000);

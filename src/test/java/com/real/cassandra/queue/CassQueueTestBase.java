@@ -1,6 +1,5 @@
 package com.real.cassandra.queue;
 
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import com.real.cassandra.queue.app.CassQueueUtils;
@@ -20,16 +19,18 @@ public class CassQueueTestBase {
 
     @BeforeClass
     public static void setupTestClass() throws Exception {
-        baseEnvProps = CassQueueUtils.createEnvPropertiesWithDefaults();
-        CassQueueUtils.startCassandraInstance();
-        qRepos = HectorUtils.createQueueRepository(baseEnvProps);
-    }
-
-    @AfterClass
-    public static void shutdown() throws Exception {
-        if (null != qRepos) {
-            qRepos.shutdown();
+        if (null == qRepos) {
+            baseEnvProps = CassQueueUtils.createEnvPropertiesWithDefaults();
+            CassQueueUtils.startCassandraInstance();
+            qRepos = HectorUtils.createQueueRepository(baseEnvProps);
         }
     }
+
+//    @AfterClass
+//    public static void shutdown() throws Exception {
+//        if (null != qRepos) {
+//            qRepos.shutdown();
+//        }
+//    }
 
 }

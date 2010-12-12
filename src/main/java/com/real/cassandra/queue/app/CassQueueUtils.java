@@ -46,13 +46,14 @@ public class CassQueueUtils {
                 if (null != msgSet && (msgSet.contains(qMsg) || !msgSet.add(qMsg))) {
                     fail("msg already popped - either message pushed twice or popped twice : " + qMsg.toString());
                 }
-                if (null != valueSet && (valueSet.contains(qMsg) || !valueSet.add(qMsg.getMsgData()))) {
+                if (null != valueSet && (valueSet.contains(qMsg) || !valueSet.add(new String(qMsg.getMsgDesc().getPayload())))) {
                     fail("value of message pushed more than once : " + qMsg.toString());
                 }
+                logger.debug("everything OK!");
             }
             else {
                 try {
-                    Thread.sleep(200);
+                    Thread.sleep(500);
                 }
                 catch (InterruptedException e) {
                     // do nothing

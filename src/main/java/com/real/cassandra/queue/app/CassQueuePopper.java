@@ -22,7 +22,7 @@ public class CassQueuePopper extends PushPopAbstractBase {
             throws Exception {
         super(envProps, QueueProperties.ENV_popDelay);
         this.popQ = popQ;
-        this.popper = cq.createPopper(true);
+        this.popper = cq.createPopper();
         this.fWriter = new PrintWriter(new FileWriter(String.format("target/popper.%03d", popperId)));
     }
 
@@ -31,11 +31,11 @@ public class CassQueuePopper extends PushPopAbstractBase {
         CassQMsg qMsg = popper.pop();
         if (null != qMsg) {
             popper.commit(qMsg);
-            logger.debug("commited message : {} = {}", qMsg.getMsgId(), qMsg.getMsgData());
+            logger.debug("commited message : {} = {}", qMsg.getMsgId(), qMsg.getMsgDesc().getPayload());
             if (null != popQ) {
                 popQ.add(qMsg);
             }
-            fWriter.println(System.currentTimeMillis() + "," + qMsg.getMsgData());
+            fWriter.println(System.currentTimeMillis() + "," + qMsg.getMsgDesc().getPayload());
             fWriter.flush();
             return true;
         }

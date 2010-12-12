@@ -10,8 +10,11 @@ import me.prettyprint.hector.api.Keyspace;
 import me.prettyprint.hector.api.factory.HFactory;
 
 import com.real.cassandra.queue.app.QueueProperties;
+import com.real.hom.EntityManager;
 
 public class HectorUtils {
+
+    public static final byte[] EMPTY_BYTES = new byte[] {};
 
     public static QueueRepositoryImpl createQueueRepository(String hosts, int port, int replicationFactor) {
         Properties rawProps = new Properties();
@@ -41,7 +44,9 @@ public class HectorUtils {
         Cluster c = HFactory.getOrCreateCluster(QueueRepositoryImpl.QUEUE_POOL_NAME, hc);
 
         Keyspace keyspace = HFactory.createKeyspace(QueueRepositoryImpl.QUEUE_KEYSPACE_NAME, c);
-        QueueRepositoryImpl qRepos = new QueueRepositoryImpl(c, envProps.getReplicationFactor(), keyspace);
+        EntityManager entityMgr = new EntityManager(keyspace, "com.real.cassandra.queue");
+        long transactionTimeout = envProps.getTransactionTimeout(); 
+        QueueRepositoryImpl qRepos = new QueueRepositoryImpl(c, envProps.getReplicationFactor(), keyspace, entityMgr, transactionTimeout);
         qRepos.initKeyspace(envProps.getDropKeyspace());
         return qRepos;
     }

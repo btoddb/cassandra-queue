@@ -41,6 +41,10 @@ public class PusherImpl {
     }
 
     public CassQMsg push(String msgData) {
+        return push(msgData.getBytes());
+    }
+
+    public CassQMsg push( byte[] msgData ) {
         // for shutdown sync'ing
         working = true;
         try {
@@ -50,8 +54,7 @@ public class PusherImpl {
             working = false;
         }
     }
-
-    private CassQMsg insertInternal(UUID msgId, String msgData) {
+    private CassQMsg insertInternal(UUID msgId, byte[] msgData) {
         long start = System.currentTimeMillis();
 
         if (shutdownInProgress) {
@@ -66,8 +69,8 @@ public class PusherImpl {
         pipeDesc.incPushCount();
         pushCount++;
 
-        CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
-        qRepos.insertMsg(pipeDesc, qMsg.getMsgId(), qMsg.getMsgData());
+//        CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
+        CassQMsg qMsg = qRepos.insertMsg(pipeDesc, msgId, msgData);
         logger.debug("pushed message : {}", qMsg);
 
         pushStat.addSample(System.currentTimeMillis() - start);
@@ -95,7 +98,7 @@ public class PusherImpl {
             logger.debug("new pipe needed, none exists");
             return true;
         }
-        else if (System.currentTimeMillis() - pipeDesc.getStartTimestamp() > cq.getMaxPushTimePerPipe()) {
+        else if (System.currentTimeMillis() - pipeDesc.getPushStartTimestamp() > cq.getMaxPushTimePerPipe()) {
             logger.debug("new pipe needed, pipe has exceed expiration of {} ms", cq.getMaxPushTimePerPipe());
             return true;
         }

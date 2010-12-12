@@ -1,6 +1,7 @@
 package com.real.cassandra.queue;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
@@ -19,110 +20,107 @@ import com.real.cassandra.queue.utils.MyIp;
 
 public class PopperImplTest extends CassQueueTestBase {
     private CassQueueFactoryImpl cqFactory;
+//    private EntityManager entityMgr;
 
     @Test
     public void testSinglePopper() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, 5000, false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 60000, 10, false);
         PusherImpl pusher = cq.createPusher();
-        PopperImpl popper = cq.createPopper(false);
+        PopperImpl popper = cq.createPopper();
 
         String msgData = "the data-" + System.currentTimeMillis();
         CassQMsg qMsgPush = pusher.push(msgData);
-        popper.forceRefresh();
+        assertNotNull( qMsgPush.getMsgDesc().getCreateTimestamp());
+        
         CassQMsg qMsgPop = popper.pop();
-
         assertEquals("msg pushed isn't msg popped", qMsgPush, qMsgPop);
-        assertEquals("msg pushed has different value than msg popped", qMsgPush.getMsgData(), qMsgPop.getMsgData());
-
+        assertEquals("msg pushed has different payload than msg popped", qMsgPush.getMsgDesc().getPayloadAsByteBuffer(),
+                qMsgPop.getMsgDesc().getPayloadAsByteBuffer());
+        assertNotNull( qMsgPop.getMsgDesc().getPopTimestamp() );
+        assertEquals( qMsgPush.getMsgDesc().getCreateTimestamp(), qMsgPop.getMsgDesc().getCreateTimestamp() );
+        
         List<PipeDescriptorImpl> pipeDescList = qRepos.getOldestPopActivePipes(cq.getName(), 1);
         PipeDescriptorImpl pipeDesc = pipeDescList.get(0);
 
         assertNull("msg should have been moved from waiting to pending", qRepos.getOldestMsgFromWaitingPipe(pipeDesc));
-        CassQMsg qDelivMsg = qRepos.getOldestMsgFromDeliveredPipe(pipeDesc);
+        CassQMsg qDelivMsg = qRepos.getOldestMsgFromPendingPipe(pipeDesc);
         assertEquals("msg pushed isn't msg in pending pipe", qMsgPush, qDelivMsg);
-        assertEquals("msg pushed has different value than msg in pending pipe", qMsgPush.getMsgData(),
-                qDelivMsg.getMsgData());
+        assertEquals("msg pushed has different value than msg in pending pipe", qMsgPush.getMsgDesc()
+                .getPayloadAsByteBuffer(), qDelivMsg.getMsgDesc().getPayloadAsByteBuffer());
         assertEquals(1, pipeDesc.getPushCount());
         assertEquals(1, pipeDesc.getPopCount());
     }
 
     @Test
-    public void testMultiplePoppersSinglePipeNotThreaded() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, 5000, false);
-        PusherImpl pusher = cq.createPusher();
-        PopperImpl[] popperArr = new PopperImpl[] {
-                cq.createPopper(false), cq.createPopper(false), cq.createPopper(false) };
-        int msgCount = 6;
+    public void testTwoPushersTwoPoppers() throws Exception {
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        PusherImpl pusher1 = cq.createPusher();
+        PusherImpl pusher2 = cq.createPusher();
+        PopperImpl popper1 = cq.createPopper();
+        PopperImpl popper2 = cq.createPopper();
+        int msgCount = 40;
         ArrayList<CassQMsg> msgList = new ArrayList<CassQMsg>(msgCount);
 
         for (int i = 0; i < msgCount; i++) {
-            msgList.add(pusher.push("data-" + System.currentTimeMillis() + "-" + i));
-        }
-
-        PipeDescriptorImpl pipeDesc = qRepos.getPipeDescriptor(pusher.getPipeDesc().getPipeId());
-        assertEquals(msgCount, pipeDesc.getPushCount());
-        assertEquals(0, pipeDesc.getPopCount());
-
-        for (PopperImpl popper : popperArr) {
-            popper.forceRefresh();
+            if (0 == i % 2) {
+                msgList.add(pusher1.push("data-" + System.currentTimeMillis() + "-" + i));
+            }
+            else {
+                msgList.add(pusher2.push("data-" + System.currentTimeMillis() + "-" + i));
+            }
         }
 
         for (int i = 0; i < msgCount; i++) {
             CassQMsg qPushMsg = msgList.get(i);
-            CassQMsg qPopMsg = popperArr[i % popperArr.length].pop();
+            CassQMsg qPopMsg;
+            if ( 0 == i%2 ) {
+                qPopMsg = popper1.pop();
+            }
+            else {
+                qPopMsg = popper2.pop();
+            }
+            
             assertEquals("pushed msg not same as popped", qPushMsg, qPopMsg);
-            assertEquals("pushed msg data not same as popped data", qPushMsg.getMsgData(), qPopMsg.getMsgData());
+            assertEquals("pushed msg data not same as popped data", qPushMsg.getMsgDesc().getPayloadAsByteBuffer(),
+                    qPopMsg.getMsgDesc().getPayloadAsByteBuffer());
         }
 
-        List<PipeDescriptorImpl> pipeDescList = qRepos.getOldestPopActivePipes(cq.getName(), 1);
-        pipeDesc = pipeDescList.get(0);
-
-        assertNull("all msgs should have been moved from waiting to pending",
-                qRepos.getOldestMsgFromWaitingPipe(pipeDesc));
-
-        for (int i = 0; i < msgCount; i++) {
-            CassQMsg qPushMsg = msgList.get(i);
-            CassQMsg qDelivMsg = qRepos.getOldestMsgFromDeliveredPipe(pipeDesc);
-            qRepos.removeMsgFromPendingPipe(qDelivMsg);
-            assertEquals("pushed msg not same as popped", qPushMsg, qDelivMsg);
-            assertEquals("pushed msg data not same as popped data", qPushMsg.getMsgData(), qDelivMsg.getMsgData());
-        }
+//        List<PipeDescriptorImpl> pipeDescList = qRepos.getOldestPopActivePipes(cq.getName(), 1);
+//        pipeDesc = pipeDescList.get(0);
+//
+//        assertNull("all msgs should have been moved from waiting to pending", qRepos
+//                .getOldestMsgFromWaitingPipe(pipeDesc));
+//
+//        for (int i = 0; i < msgCount; i++) {
+//            CassQMsg qPushMsg = msgList.get(i);
+//            CassQMsg qDelivMsg = qRepos.getOldestMsgFromPendingPipe(pipeDesc);
+//            qRepos.removeMsgFromPendingPipe(qDelivMsg);
+//            assertEquals("pushed msg not same as popped", qPushMsg, qDelivMsg);
+//            assertEquals("pushed msg data not same as popped data", qPushMsg.getMsgDesc().getPayloadAsByteBuffer(),
+//                    qDelivMsg.getMsgDesc().getPayloadAsByteBuffer());
+//        }
 
     }
 
     @Test
     public void testSinglePusherSinglePopperMultiplePipes() throws Exception {
         int maxPushesPerPipe = 5;
-        int popWidth = 3;
-        int numIterations = 3;
+        int numMsgs = 50;
 
         CassQueueImpl cq =
-                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, popWidth, 5000,
-                        false);
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
         PusherImpl pusher = cq.createPusher();
-        PopperImpl popper = cq.createPopper(false);
+        PopperImpl popper = cq.createPopper();
 
-        CassQMsg[][][] msgArr = new CassQMsg[numIterations][popWidth][maxPushesPerPipe];
-
-        for (int iter = 0; iter < numIterations; iter++) {
-            for (int pipe = 0; pipe < popWidth; pipe++) {
-                for (int push = 0; push < maxPushesPerPipe; push++) {
-                    msgArr[iter][pipe][push] =
-                            pusher.push("data-" + System.currentTimeMillis() + "-" + iter + "." + pipe + "." + push);
-                }
-            }
+        for (int i = 0; i < numMsgs; i++) {
+            pusher.push("data-" + i);
         }
 
-        for (int iter = 0; iter < numIterations; iter++) {
-            for (int push = 0; push < maxPushesPerPipe; push++) {
-                for (int pipe = 0; pipe < popWidth; pipe++) {
-                    CassQMsg qPushMsg = msgArr[iter][pipe][push];
-                    CassQMsg qPopMsg;
-                    while (null == (qPopMsg = popper.pop())) {
-                    }
-                    assertEquals("pushed msg data not same as popped data", qPushMsg.getMsgData(), qPopMsg.getMsgData());
-                }
-            }
+        for (int i = 0; i < numMsgs; i++) {
+            CassQMsg qMsg = popper.pop();
+            assertNotNull("popped empty/null msg = " + i, qMsg);
+            assertEquals("pushed msg data not same as popped data = " + i, "data-" + i, new String(qMsg.getMsgDesc()
+                    .getPayload()));
         }
     }
 
@@ -130,9 +128,9 @@ public class PopperImplTest extends CassQueueTestBase {
     public void testMarkingPipeAsPopCompleted() throws Exception {
         int maxPushesPerPipe = 10;
         CassQueueImpl cq =
-                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 1, 5000, false);
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
         PusherImpl pusher = cq.createPusher();
-        PopperImpl popper = cq.createPopper(false);
+        PopperImpl popper = cq.createPopper();
         int msgCount = maxPushesPerPipe;
 
         for (int i = 0; i < msgCount; i++) {
@@ -149,8 +147,8 @@ public class PopperImplTest extends CassQueueTestBase {
 
         // do one more pop to push over the edge to next pipe
         // popper.forceRefresh();
-        assertEquals("should have rolled to next pipe and retrieved next msg", "over-to-next", popper.pop()
-                .getMsgData());
+        assertEquals("should have rolled to next pipe and retrieved next msg", "over-to-next", new String(popper.pop()
+                .getMsgDesc().getPayload()));
 
         cq.forcePipeReaperWakeUp();
         Thread.sleep(100);
@@ -161,22 +159,22 @@ public class PopperImplTest extends CassQueueTestBase {
 
     @Test
     public void testNoPipes() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, 5000, false);
-        PopperImpl popper = cq.createPopper(false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        PopperImpl popper = cq.createPopper();
         assertNull("should return null", popper.pop());
     }
 
     @Test
     public void testShutdownInProgress() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, 5000, false);
-        PopperImpl popper = cq.createPopper(false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        PopperImpl popper = cq.createPopper();
         PusherImpl pusher = cq.createPusher();
 
         pusher.push("blah1");
         pusher.push("blah1");
         pusher.push("blah1");
 
-        popper.forceRefresh();
+        // popper.forceRefresh();
         popper.pop();
         popper.shutdownAndWait();
 
@@ -191,8 +189,8 @@ public class PopperImplTest extends CassQueueTestBase {
 
     @Test
     public void testCommit() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, 5000, false);
-        PopperImpl popper = cq.createPopper(false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        PopperImpl popper = cq.createPopper();
         PusherImpl pusher = cq.createPusher();
         int numMsgs = 3;
         ArrayList<CassQMsg> msgList = new ArrayList<CassQMsg>(numMsgs);
@@ -202,7 +200,7 @@ public class PopperImplTest extends CassQueueTestBase {
             msgList.add(popper.pop());
         }
 
-        popper.forceRefresh();
+        // popper.forceRefresh();
         for (int i = numMsgs; 0 < i; i--) {
             List<PipeDescriptorImpl> pdList = qRepos.getOldestPopActivePipes(cq.getName(), numMsgs * 2);
             PipeDescriptorImpl pipeDesc = pdList.get(0);
@@ -221,8 +219,8 @@ public class PopperImplTest extends CassQueueTestBase {
 
     @Test
     public void testRollback() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, 5000, false);
-        PopperImpl popper = cq.createPopper(false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        PopperImpl popper = cq.createPopper();
         PusherImpl pusher = cq.createPusher();
         int numMsgs = 6;
         ArrayList<CassQMsg> msgList = new ArrayList<CassQMsg>(numMsgs);
@@ -233,7 +231,6 @@ public class PopperImplTest extends CassQueueTestBase {
         }
 
         ArrayList<CassQMsg> rollbackList = new ArrayList<CassQMsg>(numMsgs / 2);
-        popper.forceRefresh();
         for (int i = numMsgs; 0 < i; i--) {
             List<PipeDescriptorImpl> pdList = qRepos.getOldestPopActivePipes(cq.getName(), numMsgs * 2);
             PipeDescriptorImpl pipeDesc = pdList.get(0);
@@ -254,21 +251,21 @@ public class PopperImplTest extends CassQueueTestBase {
         assertEquals("commiting/rollback is complete, should be " + numMsgs / 2 + "messages in waiting pipe",
                 numMsgs / 2, qRepos.getWaitingMessagesFromPipe(pdList.get(1), numMsgs * 2).size());
 
-        cq.setMaxPopWidth(2);
-        popper.forceRefresh();
+        // need a new popper to select the rollback pipe
+        PopperImpl popper2 = cq.createPopper();
         for (int i = 0; i < numMsgs / 2; i++) {
-            assertEquals(rollbackList.remove(0), popper.pop());
+            assertEquals("i = " + i, rollbackList.remove(0), popper2.pop());
         }
     }
 
     @Test
     public void testPipeDescriptorExpires() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, 5000, false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
         UUID pipeId1 = UUIDGen.makeType1UUIDFromHost(MyIp.get());
         UUID pipeId2 = UUIDGen.makeType1UUIDFromHost(MyIp.get());
         qRepos.createPipeDescriptor(cq.getName(), pipeId1, 1);
         qRepos.createPipeDescriptor(cq.getName(), pipeId2, System.currentTimeMillis());
-        PopperImpl popper = cq.createPopper(false);
+        PopperImpl popper = cq.createPopper();
         popper.pop();
 
         cq.forcePipeReaperWakeUp();
@@ -282,6 +279,6 @@ public class PopperImplTest extends CassQueueTestBase {
 
     @Before
     public void setupTest() throws Exception {
-        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl<PipeDescriptorImpl>(), new LocalLockerImpl<QueueDescriptor>());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl<QueueDescriptor>(), new LocalLockerImpl<QueueDescriptor>());
     }
 }

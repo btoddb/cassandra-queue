@@ -26,7 +26,7 @@ public class PusherImplTest extends CassQueueTestBase {
 
     @Test
     public void testSinglePusherSingleMsg() throws Exception {
-        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, 5000, false);
+        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
         PusherImpl pusher = cq.createPusher();
         String msgData = "the data-" + System.currentTimeMillis();
 
@@ -36,19 +36,19 @@ public class PusherImplTest extends CassQueueTestBase {
         assertNotNull(qMsg.getMsgId());
         assertNotNull(qMsg.getPipeDescriptor().getPipeId());
         assertNotNull(cq.getName(), qMsg.getPipeDescriptor().getQName());
-        assertEquals(msgData, qMsg.getMsgData());
+        assertEquals(msgData, new String(qMsg.getMsgDesc().getPayload()));
 
         CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor(), qMsg.getMsgId());
 
         assertNotNull("should have created new message in the expected queue and pipe", qMsgNew);
-        assertEquals("didn't seem to write the correct data to the correct place", qMsg.getMsgData(),
-                qMsgNew.getMsgData());
+        assertEquals("didn't seem to write the correct data to the correct place", qMsg.getMsgDesc().getPayloadAsByteBuffer(),
+                qMsgNew.getMsgDesc().getPayloadAsByteBuffer());
     }
 
     @Test
     public void testMultiplePushers() throws Exception {
         int maxPushesPerPipe = 10;
-        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 1, 5000, false);
+        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
         int numMsgs = 10;
         ArrayList<CassQMsg> pushList1 = new ArrayList<CassQMsg>(numMsgs);
         ArrayList<CassQMsg> pushList2 = new ArrayList<CassQMsg>(numMsgs);
@@ -81,20 +81,20 @@ public class PusherImplTest extends CassQueueTestBase {
         for (int i = 0; i < numMsgs; i++) {
             CassQMsg qMsg = pushList1.get(i);
             CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor(), qMsg.getMsgId());
-            assertEquals(qMsg.getMsgData(), qMsgNew.getMsgData());
+            assertEquals(qMsg.getMsgDesc().getPayloadAsByteBuffer(), qMsgNew.getMsgDesc().getPayloadAsByteBuffer());
         }
 
         for (int i = 0; i < numMsgs; i++) {
             CassQMsg qMsg = pushList2.get(i);
             CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor(), qMsg.getMsgId());
-            assertEquals(qMsg.getMsgData(), qMsgNew.getMsgData());
+            assertEquals(qMsg.getMsgDesc().getPayloadAsByteBuffer(), qMsgNew.getMsgDesc().getPayloadAsByteBuffer());
         }
     }
 
     @Test
     public void testRollAfterMaxPushes() throws Exception {
         int maxPushesPerPipe = 10;
-        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 1, 5000, false);
+        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
         int numMsgs = 30;
         ArrayList<CassQMsg> pushList = new ArrayList<CassQMsg>(numMsgs);
 
@@ -116,7 +116,7 @@ public class PusherImplTest extends CassQueueTestBase {
         for (int i = 0; i < numMsgs; i++) {
             CassQMsg qMsg = pushList.get(i);
             CassQMsg qMsgNew = qRepos.getMsg(cq.getName(), qMsg.getPipeDescriptor(), qMsg.getMsgId());
-            assertEquals(qMsg.getMsgData(), qMsgNew.getMsgData());
+            assertEquals(qMsg.getMsgDesc().getPayloadAsByteBuffer(), qMsgNew.getMsgDesc().getPayloadAsByteBuffer());
             lastPipeId = qMsg.getPipeDescriptor().getPipeId();
             pipeSet.add(lastPipeId);
         }
@@ -139,7 +139,7 @@ public class PusherImplTest extends CassQueueTestBase {
 
     @Test
     public void testShutdownInProgress() throws Exception {
-        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 1, 5000, false);
+        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
         PusherImpl pusher = cq.createPusher();
         int numMsgs = 45;
         Set<UUID> pipeSet = new HashSet<UUID>();
@@ -168,6 +168,6 @@ public class PusherImplTest extends CassQueueTestBase {
 
     @Before
     public void setupTest() throws Exception {
-        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl<PipeDescriptorImpl>(), new LocalLockerImpl<QueueDescriptor>());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl<QueueDescriptor>(), new LocalLockerImpl<QueueDescriptor>());
     }
 }

@@ -209,7 +209,7 @@ public class CassQueueApp {
         QueueProperties envProps = new QueueProperties(rawProps);
 
         qRepos = HectorUtils.createQueueRepository(envProps);
-        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl<PipeDescriptorImpl>(), new LocalLockerImpl<QueueDescriptor>());
+        cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl<QueueDescriptor>(), new LocalLockerImpl<QueueDescriptor>());
         cq = cqFactory.createInstance(qName, false);
     }
 
