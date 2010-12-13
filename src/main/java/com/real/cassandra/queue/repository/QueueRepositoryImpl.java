@@ -116,15 +116,12 @@ public class QueueRepositoryImpl {
     private Keyspace keyspace;
     private final int replicationFactor;
     private EntityManager entityMgr;
-    private long transactionTimeout;
 
-    public QueueRepositoryImpl(Cluster cluster, int replicationFactor, Keyspace keyspace, EntityManager entityMgr,
-            long transactionTimeout) {
+    public QueueRepositoryImpl(Cluster cluster, int replicationFactor, Keyspace keyspace, EntityManager entityMgr) {
         this.cluster = cluster;
         this.replicationFactor = replicationFactor;
         this.keyspace = keyspace;
         this.entityMgr = entityMgr;
-        this.transactionTimeout = transactionTimeout;
 
         this.pipeDescFactory = new PipeDescriptorFactory();
     }
@@ -141,7 +138,8 @@ public class QueueRepositoryImpl {
      * @param popPipeRefreshDelay
      * @return
      */
-    public QueueDescriptor createQueueIfDoesntExist(String qName, long maxPushTimePerPipe, int maxPushesPerPipe) {
+    public QueueDescriptor createQueueIfDoesntExist(String qName, long maxPushTimePerPipe, int maxPushesPerPipe,
+            long transactionTimeout) {
         CfDef colFamDef =
                 new CfDef(QUEUE_KEYSPACE_NAME, formatWaitingColFamName(qName)).setComparator_type("TimeUUIDType")
                         .setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(GC_GRACE_SECS);
@@ -167,7 +165,7 @@ public class QueueRepositoryImpl {
                     + " - possibly already exists and is OK");
         }
 
-        return createQueueDescriptorIfNotExists(qName, maxPushTimePerPipe, maxPushesPerPipe);
+        return createQueueDescriptorIfNotExists(qName, maxPushTimePerPipe, maxPushesPerPipe, transactionTimeout);
     }
 
     private void waitForSchemaSync(String newVer) {
@@ -187,17 +185,17 @@ public class QueueRepositoryImpl {
         logger.info("Waited {}ms to sync schema", System.currentTimeMillis() - start);
     }
 
-    private QueueDescriptor createQueueDescriptorIfNotExists(String qName, long maxPushTimePerPipe, int maxPushesPerPipe) {
+    private QueueDescriptor createQueueDescriptorIfNotExists(String qName, long maxPushTimePerPipe,
+            int maxPushesPerPipe, long transactionTimeout) {
         QueueDescriptor qDesc = getQueueDescriptor(qName);
-        if (null != qDesc) {
-            if (qDesc.getMaxPushesPerPipe() != maxPushesPerPipe || qDesc.getMaxPushTimePerPipe() != maxPushTimePerPipe) {
-                logger
-                        .warn("Queue Descriptor already exists and you passed in parameters that do not match what is already there - using parameters from database");
-            }
-            return qDesc;
+        if (null == qDesc) {
+            qDesc = new QueueDescriptor(qName);
+            qDesc.setMaxPushesPerPipe(maxPushesPerPipe);
+            qDesc.setMaxPushTimePerPipe(maxPushTimePerPipe);
+            qDesc.setTransactionTimeout(transactionTimeout);
+            qDesc = entityMgr.save(qDesc);
         }
-
-        return createQueueDescriptor(qName, maxPushTimePerPipe, maxPushesPerPipe, transactionTimeout);
+        return qDesc;
     }
 
     public Set<QueueDescriptor> getQueueDescriptors() {
@@ -228,15 +226,6 @@ public class QueueRepositoryImpl {
 
     public QueueDescriptor getQueueDescriptor(String qName) {
         return entityMgr.load(QueueDescriptor.class, qName);
-    }
-
-    protected QueueDescriptor createQueueDescriptor(String qName, long maxPushTimePerPipe, int maxPushesPerPipe,
-            long transactionTimeout) {
-        QueueDescriptor qDesc = new QueueDescriptor(qName);
-        qDesc.setMaxPushesPerPipe(maxPushesPerPipe);
-        qDesc.setMaxPushTimePerPipe(maxPushTimePerPipe);
-        qDesc.setTransactionTimeout(transactionTimeout);
-        return (QueueDescriptor) entityMgr.save(qDesc);
     }
 
     public String createKeyspace(final KsDef ksDef) {
@@ -334,8 +323,8 @@ public class QueueRepositoryImpl {
         Mutator<UUID> m = HFactory.createMutator(keyspace, UUIDSerializer.get());
 
         // update pipe pop count
-        m.addInsertion(pipeDesc.getPipeId(), PIPE_DESCRIPTOR_COLFAM, HFactory.createColumn(PDESC_COLNAME_POP_COUNT, popCount, StringSerializer.get(), IntegerSerializer
-                        .get()));        
+        m.addInsertion(pipeDesc.getPipeId(), PIPE_DESCRIPTOR_COLFAM, HFactory.createColumn(PDESC_COLNAME_POP_COUNT,
+                popCount, StringSerializer.get(), IntegerSerializer.get()));
         m.execute();
     }
 
@@ -358,6 +347,10 @@ public class QueueRepositoryImpl {
 
     public List<PipeDescriptorImpl> getPopFinishedPipes(final String qName, final int maxNumPipeDescs) {
         return getPipesByPushPopStatus(qName, maxNumPipeDescs, null, PipeStatus.NOT_ACTIVE);
+    }
+
+    public List<PipeDescriptorImpl> getAllPipes(final String qName, final int maxNumPipeDescs) {
+        return getPipesByPushPopStatus(qName, maxNumPipeDescs, null, null);
     }
 
     public List<PipeDescriptorImpl> getPipesByPushPopStatus(final String qName, final int maxNumPipeDescs,
@@ -395,7 +388,11 @@ public class QueueRepositoryImpl {
         return pipeDescList;
     }
 
-    protected List<CassQMsg> getOldestMsgsFromPipe(String colFameName, PipeDescriptorImpl pipeDesc, int maxMsgs) {
+    public List<CassQMsg> getOldestMsgsFromPendingPipe(PipeDescriptorImpl pipeDesc, int maxMsgs) {
+        return getOldestMsgsFromPipe(formatPendingColFamName(pipeDesc.getQName()), pipeDesc, maxMsgs);
+    }
+
+    private List<CassQMsg> getOldestMsgsFromPipe(String colFameName, PipeDescriptorImpl pipeDesc, int maxMsgs) {
         SliceQuery<UUID, UUID, byte[]> q =
                 HFactory.createSliceQuery(keyspace, UUIDSerializer.get(), UUIDSerializer.get(), BytesArraySerializer
                         .get());
@@ -456,14 +453,21 @@ public class QueueRepositoryImpl {
         return result;
     }
 
+    /**
+     * Move msg from waiting pipe to pending pipe and set 'pop' timestamp for
+     * transaction timeout, if needed.
+     * 
+     * @param qMsg
+     */
     public void moveMsgFromWaitingToPendingPipe(CassQMsg qMsg) {
         PipeDescriptorImpl pipeDesc = qMsg.getPipeDescriptor();
+        qMsg.getMsgDesc().setPopTimestamp(System.currentTimeMillis());
         String qName = qMsg.getPipeDescriptor().getQName();
         Mutator<UUID> m = HFactory.createMutator(keyspace, UUIDSerializer.get());
-        HColumn<UUID, byte[]> col =
-                HFactory.createColumn(qMsg.getMsgId(), HectorUtils.EMPTY_BYTES, UUIDSerializer.get(),
-                        BytesArraySerializer.get());
-        m.addInsertion(pipeDesc.getPipeId(), formatPendingColFamName(qName), col);
+        m.addInsertion(pipeDesc.getPipeId(), formatPendingColFamName(qName), HFactory.createColumn(qMsg.getMsgId(),
+                HectorUtils.EMPTY_BYTES, UUIDSerializer.get(), BytesArraySerializer.get()));
+        m.addInsertion(qMsg.getMsgId(), MSG_DESCRIPTOR_COLFAM, HFactory.createColumn(MDESC_COLNAME_POP_TIMESTAMP, qMsg
+                .getMsgDesc().getPopTimestamp(), StringSerializer.get(), LongSerializer.get()));
         m.addDeletion(pipeDesc.getPipeId(), formatWaitingColFamName(qName), qMsg.getMsgId(), UUIDSerializer.get());
         m.execute();
     }

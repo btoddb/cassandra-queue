@@ -26,7 +26,7 @@ public class PusherImplTest extends CassQueueTestBase {
 
     @Test
     public void testSinglePusherSingleMsg() throws Exception {
-        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 30000, false);
         PusherImpl pusher = cq.createPusher();
         String msgData = "the data-" + System.currentTimeMillis();
 
@@ -48,7 +48,7 @@ public class PusherImplTest extends CassQueueTestBase {
     @Test
     public void testMultiplePushers() throws Exception {
         int maxPushesPerPipe = 10;
-        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
+        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 30000, false);
         int numMsgs = 10;
         ArrayList<CassQMsg> pushList1 = new ArrayList<CassQMsg>(numMsgs);
         ArrayList<CassQMsg> pushList2 = new ArrayList<CassQMsg>(numMsgs);
@@ -94,7 +94,7 @@ public class PusherImplTest extends CassQueueTestBase {
     @Test
     public void testRollAfterMaxPushes() throws Exception {
         int maxPushesPerPipe = 10;
-        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
+        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 30000, false);
         int numMsgs = 30;
         ArrayList<CassQMsg> pushList = new ArrayList<CassQMsg>(numMsgs);
 
@@ -139,7 +139,7 @@ public class PusherImplTest extends CassQueueTestBase {
 
     @Test
     public void testShutdownInProgress() throws Exception {
-        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 30000, false);
         PusherImpl pusher = cq.createPusher();
         int numMsgs = 45;
         Set<UUID> pipeSet = new HashSet<UUID>();

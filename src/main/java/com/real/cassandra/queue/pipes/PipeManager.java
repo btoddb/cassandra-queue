@@ -41,7 +41,6 @@ public class PipeManager {
     private QueueRepositoryImpl qRepos;
     private PipeDescriptorImpl currentPipe;
     private Locker<QueueDescriptor> pipeCollectionLocker;
-//    private PipeCollectionLockDescriptor lockDescriptor = new PipeCollectionLockDescriptor();
     private ObjectLock<QueueDescriptor> pipeCollectionLock;
     private UUID popperId;
     private long maxOwnerIdleTime = MAX_OWNER_IDLE_TIME;
@@ -225,6 +224,7 @@ public class PipeManager {
      * method assumes that the pipe is "empty".
      * 
      * @param pipeId
+     * @return true if pipe is marked finished
      */
     public boolean checkMarkPopFinished(PipeDescriptorImpl pipeDesc) {
         UUID pipeId = pipeDesc.getPipeId();

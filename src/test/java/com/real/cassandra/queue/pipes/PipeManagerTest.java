@@ -118,7 +118,7 @@ public class PipeManagerTest extends CassQueueTestBase {
         pipeCollectionLocker = new LocalLockerImpl<QueueDescriptor>();
 
         QueueDescriptor qd =
-                qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+                qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
         cq = new CassQueueImpl(qRepos, qd, false, new LocalLockerImpl<QueueDescriptor>(), pipeCollectionLocker);
     }
 }

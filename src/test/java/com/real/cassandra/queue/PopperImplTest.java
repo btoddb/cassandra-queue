@@ -20,11 +20,10 @@ import com.real.cassandra.queue.utils.MyIp;
 
 public class PopperImplTest extends CassQueueTestBase {
     private CassQueueFactoryImpl cqFactory;
-//    private EntityManager entityMgr;
 
     @Test
     public void testSinglePopper() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 60000, 10, false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 60000, 10, 30000, false);
         PusherImpl pusher = cq.createPusher();
         PopperImpl popper = cq.createPopper();
 
@@ -53,7 +52,7 @@ public class PopperImplTest extends CassQueueTestBase {
 
     @Test
     public void testTwoPushersTwoPoppers() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 30000, false);
         PusherImpl pusher1 = cq.createPusher();
         PusherImpl pusher2 = cq.createPusher();
         PopperImpl popper1 = cq.createPopper();
@@ -108,7 +107,7 @@ public class PopperImplTest extends CassQueueTestBase {
         int numMsgs = 50;
 
         CassQueueImpl cq =
-                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 30000, false);
         PusherImpl pusher = cq.createPusher();
         PopperImpl popper = cq.createPopper();
 
@@ -128,7 +127,7 @@ public class PopperImplTest extends CassQueueTestBase {
     public void testMarkingPipeAsPopCompleted() throws Exception {
         int maxPushesPerPipe = 10;
         CassQueueImpl cq =
-                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 30000, false);
         PusherImpl pusher = cq.createPusher();
         PopperImpl popper = cq.createPopper();
         int msgCount = maxPushesPerPipe;
@@ -159,14 +158,14 @@ public class PopperImplTest extends CassQueueTestBase {
 
     @Test
     public void testNoPipes() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 30000, false);
         PopperImpl popper = cq.createPopper();
         assertNull("should return null", popper.pop());
     }
 
     @Test
     public void testShutdownInProgress() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 30000, false);
         PopperImpl popper = cq.createPopper();
         PusherImpl pusher = cq.createPusher();
 
@@ -189,7 +188,7 @@ public class PopperImplTest extends CassQueueTestBase {
 
     @Test
     public void testCommit() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 30000, false);
         PopperImpl popper = cq.createPopper();
         PusherImpl pusher = cq.createPusher();
         int numMsgs = 3;
@@ -219,7 +218,7 @@ public class PopperImplTest extends CassQueueTestBase {
 
     @Test
     public void testRollback() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 30000, false);
         PopperImpl popper = cq.createPopper();
         PusherImpl pusher = cq.createPusher();
         int numMsgs = 6;
@@ -260,7 +259,7 @@ public class PopperImplTest extends CassQueueTestBase {
 
     @Test
     public void testPipeDescriptorExpires() throws Exception {
-        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, false);
+        CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 30000, false);
         UUID pipeId1 = UUIDGen.makeType1UUIDFromHost(MyIp.get());
         UUID pipeId2 = UUIDGen.makeType1UUIDFromHost(MyIp.get());
         qRepos.createPipeDescriptor(cq.getName(), pipeId1, 1);

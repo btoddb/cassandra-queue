@@ -18,10 +18,9 @@ import com.real.cassandra.queue.utils.RollingStat;
 public class CassQueueImpl implements CassQueueMXBean {
     private static Logger logger = LoggerFactory.getLogger(CassQueueImpl.class);
 
-    private String qName;
-    private long maxPushTimePerPipe;
-    private int maxPushesPerPipe;
-    private long transactionTimeout = 30 * 1000;
+    public static final long TRANSACTION_GRACE_PERIOD = 2000;
+
+    private QueueDescriptor qDesc;
     private QueueRepositoryImpl qRepos;
 
     private Locker<QueueDescriptor> pipeCollectionLocker;
@@ -39,10 +38,8 @@ public class CassQueueImpl implements CassQueueMXBean {
 
     public CassQueueImpl(QueueRepositoryImpl qRepos, QueueDescriptor qDesc, boolean startReaper,
             Locker<QueueDescriptor> queueStatsLocker, Locker<QueueDescriptor> pipeCollectionLocker) {
-        this.qName = qDesc.getName();
+        this.qDesc = qDesc;
         this.qRepos = qRepos;
-        this.maxPushTimePerPipe = qDesc.getMaxPushTimePerPipe();
-        this.maxPushesPerPipe = qDesc.getMaxPushesPerPipe();
         this.queueStatsLocker = queueStatsLocker;
         this.pipeCollectionLocker = pipeCollectionLocker;
 
@@ -50,7 +47,7 @@ public class CassQueueImpl implements CassQueueMXBean {
         this.rollbackPusher = createPusher();
 
         if (startReaper) {
-            this.pipeReaper = new PipeReaper(qDesc, qRepos, this.queueStatsLocker);
+            this.pipeReaper = new PipeReaper(this, qRepos, this.queueStatsLocker);
             this.pipeReaper.start();
         }
 
@@ -58,7 +55,7 @@ public class CassQueueImpl implements CassQueueMXBean {
     }
 
     private void initJmx() {
-        String beanName = JMX_MBEAN_OBJ_NAME_PREFIX + qName;
+        String beanName = JMX_MBEAN_OBJ_NAME_PREFIX + qDesc.getName();
         try {
             JmxMBeanManager.getInstance().registerMBean(this, beanName);
         }
@@ -68,6 +65,10 @@ public class CassQueueImpl implements CassQueueMXBean {
         catch (Exception e) {
             throw new RuntimeException("exception while registering MBean, " + beanName);
         }
+    }
+
+    public boolean checkTransactionTimeoutExpired(CassQMsg qMsg) {
+        return System.currentTimeMillis() - qMsg.getMsgDesc().getPopTimestamp() > (getTransactionTimeout() + TRANSACTION_GRACE_PERIOD);
     }
 
     public void commit(CassQMsg qMsg) {
@@ -83,14 +84,14 @@ public class CassQueueImpl implements CassQueueMXBean {
     }
 
     public PusherImpl createPusher() {
-        logger.debug("creating pusher for queue {}", qName);
+        logger.debug("creating pusher for queue {}", qDesc.getName());
         PusherImpl pusher = new PusherImpl(this, qRepos, pushStat);
         pusherSet.add(pusher);
         return pusher;
     }
 
     public PopperImpl createPopper() {
-        logger.debug("creating popper for queue {}", qName);
+        logger.debug("creating popper for queue {}", qDesc.getName());
         UUID popperId = UUID.randomUUID();
         PipeManager pipeMgr = new PipeManager(qRepos, this, popperId, pipeCollectionLocker);
         PopperImpl popper = new PopperImpl(popperId, this, qRepos, pipeMgr, popNotEmptyStat, popEmptyStat);
@@ -99,38 +100,38 @@ public class CassQueueImpl implements CassQueueMXBean {
     }
 
     public void drop() throws Exception {
-        logger.debug("dropping queue {}", qName);
+        logger.debug("dropping queue {}", qDesc.getName());
         qRepos.dropQueue(this);
     }
 
     public void truncate() throws Exception {
-        logger.debug("truncating queue {}", qName);
+        logger.debug("truncating queue {}", qDesc.getName());
         qRepos.truncateQueueData(this);
     }
 
     @Override
     public long getMaxPushTimePerPipe() {
-        return maxPushTimePerPipe;
+        return qDesc.getMaxPushTimePerPipe();
     }
 
     @Override
     public void setMaxPushTimePerPipe(long maxPushTimeOfPipe) {
-        this.maxPushTimePerPipe = maxPushTimeOfPipe;
+        qDesc.setMaxPushTimePerPipe(maxPushTimeOfPipe);
     }
 
     @Override
     public int getMaxPushesPerPipe() {
-        return maxPushesPerPipe;
+        return qDesc.getMaxPushesPerPipe();
     }
 
     @Override
     public void setMaxPushesPerPipe(int maxPushesPerPipe) {
-        this.maxPushesPerPipe = maxPushesPerPipe;
+        qDesc.setMaxPushesPerPipe(maxPushesPerPipe);
     }
 
     @Override
     public String getName() {
-        return qName;
+        return qDesc.getName();
     }
 
     public void forcePipeReaperWakeUp() {
@@ -213,10 +214,18 @@ public class CassQueueImpl implements CassQueueMXBean {
     }
 
     public long getTransactionTimeout() {
-        return transactionTimeout;
+        return qDesc.getTransactionTimeout();
     }
 
     public void setTransactionTimeout(long transactionTimeout) {
-        this.transactionTimeout = transactionTimeout;
+        qDesc.setTransactionTimeout(transactionTimeout);
+    }
+
+    public QueueDescriptor getQueueDescriptor() {
+        return qDesc;
+    }
+
+    PipeReaper getPipeReaper() {
+        return pipeReaper;
     }
 }

@@ -15,8 +15,8 @@ public class CassQueueFactoryImpl {
         this.pipeCollectionLocker = pipeCollectionLocker;
     }
 
-    public CassQueueImpl createInstance(String qName, long maxPushTimeOfPipe, int maxPushesPerPipe, boolean distributed) {
-        QueueDescriptor qDesc = qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+    public CassQueueImpl createInstance(String qName, long maxPushTimeOfPipe, int maxPushesPerPipe, long transactionTimeout, boolean distributed) {
+        QueueDescriptor qDesc = qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, transactionTimeout);
         CassQueueImpl cq = new CassQueueImpl(qRepos, qDesc, true, queueStatsLocker, pipeCollectionLocker);
         return cq;
     }

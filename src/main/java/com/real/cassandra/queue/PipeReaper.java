@@ -19,12 +19,12 @@ public class PipeReaper implements Runnable {
     private Locker<QueueDescriptor> queueStatsLocker;
     private int queueStatsLockRetryLimit = 5;
     private long queueStatsLockRetryDelay = 10;
-    private QueueDescriptor qDesc;
+    private CassQueueImpl cq;
     private QueueRepositoryImpl qRepos;
     private long processingDelay = 10000;
 
-    public PipeReaper(QueueDescriptor qDesc, QueueRepositoryImpl qRepos, Locker<QueueDescriptor> queueStatsLocker) {
-        this.qDesc = qDesc;
+    public PipeReaper(CassQueueImpl cq, QueueRepositoryImpl qRepos, Locker<QueueDescriptor> queueStatsLocker) {
+        this.cq = cq;
         this.qRepos = qRepos;
         this.queueStatsLocker = queueStatsLocker;
     }
@@ -39,9 +39,11 @@ public class PipeReaper implements Runnable {
         while (!stopProcessing) {
             try {
                 ObjectLock<QueueDescriptor> lock =
-                        queueStatsLocker.lock(qDesc, queueStatsLockRetryLimit, queueStatsLockRetryDelay);
+                        queueStatsLocker.lock(cq.getQueueDescriptor(), queueStatsLockRetryLimit,
+                                queueStatsLockRetryDelay);
                 if (lock != null) {
                     try {
+                        rollbackExpiredPoppedMsgs();
                         rollUpStatsFromPushFinishedPipes();
                         rollUpStatsFromPopFinishedPipes();
                         removeCompletedPipes();
@@ -51,7 +53,8 @@ public class PipeReaper implements Runnable {
                     }
                 }
                 else {
-                    logger.debug("could not lock 'queue stats' for updating queue, {}", qDesc.getName());
+                    logger.debug("could not lock 'queue stats' for updating queue, {}", cq.getQueueDescriptor()
+                            .getName());
                 }
             }
             catch (Throwable e) {
@@ -68,6 +71,29 @@ public class PipeReaper implements Runnable {
         }
     }
 
+    /**
+     * Called periodically by this thread to rollback messages that have
+     * exceeded the transaction timeout.
+     */
+    void rollbackExpiredPoppedMsgs() {
+        List<PipeDescriptorImpl> pipeList = qRepos.getAllPipes(cq.getQueueDescriptor().getName(), 100);
+        if (null == pipeList) {
+            return;
+        }
+
+        for (PipeDescriptorImpl pd : pipeList) {
+            List<CassQMsg> msgList = qRepos.getOldestMsgsFromPendingPipe(pd, 100);
+            if (null == msgList) {
+                continue;
+            }
+            for (CassQMsg qMsg : msgList) {
+                if (cq.checkTransactionTimeoutExpired(qMsg)) {
+                    cq.rollback(qMsg);
+                }
+            }
+        }
+    }
+
     public void wakeUp() {
         theThread.interrupt();
     }
@@ -75,7 +101,7 @@ public class PipeReaper implements Runnable {
     private void rollUpStatsFromPushFinishedPipes() {
         // pipes in this status are no longer used by pusher client, so no need
         // for locking
-        List<PipeDescriptorImpl> pipeList = qRepos.getPushNotActivePipes(qDesc.getName(), 10);
+        List<PipeDescriptorImpl> pipeList = qRepos.getPushNotActivePipes(cq.getQueueDescriptor().getName(), 10);
         for (PipeDescriptorImpl pipeDesc : pipeList) {
             logger.debug("Rolling up stats for push \"not active\" pipe, {}", pipeDesc.getPipeId());
             rollUpPushStatsFromPipe(pipeDesc);
@@ -85,7 +111,7 @@ public class PipeReaper implements Runnable {
     private void rollUpStatsFromPopFinishedPipes() {
         // pipes in this status are no longer used by popper client, so no need
         // for locking
-        List<PipeDescriptorImpl> pipeList = qRepos.getPopFinishedPipes(qDesc.getName(), 10);
+        List<PipeDescriptorImpl> pipeList = qRepos.getPopFinishedPipes(cq.getQueueDescriptor().getName(), 10);
         for (PipeDescriptorImpl pipeDesc : pipeList) {
             logger.debug("Rolling up status for pop \"not active\" pipe, {}", pipeDesc.getPipeId());
             rollUpPopStatsFromPipe(pipeDesc);
@@ -95,7 +121,7 @@ public class PipeReaper implements Runnable {
     private void removeCompletedPipes() {
         // pipes in this status have there stats aggregated and are no longer
         // used, therefore we can be remove them
-        List<PipeDescriptorImpl> pipeList = qRepos.getCompletedPipes(qDesc.getName(), 10);
+        List<PipeDescriptorImpl> pipeList = qRepos.getCompletedPipes(cq.getQueueDescriptor().getName(), 10);
         for (PipeDescriptorImpl pipeDesc : pipeList) {
             logger.debug("Removing completed pipe, {}", pipeDesc.getPipeId());
             qRepos.removePipeDescriptor(pipeDesc);
@@ -103,7 +129,7 @@ public class PipeReaper implements Runnable {
     }
 
     private void rollUpPushStatsFromPipe(PipeDescriptorImpl pipeDesc) {
-        QueueStats qStats = qRepos.getQueueStats(qDesc.getName());
+        QueueStats qStats = qRepos.getQueueStats(cq.getQueueDescriptor().getName());
         qStats.incTotalPushes(pipeDesc.getPushCount());
         // TODO:BTB may want to break this into its on 'insert' call
         qRepos.updateQueueStats(qStats);
@@ -111,7 +137,7 @@ public class PipeReaper implements Runnable {
     }
 
     private void rollUpPopStatsFromPipe(PipeDescriptorImpl pipeDesc) {
-        QueueStats qStats = qRepos.getQueueStats(qDesc.getName());
+        QueueStats qStats = qRepos.getQueueStats(cq.getQueueDescriptor().getName());
         // TODO:BTB this should be changed to getPopCount when implemented
         qStats.incTotalPops(pipeDesc.getPushCount());
         // TODO:BTB may want to break this into its on 'insert' call

@@ -11,8 +11,6 @@ import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.RollingStat;
 
 public class PopperImpl {
-    private static final long TRANSACTION_GRACE_PERIOD = 2000;
-
     private static Logger logger = LoggerFactory.getLogger(PopperImpl.class);
 
     private UUID popperId;
@@ -52,8 +50,8 @@ public class PopperImpl {
                     logger.debug("no pipes available, cannot pop");
                     return null;
                 }
-                
-                logger.debug( "picked pipe = " + pd.getPipeId());
+
+                logger.debug("picked pipe = " + pd.getPipeId());
 
                 CassQMsg qMsg;
                 try {
@@ -66,14 +64,14 @@ public class PopperImpl {
 
                 if (null != qMsg) {
                     popNotEmptyStat.addSample(System.currentTimeMillis() - start);
-                    qMsg.getMsgDesc().setPopTimestamp(System.currentTimeMillis());
+                    updatePoppedMsgStatus(qMsg);
                     qRepos.updatePipePopCount(pd, pd.incPopCount(), qMsg.getMsgDesc());
                     return qMsg;
                 }
 
                 popEmptyStat.addSample(System.currentTimeMillis() - start);
-                
-                if ( !pipeMgr.checkMarkPopFinished(pd) ) {
+
+                if (!pipeMgr.checkMarkPopFinished(pd)) {
                     return null;
                 }
             }
@@ -90,51 +88,54 @@ public class PopperImpl {
         }
     }
 
+    private void updatePoppedMsgStatus(CassQMsg qMsg) {
+        logger.debug("found message, moving it to 'waiting' pipe : {}", qMsg.toString());
+        qRepos.moveMsgFromWaitingToPendingPipe(qMsg);
+    }
+
     /**
-     * Clear pipe manager selection so next time a pipe is needed, a new one may be selected.
+     * Clear pipe manager selection so next time a pipe is needed, a new one may
+     * be selected.
      */
     public void clearPipeManagerSelection() {
         pipeMgr.clearSelection();
     }
-    
+
     /**
-     * Commit the popped message as long as the transaction timeout period has not elapsed.
-     *
-     * @param qMsg message to commit
+     * Commit the popped message as long as the transaction timeout period has
+     * not elapsed.
+     * 
+     * @param qMsg
+     *            message to commit
      */
     public void commit(CassQMsg qMsg) {
-        if ( !checkTransactionTimeout(qMsg) ) {
+        if (!cq.checkTransactionTimeoutExpired(qMsg)) {
             cq.commit(qMsg);
         }
         else {
-            throw new CassQueueException("Transaction has timed out and rolled back, cannot commit message" );
+            throw new CassQueueException("Transaction has timed out and rolled back, cannot commit message");
         }
     }
 
     /**
-     * Rollback the popped message as long as the transaction timeout period has not elapsed.
-     *
-     * @param qMsg message to commit
+     * Rollback the popped message as long as the transaction timeout period has
+     * not elapsed.
+     * 
+     * @param qMsg
+     *            message to commit
      */
     public CassQMsg rollback(CassQMsg qMsg) throws Exception {
-        if ( !checkTransactionTimeout(qMsg) ) {
+        if (!cq.checkTransactionTimeoutExpired(qMsg)) {
             return cq.rollback(qMsg);
         }
         else {
-            throw new CassQueueException("Transaction has timed out and already been rolled back, cannot rollback message again" );
+            throw new CassQueueException(
+                    "Transaction has timed out and already been rolled back, cannot rollback message again");
         }
-    }
-
-    private boolean checkTransactionTimeout(CassQMsg qMsg) {
-        return System.currentTimeMillis() - qMsg.getMsgDesc().getPopTimestamp() > (cq.getTransactionTimeout() + TRANSACTION_GRACE_PERIOD);
     }
 
     private CassQMsg retrieveOldestMsgFromPipe(PipeDescriptorImpl pipeDesc) throws Exception {
         CassQMsg qMsg = qRepos.getOldestMsgFromWaitingPipe(pipeDesc);
-        if (null != qMsg) {
-            logger.debug("found message, moving it to 'waiting' pipe : {}", qMsg.toString());
-            qRepos.moveMsgFromWaitingToPendingPipe(qMsg);
-        }
         return qMsg;
     }
 

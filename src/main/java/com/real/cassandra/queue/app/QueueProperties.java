@@ -29,10 +29,8 @@ public class QueueProperties implements EnvPropertiesMXBean {
     public static final String ENV_numMsgs = "numMsgs";
     public static final String ENV_pushDelay = "pushDelay";
     public static final String ENV_popDelay = "popDelay";
-    public static final String ENV_maxPopWidth = "maxPopWidth";
     public static final String ENV_maxPushesPerPipe = "maxPushesPerPipe";
     public static final String ENV_maxPushTimePerPipe = "maxPushTimePerPipe";
-    public static final String ENV_popPipeRefreshDelay = "popPipeRefreshDelay";
 
     public static final String ENV_cassandraThriftSocketTimeout = "cassandraThriftSocketTimeout";
     public static final String ENV_exhaustedPolicy = "exhaustedPolicy";
@@ -49,6 +47,8 @@ public class QueueProperties implements EnvPropertiesMXBean {
 
     public static final String ENV_dropKeyspace = "dropKeyspace";
     public static final String ENV_truncateQueue = "truncateQueue";
+    
+    public static final String ENV_TRANSACTION_TIMEOUT = "transactionTimeout";
 
     private Properties rawProps;
     private String hostArr;
@@ -185,16 +185,12 @@ public class QueueProperties implements EnvPropertiesMXBean {
         return getPropertyAsInt(ENV_maxPushesPerPipe, 100);
     }
 
-    public int getMaxPopWidth() {
-        return getPropertyAsInt(ENV_maxPopWidth, 4);
-    }
-
-    public long getPopPipeRefreshDelay() {
-        return getPropertyAsLong(ENV_popPipeRefreshDelay, 5000);
-    }
-
     public long getMaxPushTimePerPipe() {
         return getPropertyAsLong(ENV_maxPushTimePerPipe, 10 * 60000);
+    }
+    
+    public long getTransactionTimeout() {
+        return getPropertyAsLong(ENV_TRANSACTION_TIMEOUT, 30*1000);
     }
 
     public int getCassandraThriftSocketTimeout() {
@@ -288,9 +284,5 @@ public class QueueProperties implements EnvPropertiesMXBean {
 
     private void setLongProperty(String key, long value) {
         setStrProperty(key, String.valueOf(value));
-    }
-
-    public long getTransactionTimeout() {
-        return 60000;
     }
 }

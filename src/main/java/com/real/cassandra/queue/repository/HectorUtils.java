@@ -45,8 +45,7 @@ public class HectorUtils {
 
         Keyspace keyspace = HFactory.createKeyspace(QueueRepositoryImpl.QUEUE_KEYSPACE_NAME, c);
         EntityManager entityMgr = new EntityManager(keyspace, "com.real.cassandra.queue");
-        long transactionTimeout = envProps.getTransactionTimeout(); 
-        QueueRepositoryImpl qRepos = new QueueRepositoryImpl(c, envProps.getReplicationFactor(), keyspace, entityMgr, transactionTimeout);
+        QueueRepositoryImpl qRepos = new QueueRepositoryImpl(c, envProps.getReplicationFactor(), keyspace, entityMgr);
         qRepos.initKeyspace(envProps.getDropKeyspace());
         return qRepos;
     }

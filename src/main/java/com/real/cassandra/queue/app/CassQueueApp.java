@@ -206,6 +206,7 @@ public class CassQueueApp {
         rawProps.put(QueueProperties.ENV_hosts, host);
         rawProps.put(QueueProperties.ENV_RPC_PORT, String.valueOf(port));
         rawProps.put(QueueProperties.ENV_REPLICATION_FACTOR, replicationFactor);
+        rawProps.put(QueueProperties.ENV_TRANSACTION_TIMEOUT, 30000);
         QueueProperties envProps = new QueueProperties(rawProps);
 
         qRepos = HectorUtils.createQueueRepository(envProps);

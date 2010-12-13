@@ -52,7 +52,7 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         String qName = "test_" + System.currentTimeMillis();
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
 
         KeyspaceDefinition ksDef = qRepos.getKeyspaceDefinition();
         List<ColumnFamilyDefinition> cfList = ksDef.getCfDefs();
@@ -78,10 +78,9 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         String qName = "test_" + System.currentTimeMillis();
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
 
-        QueueDescriptor qDesc =
-                qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe );
+        QueueDescriptor qDesc = qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
 
         assertEquals(maxPushTimeOfPipe, qDesc.getMaxPushTimePerPipe());
         assertEquals(maxPushesPerPipe, qDesc.getMaxPushesPerPipe());
@@ -93,10 +92,9 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
 
-        QueueDescriptor qNewDesc =
-                qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe * 2, maxPushesPerPipe * 2);
+        QueueDescriptor qNewDesc = qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe * 2, maxPushesPerPipe * 2, 30000);
         assertEquals(maxPushTimeOfPipe, qNewDesc.getMaxPushTimePerPipe());
         assertEquals(maxPushesPerPipe, qNewDesc.getMaxPushesPerPipe());
     }
@@ -107,7 +105,7 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
         PipeDescriptorImpl pipeDesc = qRepos.createPipeDescriptor(qName, UUIDGen.makeType1UUIDFromHost(MyIp.get()));
 
         UUID msgId = UuidGenerator.generateTimeUuid();
@@ -118,7 +116,8 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
 
         CassQMsg qMsgNew = qRepos.getMsg(qName, pipeDesc, msgId);
 
-        assertEquals("inserted value is not equal to the retrieved value", qMsg.getMsgDesc().getPayloadAsByteBuffer(), qMsgNew.getMsgDesc().getPayloadAsByteBuffer());
+        assertEquals("inserted value is not equal to the retrieved value", qMsg.getMsgDesc().getPayloadAsByteBuffer(),
+                qMsgNew.getMsgDesc().getPayloadAsByteBuffer());
 
         PipeDescriptorImpl pdNew = qRepos.getPipeDescriptor(pipeDesc.getPipeId());
         assertTrue("pipe descriptor should be active", pdNew.isPushActive());
@@ -130,7 +129,7 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         String qName = "test_" + System.currentTimeMillis();
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
 
         QueueStats qs1 = qStatsFactory.createInstance(qName, 123, 456, 1.23, 4.56);
         qRepos.updateQueueStats(qs1);
@@ -150,7 +149,7 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         int maxPushesPerPipe = 20;
         int msgCount = 15;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
 
         UUID pipeId = UuidGenerator.generateTimeUuid();
         PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId);
@@ -181,7 +180,7 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         int maxPushesPerPipe = 10;
         int msgCount = 15;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
 
         UUID pipeId = UuidGenerator.generateTimeUuid();
         PipeDescriptorImpl pipeDesc = new PipeDescriptorImpl(qName, pipeId);
@@ -216,7 +215,7 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         int maxPushesPerPipe = 10;
         int pipeCount = 20;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
 
         ArrayList<UUID> pipeList = new ArrayList<UUID>();
         for (int i = 0; i < pipeCount; i++) {
@@ -249,7 +248,7 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         int maxPushesPerPipe = 10;
         int pipeCount = 5;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
 
         ArrayList<UUID> pipeList = new ArrayList<UUID>();
         for (int i = 0; i < pipeCount; i++) {
@@ -272,19 +271,19 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
 
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe);
+        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
         PipeDescriptorImpl pd = qRepos.createPipeDescriptor(qName, UUIDGen.makeType1UUIDFromHost(MyIp.get()));
 
         assertNull("pop owner should be null at start of pipe", pd.getPopOwner());
         assertNull("pop owner timestamp should be null at start of pipe", pd.getPopOwnTimestamp());
-        
+
         UUID popOwner = UUID.randomUUID();
         Long now = System.currentTimeMillis();
         qRepos.savePipePopOwner(pd, popOwner, now);
-        
+
         PipeDescriptorImpl pd2 = qRepos.getPipeDescriptor(pd.getId());
 
-        assertEquals( popOwner, pd2.getPopOwner());
-        assertEquals( now, pd2.getPopOwnTimestamp());
+        assertEquals(popOwner, pd2.getPopOwner());
+        assertEquals(now, pd2.getPopOwnTimestamp());
     }
 }

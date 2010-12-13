@@ -48,7 +48,7 @@ public class DistCassQueueTest extends CassQueueTestBase {
     public void testTruncate() throws Exception {
         int maxPushesPerPipe = 2;
         CassQueueImpl cq =
-                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 30000, false);
         PusherImpl pusher = cq.createPusher();
         PopperImpl popper = cq.createPopper();
 
@@ -100,7 +100,7 @@ public class DistCassQueueTest extends CassQueueTestBase {
         int msgCount = maxPushesPerPipe * 4;
 
         CassQueueImpl cq =
-                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 30000, false);
 
         PusherImpl pusher = cq.createPusher();
         PopperImpl popper = cq.createPopper();
@@ -152,7 +152,7 @@ public class DistCassQueueTest extends CassQueueTestBase {
         tmpProps.setPopDelay(popDelay);
 
         CassQueueImpl cq =
-                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, false);
+                cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, maxPushesPerPipe, 30000, false);
         cq.setPipeReaperProcessingDelay(100);
         WorkerThreadWatcher pusherWtw = CassQueueUtils.startPushers(cq, tmpProps);
         WorkerThreadWatcher popperWtw = CassQueueUtils.startPoppers(cq, popQ, tmpProps);

@@ -84,7 +84,7 @@ public class PushPopApp {
         cqFactory = new CassQueueFactoryImpl(qRepos, queueStatsLocker, pipeCollectionLocker);
         cq =
                 cqFactory.createInstance(envProps.getQName(), envProps.getMaxPushTimePerPipe(), envProps
-                        .getMaxPushesPerPipe(), false);
+                        .getMaxPushesPerPipe(), envProps.getTransactionTimeout(), false);
         if (envProps.getTruncateQueue()) {
             cq.truncate();
             Thread.sleep(2000);
