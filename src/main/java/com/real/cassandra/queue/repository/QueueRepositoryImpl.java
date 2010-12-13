@@ -74,8 +74,6 @@ public class QueueRepositoryImpl {
     public static final String QUEUE_DESCRIPTORS_COLFAM = "QueueDescriptors";
     public static final String QDESC_COLNAME_MAX_PUSH_TIME_OF_PIPE = "maxPushTimeOfPipe";
     public static final String QDESC_COLNAME_MAX_PUSHES_PER_PIPE = "maxPushesPerPipe";
-    public static final String QDESC_COLNAME_MAX_POP_WIDTH = "maxPopWidth";
-    public static final String QDESC_COLNAME_POP_PIPE_REFRESH_DELAY = "popPipeRefreshDelay";
 
     public static final String QUEUE_STATS_COLFAM = "QueueStats";
     public static final String QSTATS_COLNAME_TOTAL_PUSHES = "totalPushes";
@@ -134,8 +132,6 @@ public class QueueRepositoryImpl {
      * @param qName
      * @param maxPushTimePerPipe
      * @param maxPushesPerPipe
-     * @param maxPopWidth
-     * @param popPipeRefreshDelay
      * @return
      */
     public QueueDescriptor createQueueIfDoesntExist(String qName, long maxPushTimePerPipe, int maxPushesPerPipe,

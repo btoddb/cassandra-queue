@@ -48,7 +48,6 @@ public class CassQueueApp {
     private static int port;
     private static int replicationFactor = 1;
     private static int maxPushesPerPipe = 5000;
-    private static int maxPopWidth = 4;
 
     public static void main(String[] args) throws Exception {
         try {
@@ -177,7 +176,7 @@ public class CassQueueApp {
     private static void dumpOldestPipes(CommandLine cmdLine) throws Exception {
         System.out.println("<pipe descriptor> = <number of waiting msgs>");
         System.out.println();
-        List<PipeDescriptorImpl> pdList = qRepos.getOldestPopActivePipes(qName, maxPopWidth);
+        List<PipeDescriptorImpl> pdList = qRepos.getOldestPopActivePipes(qName, 100);
         for (PipeDescriptorImpl pipeDesc : pdList) {
             System.out.println(pipeDesc.toString() + " = "
                     + qRepos.getWaitingMessagesFromPipe(pipeDesc, maxPushesPerPipe).size());
