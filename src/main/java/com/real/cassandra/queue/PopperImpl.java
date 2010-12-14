@@ -115,8 +115,8 @@ public class PopperImpl {
 
     /**
      * Clear pipe manager selection so next time a pipe is needed, a new one may
-     * be selected. Intended for unit testing, but doesn't hurt anything except
-     * performance to call in production.
+     * be selected. Intended for processing shutdown and unit testing, but
+     * doesn't hurt anything except performance to call in production.
      */
     public void clearPipeManagerSelection() {
         pipeMgr.clearSelection();
@@ -170,7 +170,7 @@ public class PopperImpl {
 
     /**
      * Return name of queue.
-     *
+     * 
      * @return
      */
     public String getQName() {
@@ -188,11 +188,15 @@ public class PopperImpl {
                 // do nothing
             }
         }
+
+        // free pipe so other clients can use it immediately instead of waiting for timeout
+        clearPipeManagerSelection();
     }
 
     /**
-     * Return number of times pop has been called, regardless of returning null or not.
-     *
+     * Return number of times pop has been called, regardless of returning null
+     * or not.
+     * 
      * @return
      */
     public long getPopCalledCount() {
@@ -201,7 +205,7 @@ public class PopperImpl {
 
     /**
      * Return number of times pop called and returned a message.
-     *
+     * 
      * @return
      */
     public long getPopNotEmptyCount() {
@@ -210,7 +214,7 @@ public class PopperImpl {
 
     /**
      * Return number of times pop called and no message found to return.
-     *
+     * 
      * @return
      */
     public long getPopEmptyCount() {
@@ -219,7 +223,7 @@ public class PopperImpl {
 
     /**
      * Return the ID of this popper instance.
-     *
+     * 
      * @return
      */
     public UUID getPopperId() {

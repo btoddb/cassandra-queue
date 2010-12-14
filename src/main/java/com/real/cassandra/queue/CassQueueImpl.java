@@ -15,6 +15,22 @@ import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.JmxMBeanManager;
 import com.real.cassandra.queue.utils.RollingStat;
 
+/**
+ * A client's view of a queue. Since the queue is distributed, each client has
+ * its view of the queue. More than likely this view of the queue will always be
+ * out of date, but the data and stats are accurate for that moment in time.
+ * <p/>
+ * This class provides common tasks like truncation, popper/pusher creation, JMX
+ * stats, and configuration.
+ * <p/>
+ * Most operations in the distributed queue rely on all clients' time to be
+ * synchronized to a common source. If the clients drift apart more than a
+ * second or two, problems can occur such as messages being rolled back because
+ * of transaction timeout when they shouldn't, or pipes being closed when they
+ * shouldn't.
+ * 
+ * @author Todd Burruss
+ */
 public class CassQueueImpl implements CassQueueMXBean {
     private static Logger logger = LoggerFactory.getLogger(CassQueueImpl.class);
 
@@ -46,6 +62,7 @@ public class CassQueueImpl implements CassQueueMXBean {
         logger.debug("creating pusher for rollback only");
         this.rollbackPusher = createPusher();
 
+        // for unit testing you might not want to start the reaper immediately
         if (startReaper) {
             this.pipeReaper = new PipeReaper(this, qRepos, this.queueStatsLocker);
             this.pipeReaper.start();
@@ -67,6 +84,15 @@ public class CassQueueImpl implements CassQueueMXBean {
         }
     }
 
+    /**
+     * A message that has been popped is in a "pending" state. If the message is
+     * not committed or rolled back before the
+     * {@link #getTransactionTimeout(long)} is exceeded, the {@link PipeReaper}
+     * will rollback the message.
+     * 
+     * @param qMsg
+     * @return
+     */
     public boolean checkTransactionTimeoutExpired(CassQMsg qMsg) {
         return System.currentTimeMillis() - qMsg.getMsgDesc().getPopTimestamp() > (getTransactionTimeout() + TRANSACTION_GRACE_PERIOD);
     }
@@ -90,6 +116,12 @@ public class CassQueueImpl implements CassQueueMXBean {
         return pusher;
     }
 
+    /**
+     * Preferred way to create a popper. Insures all common properties are used
+     * to instantiate the popper.
+     * 
+     * @return An instantiated {@link PopperImpl} if successful.
+     */
     public PopperImpl createPopper() {
         logger.debug("creating popper for queue {}", qDesc.getName());
         UUID popperId = UUID.randomUUID();
@@ -99,11 +131,24 @@ public class CassQueueImpl implements CassQueueMXBean {
         return popper;
     }
 
+    /**
+     * Drop the queue making it no longer available to clients. This method will
+     * remove the queue data from cassandra and cause all future push/pops to
+     * fail after it is completely removed.
+     * 
+     * @throws Exception
+     */
     public void drop() throws Exception {
         logger.debug("dropping queue {}", qDesc.getName());
         qRepos.dropQueue(this);
     }
 
+    /**
+     * Truncate the queue data. The queue will still be available for push/pop,
+     * but all data will be removed.
+     * 
+     * @throws Exception
+     */
     public void truncate() throws Exception {
         logger.debug("truncating queue {}", qDesc.getName());
         qRepos.truncateQueueData(this);
@@ -134,10 +179,17 @@ public class CassQueueImpl implements CassQueueMXBean {
         return qDesc.getName();
     }
 
+    /**
+     * Force the reaper to process pipes immediately.
+     */
     public void forcePipeReaperWakeUp() {
         pipeReaper.wakeUp();
     }
 
+    /**
+     * Graceful shutdown of this client's push/pop workers.  This is not required but will free resources
+     * shared across all clients.
+     */
     public void shutdownAndWait() {
         for (PusherImpl pusher : pusherSet) {
             pusher.shutdownAndWait();
