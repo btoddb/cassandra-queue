@@ -7,7 +7,7 @@ public class CassQueueException extends RuntimeException {
         super(msg);
     }
 
-    public CassQueueException(String msg, Exception e) {
+    public CassQueueException(String msg, Throwable e) {
         super(msg, e);
     }
 

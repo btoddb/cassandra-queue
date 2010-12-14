@@ -10,6 +10,16 @@ import com.real.cassandra.queue.pipes.PipeManager;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 import com.real.cassandra.queue.utils.RollingStat;
 
+/**
+ * Clients wanting to pop messages from the queue use this class. Poppers are
+ * normally created by calling {@link CassQueueImpl#createPopper()}, but can be
+ * created by directly instantiating as well.
+ * <p/>
+ * This class is not thread safe because of optimizations surrounding locking.
+ * Therefore each client (thread) should create its own instance and not share.
+ * 
+ * @author Todd Burruss
+ */
 public class PopperImpl {
     private static Logger logger = LoggerFactory.getLogger(PopperImpl.class);
 
@@ -33,7 +43,17 @@ public class PopperImpl {
         this.popEmptyStat = popEmptyStat;
     }
 
-    public CassQMsg pop() {
+    /**
+     * Retrieves a single message from the queue, leaving it in "pending" state
+     * until {@link #commit(CassQMsg)} or {@link #rollback(CassQMsg)} is called.
+     * 
+     * @return {@link CassQMsg} instance if message was retrieved, null
+     *         otherwise
+     * 
+     * @throws CassQueueException
+     *             Runtime exception for unexpected anomalies.
+     */
+    public CassQMsg pop() throws CassQueueException {
         long start = System.currentTimeMillis();
 
         if (shutdownInProgress) {
@@ -79,7 +99,7 @@ public class PopperImpl {
         catch (CassQueueException e) {
             throw e;
         }
-        catch (Exception e) {
+        catch (Throwable e) {
             throw new CassQueueException((pd != null ? "exception while pop'ing from pipeDesc : " + pd
                     : "exception while selecting/locking a pipe"), e);
         }
@@ -95,7 +115,8 @@ public class PopperImpl {
 
     /**
      * Clear pipe manager selection so next time a pipe is needed, a new one may
-     * be selected.
+     * be selected. Intended for unit testing, but doesn't hurt anything except
+     * performance to call in production.
      */
     public void clearPipeManagerSelection() {
         pipeMgr.clearSelection();
@@ -107,8 +128,10 @@ public class PopperImpl {
      * 
      * @param qMsg
      *            message to commit
+     * @throws CassQueueException
+     *             Runtime exception for unexpected anomalies.
      */
-    public void commit(CassQMsg qMsg) {
+    public void commit(CassQMsg qMsg) throws CassQueueException {
         if (!cq.checkTransactionTimeoutExpired(qMsg)) {
             cq.commit(qMsg);
         }
@@ -123,8 +146,10 @@ public class PopperImpl {
      * 
      * @param qMsg
      *            message to commit
+     * @throws CassQueueException
+     *             Runtime exception for unexpected anomalies.
      */
-    public CassQMsg rollback(CassQMsg qMsg) throws Exception {
+    public CassQMsg rollback(CassQMsg qMsg) throws CassQueueException {
         if (!cq.checkTransactionTimeoutExpired(qMsg)) {
             return cq.rollback(qMsg);
         }
@@ -143,6 +168,11 @@ public class PopperImpl {
         return pipeMgr.pickPipe();
     }
 
+    /**
+     * Return name of queue.
+     *
+     * @return
+     */
     public String getQName() {
         return cq.getName();
     }
@@ -160,18 +190,38 @@ public class PopperImpl {
         }
     }
 
+    /**
+     * Return number of times pop has been called, regardless of returning null or not.
+     *
+     * @return
+     */
     public long getPopCalledCount() {
         return getPopNotEmptyCount() + getPopEmptyCount();
     }
 
+    /**
+     * Return number of times pop called and returned a message.
+     *
+     * @return
+     */
     public long getPopNotEmptyCount() {
         return popNotEmptyStat.getTotalSamplesProcessed();
     }
 
+    /**
+     * Return number of times pop called and no message found to return.
+     *
+     * @return
+     */
     public long getPopEmptyCount() {
         return popEmptyStat.getTotalSamplesProcessed();
     }
 
+    /**
+     * Return the ID of this popper instance.
+     *
+     * @return
+     */
     public UUID getPopperId() {
         return popperId;
     }
