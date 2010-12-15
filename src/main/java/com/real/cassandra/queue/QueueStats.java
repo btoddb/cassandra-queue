@@ -1,19 +1,39 @@
 package com.real.cassandra.queue;
 
+import com.real.cassandra.queue.repository.QueueRepositoryImpl;
+import com.real.hom.annotations.Column;
+import com.real.hom.annotations.Entity;
+import com.real.hom.annotations.Id;
+import com.real.hom.annotations.Table;
+
 /**
  * Model object for queue statistics.
  * 
  * @author Todd Burruss
  */
+@Entity
+@Table(QueueRepositoryImpl.QUEUE_STATS_COLFAM)
 public class QueueStats {
-    private String qName;
+    @Id
+    private String queueName;
+    
+    @Column("totalPushes")
     private long totalPushes;
+    
+    @Column("totalPops")
     private long totalPops;
+    
+    @Column("recentPushesPerSec")
     private double recentPushesPerSec;
+    
+    @Column("recentPopsPerSec")
     private double recentPopsPerSec;
 
-    public QueueStats(String qName) {
-        this.qName = qName;
+    public QueueStats() {
+    }
+
+    public QueueStats(String queueName) {
+        this.queueName = queueName;
     }
 
     public long getTotalPushes() {
@@ -49,7 +69,7 @@ public class QueueStats {
     }
 
     public String getQName() {
-        return qName;
+        return queueName;
     }
 
     public void incTotalPushes(int count) {
@@ -63,8 +83,8 @@ public class QueueStats {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("QueueStats [qName=");
-        builder.append(qName);
+        builder.append("QueueStats [queueName=");
+        builder.append(queueName);
         builder.append(", totalPushes=");
         builder.append(totalPushes);
         builder.append(", totalPops=");
@@ -75,5 +95,13 @@ public class QueueStats {
         builder.append(recentPopsPerSec);
         builder.append("]");
         return builder.toString();
+    }
+
+    public String getQueueName() {
+        return queueName;
+    }
+
+    public void setQueueName(String queueName) {
+        this.queueName = queueName;
     }
 }

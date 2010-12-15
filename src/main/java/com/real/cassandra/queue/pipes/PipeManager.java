@@ -73,6 +73,8 @@ public class PipeManager {
             ownPipe(currentPipe);
             return currentPipe;
         }
+        
+        currentPipe = null;
 
         logger.debug("{} : picking new pipe", popperId);
 

@@ -35,5 +35,7 @@ public interface CassQueueMXBean {
     double getPushPerSecondLocal();
 
     long getPushCountCluster();
+    
+    long getQueueDepth();
 
 }

@@ -119,7 +119,7 @@ public class CassQueueApp {
     }
 
     private static void showQueueStats() {
-        QueueStats qStats = qRepos.getQueueStats(qName);
+        QueueStats qStats = qRepos.calculateUpToDateQueueStats(qName);
         System.out.println("qStats = " + qStats);
     }
 

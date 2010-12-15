@@ -21,14 +21,12 @@ import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.CassQueueTestBase;
 import com.real.cassandra.queue.QueueDescriptor;
 import com.real.cassandra.queue.QueueStats;
-import com.real.cassandra.queue.QueueStatsFactoryImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
 import com.real.cassandra.queue.utils.MyIp;
 import com.real.cassandra.queue.utils.UuidGenerator;
 
 public class QueueRepositoryImplTest extends CassQueueTestBase {
-    private QueueStatsFactoryImpl qStatsFactory = new QueueStatsFactoryImpl();
 
     @Test
     public void testInitCassandra() throws Exception {
@@ -131,7 +129,11 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         int maxPushesPerPipe = 23;
         qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
 
-        QueueStats qs1 = qStatsFactory.createInstance(qName, 123, 456, 1.23, 4.56);
+        QueueStats qs1 = new QueueStats(qName);
+        qs1.setRecentPopsPerSec(1.23);
+        qs1.setRecentPushesPerSec(4.56);
+        qs1.setTotalPops(123);
+        qs1.setTotalPushes(456);
         qRepos.updateQueueStats(qs1);
         QueueStats qs2 = qRepos.getQueueStats(qName);
 

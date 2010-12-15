@@ -216,7 +216,7 @@ public class CassQueueImpl implements CassQueueMXBean {
 
     @Override
     public long getPopCountCluster() {
-        QueueStats qStats = qRepos.getQueueStats(getName());
+        QueueStats qStats = qRepos.calculateUpToDateQueueStats(getName());
         return qStats.getTotalPops();
     }
 
@@ -237,7 +237,7 @@ public class CassQueueImpl implements CassQueueMXBean {
 
     @Override
     public long getPushCountCluster() {
-        QueueStats qStats = qRepos.getQueueStats(getName());
+        QueueStats qStats = qRepos.calculateUpToDateQueueStats(getName());
         return qStats.getTotalPushes();
     }
 
@@ -279,5 +279,10 @@ public class CassQueueImpl implements CassQueueMXBean {
 
     PipeReaper getPipeReaper() {
         return pipeReaper;
+    }
+
+    @Override
+    public long getQueueDepth() {
+        return getPushCountCluster() - getPopCountCluster();
     }
 }

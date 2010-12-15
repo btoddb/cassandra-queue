@@ -50,12 +50,10 @@ import com.real.cassandra.queue.CassQMsgFactory;
 import com.real.cassandra.queue.CassQueueImpl;
 import com.real.cassandra.queue.QueueDescriptor;
 import com.real.cassandra.queue.QueueStats;
-import com.real.cassandra.queue.QueueStatsFactoryImpl;
 import com.real.cassandra.queue.model.MessageDescriptor;
 import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
-import com.real.cassandra.queue.utils.DoubleSerializer;
 import com.real.cassandra.queue.utils.UuidGenerator;
 import com.real.hom.EntityManager;
 
@@ -107,7 +105,6 @@ public class QueueRepositoryImpl {
     public static final String STRATEGY_CLASS_NAME = "org.apache.cassandra.locator.SimpleStrategy";
 
     protected PipeDescriptorFactory pipeDescFactory;
-    protected QueueStatsFactoryImpl qStatsFactory = new QueueStatsFactoryImpl();
     protected CassQMsgFactory qMsgFactory = new CassQMsgFactory();
 
     private Cluster cluster;
@@ -790,34 +787,38 @@ public class QueueRepositoryImpl {
     }
 
     public QueueStats getQueueStats(String qName) {
-        SliceQuery<String, String, byte[]> q =
-                HFactory.createSliceQuery(keyspace, StringSerializer.get(), StringSerializer.get(),
-                        BytesArraySerializer.get());
-        q.setRange("", "", false, 100);
-        q.setColumnFamily(QUEUE_STATS_COLFAM);
-        q.setKey(qName);
-
-        QueueStats qStats = qStatsFactory.createInstance(qName, q.execute().get());
-        if (null == qStats) {
+        QueueStats qsTmp = entityMgr.load(QueueStats.class, qName);
+        if (null == qsTmp) {
             // we always want to return stats, even if they don't exist
-            qStats = new QueueStats(qName);
+            qsTmp = new QueueStats(qName);
         }
+        return qsTmp;
+    }
+    public QueueStats calculateUpToDateQueueStats(String qName) {
+        // get rolled up stats first
+        final QueueStats qStats = getQueueStats(qName);
+        
+        // count still in pipe counts
+        ColumnIterator rawMsgColIter = new ColumnIterator();
+        rawMsgColIter.doIt(cluster, QUEUE_KEYSPACE_NAME, QUEUE_PIPE_CNXN_COLFAM, qName.getBytes(),
+                new ColumnIterator.ColumnOperator() {
+                    @Override
+                    public boolean execute(HColumn<byte[], byte[]> col) {
+                        UUID pipeId = UUIDSerializer.get().fromBytes(col.getName());
+                        PipeDescriptorImpl pipeDesc = getPipeDescriptor(pipeId);
+                        if (null != pipeDesc) {
+                            qStats.incTotalPops(pipeDesc.getPopCount());
+                            qStats.incTotalPushes(pipeDesc.getPushCount());
+                        }
+                        return true;
+                    }
+                });
+        
         return qStats;
     }
 
-    public void updateQueueStats(QueueStats qStats) {
-        Mutator<String> m = HFactory.createMutator(keyspace, StringSerializer.get());
-        m.addInsertion(qStats.getQName(), QUEUE_STATS_COLFAM, HFactory.createColumn(QSTATS_COLNAME_TOTAL_PUSHES, qStats
-                .getTotalPushes(), StringSerializer.get(), LongSerializer.get()));
-        m.addInsertion(qStats.getQName(), QUEUE_STATS_COLFAM, HFactory.createColumn(QSTATS_COLNAME_TOTAL_POPS, qStats
-                .getTotalPops(), StringSerializer.get(), LongSerializer.get()));
-        m.addInsertion(qStats.getQName(), QUEUE_STATS_COLFAM, HFactory.createColumn(
-                QSTATS_COLNAME_RECENT_PUSHES_PER_SEC, DoubleSerializer.get().toBytes(qStats.getRecentPushesPerSec()),
-                StringSerializer.get(), BytesArraySerializer.get()));
-        m.addInsertion(qStats.getQName(), QUEUE_STATS_COLFAM, HFactory.createColumn(QSTATS_COLNAME_RECENT_POPS_PER_SEC,
-                DoubleSerializer.get().toBytes(qStats.getRecentPopsPerSec()), StringSerializer.get(),
-                BytesArraySerializer.get()));
-        m.execute();
+    public void updateQueueStats(QueueStats qStats) {        
+        entityMgr.save(qStats);
     }
 
     public void removePipeDescriptor(PipeDescriptorImpl pipeDesc) {
