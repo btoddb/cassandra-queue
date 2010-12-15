@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.real</groupId>
 	<artifactId>cassandra-queue</artifactId>
-	<version>0.3.0-SNAPSHOT</version>
+	<version>0.3.0</version>
 	<name>Cassandra Queue</name>
 	<description>Simple FIFO queue using Cassandra Database</description>
 
@@ -138,8 +138,8 @@
 	<dependencies>      
         <dependency>
             <groupId>me.prettyprint</groupId>
-            <artifactId>hector</artifactId>
-            <version>0.7.0-20</version>
+            <artifactId>hector-core</artifactId>
+            <version>0.7.0-21</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
@@ -148,6 +148,10 @@
                 <exclusion>
                     <groupId>org.slf4j</groupId>
                     <artifactId>jcl-over-slf4j</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.cassandra</groupId>
+                    <artifactId>apache-cassandra</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
@@ -161,24 +165,18 @@
         <dependency>
         	<groupId>com.real.maps</groupId>
         	<artifactId>hector-object-mapper</artifactId>
-        	<version>0.3.0-SNAPSHOT</version>
-        	<exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-log4j12</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>jcl-over-slf4j</artifactId>
-                </exclusion>
-            </exclusions>
+        	<version>0.3.0</version>
+<!--        	<exclusions>-->
+<!--                <exclusion>-->
+<!--                    <groupId>org.slf4j</groupId>-->
+<!--                    <artifactId>slf4j-log4j12</artifactId>-->
+<!--                </exclusion>-->
+<!--                <exclusion>-->
+<!--                    <groupId>org.slf4j</groupId>-->
+<!--                    <artifactId>jcl-over-slf4j</artifactId>-->
+<!--                </exclusion>-->
+<!--            </exclusions>-->
         </dependency>
-
-		<dependency>
-			<groupId>org.apache.cassandra</groupId>
-			<artifactId>apache-cassandra</artifactId>
-			<version>0.7.0-rc1</version>
-		</dependency>
 
         <dependency>
             <groupId>org.slf4j</groupId>
