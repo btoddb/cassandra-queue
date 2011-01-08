@@ -362,7 +362,7 @@ public class QueueRepositoryImpl {
                             // if descriptor and CNXN are out of sync more than
                             // a minute then remove
                             if (60000 < System.currentTimeMillis() - createTimestamp) {
-                                logger.error("pipeId ({}, {}) does not have a descriptor and is expired", pipeId,
+                                logger.info("pipeId ({}, {}) does not have a descriptor and is expired", pipeId,
                                         createTimestamp);
                                 removePipeDescriptor(qName, pipeId);
                             }

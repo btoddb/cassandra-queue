@@ -85,6 +85,7 @@ public class PipeManagerTest extends CassQueueTestBase {
             // yay!
         }
 
+        cq.setTransactionTimeout(200);
         pipeMgr2.setMaxOwnerIdleTime(200);
         Thread.sleep(1500);
         assertEquals(pd1, pipeMgr2.pickPipe());

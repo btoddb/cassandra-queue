@@ -27,10 +27,11 @@ public abstract class ZkResourceWriteLock extends ZkSyncPrimitive implements ISi
 
 	public ZkResourceWriteLock(String lockPath, String resourceName) {
 		super(ZkSessionManager.instance());
-		PathUtils.validatePath(lockPath);
 		lockState = LockState.Idle;
         this.lockPath = lockPath;
+        PathUtils.validatePath(lockPath);
         this.resourcePath = lockPath + "/" + resourceName + "-" + getType();
+        PathUtils.validatePath(resourcePath);
 	}
 
 	/** {@inheritDoc} */

@@ -42,6 +42,7 @@ public class CassQueueImpl implements CassQueueMXBean {
     private Locker<QueueDescriptor> pipeCollectionLocker;
     private Locker<QueueDescriptor> queueStatsLocker;
     private PusherImpl rollbackPusher;
+    private long maxPopOwnerIdleTime;
 
     private Set<PusherImpl> pusherSet = new HashSet<PusherImpl>();
     private Set<PopperImpl> popperSet = new HashSet<PopperImpl>();
@@ -59,6 +60,8 @@ public class CassQueueImpl implements CassQueueMXBean {
         this.queueStatsLocker = queueStatsLocker;
         this.pipeCollectionLocker = pipeCollectionLocker;
 
+        this.maxPopOwnerIdleTime = getTransactionTimeout();
+        
         logger.debug("creating pusher for rollback only");
         this.rollbackPusher = createPusher();
 
@@ -126,6 +129,7 @@ public class CassQueueImpl implements CassQueueMXBean {
         logger.debug("creating popper for queue {}", qDesc.getName());
         UUID popperId = UUID.randomUUID();
         PipeManager pipeMgr = new PipeManager(qRepos, this, popperId, pipeCollectionLocker);
+        pipeMgr.setMaxOwnerIdleTime(getMaxPopOwnerIdleTime());
         PopperImpl popper = new PopperImpl(popperId, this, qRepos, pipeMgr, popNotEmptyStat, popEmptyStat);
         popperSet.add(popper);
         return popper;
@@ -152,6 +156,9 @@ public class CassQueueImpl implements CassQueueMXBean {
     public void truncate() throws Exception {
         logger.debug("truncating queue {}", qDesc.getName());
         qRepos.truncateQueueData(this);
+        for ( PopperImpl popper : popperSet ) {
+            popper.clearPipeManagerSelection();
+        }
     }
 
     @Override
@@ -284,5 +291,13 @@ public class CassQueueImpl implements CassQueueMXBean {
     @Override
     public long getQueueDepth() {
         return getPushCountCluster() - getPopCountCluster();
+    }
+
+    public long getMaxPopOwnerIdleTime() {
+        return maxPopOwnerIdleTime;
+    }
+
+    public void setMaxPopOwnerIdleTime(long maxPopOwnerIdleTime) {
+        this.maxPopOwnerIdleTime = maxPopOwnerIdleTime;
     }
 }

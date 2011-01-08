@@ -15,6 +15,7 @@ public class PipeReaperTest extends CassQueueTestBase {
         long transactionTimeout = 1;
         CassQueueImpl cq =
                 cqFactory.createInstance("test_" + System.currentTimeMillis(), 60000, 10, transactionTimeout, false);
+        cq.setMaxPopOwnerIdleTime(30000);
         PipeReaper reaper = cq.getPipeReaper();
         reaper.shutdownAndWait();
         

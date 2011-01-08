@@ -26,12 +26,13 @@ public class PopperImpl {
     private UUID popperId;
     private CassQueueImpl cq;
     private QueueRepositoryImpl qRepos;
-    private boolean shutdownInProgress = false;
     private PipeManager pipeMgr;
+    private final Object popLock = new Object();
 
     private RollingStat popNotEmptyStat;
     private RollingStat popEmptyStat;
-    private boolean working = false;
+    private volatile boolean working = false;
+    private volatile boolean shutdownInProgress = false;
 
     public PopperImpl(UUID popperId, CassQueueImpl cq, QueueRepositoryImpl qRepos, PipeManager pipeMgr,
             RollingStat popNotEmptyStat, RollingStat popEmptyStat) {
@@ -84,8 +85,6 @@ public class PopperImpl {
 
                 if (null != qMsg) {
                     popNotEmptyStat.addSample(System.currentTimeMillis() - start);
-                    updatePoppedMsgStatus(qMsg);
-                    qRepos.updatePipePopCount(pd, pd.incPopCount(), qMsg.getMsgDesc());
                     return qMsg;
                 }
 
@@ -108,10 +107,6 @@ public class PopperImpl {
         }
     }
 
-    private void updatePoppedMsgStatus(CassQMsg qMsg) {
-        logger.debug("found message, moving it to 'waiting' pipe : {}", qMsg.toString());
-        qRepos.moveMsgFromWaitingToPendingPipe(qMsg);
-    }
 
     /**
      * Clear pipe manager selection so next time a pipe is needed, a new one may
@@ -160,8 +155,16 @@ public class PopperImpl {
     }
 
     private CassQMsg retrieveOldestMsgFromPipe(PipeDescriptorImpl pipeDesc) throws Exception {
-        CassQMsg qMsg = qRepos.getOldestMsgFromWaitingPipe(pipeDesc);
-        return qMsg;
+        synchronized(popLock) {
+            CassQMsg qMsg = qRepos.getOldestMsgFromWaitingPipe(pipeDesc);
+
+            if(qMsg != null) {
+                logger.debug("found message, moving it to 'waiting' pipe : {}", qMsg.toString());
+                qRepos.moveMsgFromWaitingToPendingPipe(qMsg);
+                qRepos.updatePipePopCount(pipeDesc, pipeDesc.incPopCount(), qMsg.getMsgDesc());
+            }
+            return qMsg;
+        }
     }
 
     private PipeDescriptorImpl pickAndLockPipe() throws Exception {

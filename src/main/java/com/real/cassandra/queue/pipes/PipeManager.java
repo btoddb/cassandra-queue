@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.CassQueueException;
 import com.real.cassandra.queue.CassQueueImpl;
-import com.real.cassandra.queue.PopperImpl;
 import com.real.cassandra.queue.QueueDescriptor;
 import com.real.cassandra.queue.locks.Locker;
 import com.real.cassandra.queue.locks.ObjectLock;
@@ -16,8 +15,8 @@ import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 
 /**
  * Manage picking, locking, and releasing pipes as needed for a single client
- * thread. This class is not thread-safe - one instance per {@link PopperImpl}
- * instance.
+ * thread. This class should be thread-safe in case it is executed in separate
+ * threads of the same popper.
  * <p/>
  * Also handles marking pipes as push finished when appropriate.
  * 
@@ -30,20 +29,18 @@ public class PipeManager {
 
     private static final int MAX_LOCK_ACQUIRE_TRIES = 20;
     private static final long LOCK_ACQUIRE_RETRY_WAIT = 50; // millis
-    private static final long MAX_OWNER_IDLE_TIME = 30 * 1000; // should be
-                                                               // longer than
-                                                               // transaction
-                                                               // timeout for a
-                                                               // pop
     private static final int MAX_PIPES_TO_RETRIEVE = 100;
 
-    private CassQueueImpl cq;
-    private QueueRepositoryImpl qRepos;
+    final private CassQueueImpl cq;
+    final private QueueRepositoryImpl qRepos;
+    final private Locker<QueueDescriptor> pipeCollectionLocker;
+    final private UUID popperId;
+
     private PipeDescriptorImpl currentPipe;
-    private Locker<QueueDescriptor> pipeCollectionLocker;
+    private final Object currentPipeMonitor = new Object();
+
     private ObjectLock<QueueDescriptor> pipeCollectionLock;
-    private UUID popperId;
-    private long maxOwnerIdleTime = MAX_OWNER_IDLE_TIME;
+    private long maxOwnerIdleTime;
     private int maxPipesToRetrieve = MAX_PIPES_TO_RETRIEVE;
 
     private QueueDescriptor queueDescriptor;
@@ -54,8 +51,10 @@ public class PipeManager {
         this.cq = cq;
         this.popperId = popperId;
         this.pipeCollectionLocker = pipeCollectionLocker;
-        
+
         this.queueDescriptor = new QueueDescriptor(this.cq.getName());
+
+        setMaxOwnerIdleTime(cq.getTransactionTimeout());
     }
 
     /**
@@ -68,42 +67,44 @@ public class PipeManager {
      * @throws Exception
      */
     public PipeDescriptorImpl pickPipe() {
-        if (pipeStillUsable()) {
-            logger.debug("{} : pipe is still usable = {}", popperId, currentPipe);
-            ownPipe(currentPipe);
-            return currentPipe;
-        }
-        
-        currentPipe = null;
-
-        logger.debug("{} : picking new pipe", popperId);
-
-        // get the lock so we can select a pipe and not conflict with other
-        // poppers
-        acquirePipeCollectionLock();
-
-        // iterate over available pipe descriptors looking for ownable pipes
-        try {
-            // if no pipes available, return now
-            List<PipeDescriptorImpl> pipeDescList = retrievePipeList();
-            if (null == pipeDescList || pipeDescList.isEmpty()) {
-                logger.debug("no non-empty non-finished pipe descriptors found");
-                return null;
+        synchronized (currentPipeMonitor) {
+            if (pipeStillUsable()) {
+                logger.debug("{} : pipe is still usable = {}", popperId, currentPipe);
+                ownPipe(currentPipe);
+                return currentPipe;
             }
 
-            for (PipeDescriptorImpl pd : pipeDescList) {
-                if (checkPipeOwnable(pd)) {
-                    ownPipe(pd);
-                    logger.debug("{} : picked pipe {}", popperId, pd.getPipeId());
-                    return pd;
+            currentPipe = null;
+
+            logger.debug("{} : picking new pipe", popperId);
+
+            // get the lock so we can select a pipe and not conflict with other
+            // poppers
+            acquirePipeCollectionLock();
+
+            // iterate over available pipe descriptors looking for ownable pipes
+            try {
+                // if no pipes available, return now
+                List<PipeDescriptorImpl> pipeDescList = retrievePipeList();
+                if (null == pipeDescList || pipeDescList.isEmpty()) {
+                    logger.debug("no non-empty non-finished pipe descriptors found");
+                    return null;
+                }
+
+                for (PipeDescriptorImpl pd : pipeDescList) {
+                    if (checkPipeOwnable(pd)) {
+                        ownPipe(pd);
+                        logger.debug("{} : picked pipe {}", popperId, pd.getPipeId());
+                        return pd;
+                    }
                 }
             }
-        }
-        finally {
-            releasePipeCollectionLock();
-        }
+            finally {
+                releasePipeCollectionLock();
+            }
 
-        return null;
+            return null;
+        }
     }
 
     /**
@@ -111,7 +112,9 @@ public class PipeManager {
      * select a new pipe next time the popper needs one.
      */
     public void clearSelection() {
-        currentPipe = null;
+        synchronized (currentPipeMonitor) {
+            currentPipe = null;
+        }
     }
 
     private boolean checkPipeOwnable(PipeDescriptorImpl pd) {
@@ -182,7 +185,8 @@ public class PipeManager {
     }
 
     private void acquirePipeCollectionLock() {
-        pipeCollectionLock = pipeCollectionLocker.lock(queueDescriptor, MAX_LOCK_ACQUIRE_TRIES, LOCK_ACQUIRE_RETRY_WAIT);
+        pipeCollectionLock =
+                pipeCollectionLocker.lock(queueDescriptor, MAX_LOCK_ACQUIRE_TRIES, LOCK_ACQUIRE_RETRY_WAIT);
         if (null != pipeCollectionLock) {
             logger.debug("{} : got pipeCollectionLock", popperId);
         }
@@ -209,12 +213,16 @@ public class PipeManager {
         return qRepos.getOldestPopActivePipes(cq.getName(), maxPipesToRetrieve);
     }
 
-    public void setqRepos(QueueRepositoryImpl qRepos) {
-        this.qRepos = qRepos;
-    }
-
     public void setMaxOwnerIdleTime(long maxOwnerIdleTime) {
-        this.maxOwnerIdleTime = maxOwnerIdleTime;
+        if (maxOwnerIdleTime >= cq.getTransactionTimeout()) {
+            this.maxOwnerIdleTime = maxOwnerIdleTime;
+        }
+        else {
+            logger
+                    .warn("It is not allowed to set 'max owner idle time' less than queue's transaction timeout.  Will set it to transaction timeout value, "
+                            + cq.getTransactionTimeout() + "ms");
+            this.maxOwnerIdleTime = cq.getTransactionTimeout();
+        }
     }
 
     public long getMaxOwnerIdleTime() {
@@ -225,38 +233,42 @@ public class PipeManager {
      * If pipe is no longer push active it is marked as pop finished. This
      * method assumes that the pipe is "empty".
      * 
-     * @param pipeId
+     * @param pipeDesc
      * @return true if pipe is marked finished
      */
     public boolean checkMarkPopFinished(PipeDescriptorImpl pipeDesc) {
-        UUID pipeId = pipeDesc.getPipeId();
+        synchronized (currentPipeMonitor) {
+            UUID pipeId = pipeDesc.getPipeId();
 
-        // must update pipe descriptor even though cached because pusher could
-        // have marked as complete or reaper may have removed it
-        pipeDesc = qRepos.getPipeDescriptor(pipeId);
+            // must update pipe descriptor even though cached because pusher
+            // could
+            // have marked as complete or reaper may have removed it
+            pipeDesc = qRepos.getPipeDescriptor(pipeId);
 
-        boolean result;
-        if (pipeDesc != null) {
-            // if this pipe is finished or expired, mark as pop finished
-            if (!checkPushActive(pipeDesc) && pipeDesc.isPopActive()) {
-                // no race condition here with push status because the pusher is
-                // no longer active
-                qRepos.updatePipePopStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
-                logger.debug("pipe is not push active and empty, marking pop not active: {}", pipeDesc.toString());
-                currentPipe = null;
-                result = true;
+            boolean result;
+            if (pipeDesc != null) {
+                // if this pipe is finished or expired, mark as pop finished
+                if (!checkPushActive(pipeDesc) && pipeDesc.isPopActive()) {
+                    // no race condition here with push status because the
+                    // pusher is
+                    // no longer active
+                    qRepos.updatePipePopStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
+                    logger.debug("pipe is not push active and empty, marking pop not active: {}", pipeDesc.toString());
+                    currentPipe = null;
+                    result = true;
+                }
+                else {
+                    logger.debug("pipe is not ready to be removed : {}", pipeDesc.toString());
+                    result = false;
+                }
             }
             else {
-                logger.debug("pipe is not ready to be removed : {}", pipeDesc.toString());
+                logger.debug("pipe no longer exists, not checking status : {}", pipeId);
                 result = false;
             }
+            logger.debug("checkIfPipeCanBeMarkedPopFinished : " + pipeId + " = " + result);
+            return result;
         }
-        else {
-            logger.debug("pipe no longer exists, not checking status : {}", pipeId);
-            result = false;
-        }
-        logger.debug("checkIfPipeCanBeMarkedPopFinished : " + pipeId + " = " + result);
-        return result;
     }
 
     public int getMaxPipesToRetrieve() {
