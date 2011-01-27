@@ -80,7 +80,13 @@ public class PipeManager {
 
             // get the lock so we can select a pipe and not conflict with other
             // poppers
-            acquirePipeCollectionLock();
+            try {
+                acquirePipeCollectionLock();
+            }
+            catch (CassQueueException e) {
+                logger.info(e.getMessage());
+                return null;
+            }
 
             // iterate over available pipe descriptors looking for ownable pipes
             try {
@@ -218,9 +224,8 @@ public class PipeManager {
             this.maxOwnerIdleTime = maxOwnerIdleTime;
         }
         else {
-            logger
-                    .warn("It is not allowed to set 'max owner idle time' less than queue's transaction timeout.  Will set it to transaction timeout value, "
-                            + cq.getTransactionTimeout() + "ms");
+            logger.warn("It is not allowed to set 'max owner idle time' less than queue's transaction timeout.  Will set it to transaction timeout value, "
+                    + cq.getTransactionTimeout() + "ms");
             this.maxOwnerIdleTime = cq.getTransactionTimeout();
         }
     }
