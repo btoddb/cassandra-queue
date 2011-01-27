@@ -21,6 +21,7 @@ import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.CassQueueTestBase;
 import com.real.cassandra.queue.QueueDescriptor;
 import com.real.cassandra.queue.QueueStats;
+import com.real.cassandra.queue.model.MessageDescriptor;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
 import com.real.cassandra.queue.utils.MyIp;
@@ -44,13 +45,13 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         assertTrue("didn't create '" + QueueRepositoryImpl.QUEUE_PIPE_CNXN_COLFAM + "' column family", nameSet
                 .contains(QueueRepositoryImpl.QUEUE_PIPE_CNXN_COLFAM));
     }
-
+    
     @Test
     public void testCreateQueueDoesntExist() throws Exception {
         String qName = "test_" + System.currentTimeMillis();
         long maxPushTimeOfPipe = 20000;
         int maxPushesPerPipe = 23;
-        qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
+        QueueDescriptor qd1 = qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
 
         KeyspaceDefinition ksDef = qRepos.getKeyspaceDefinition();
         List<ColumnFamilyDefinition> cfList = ksDef.getCfDefs();
@@ -65,10 +66,11 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         assertTrue("didn't create '" + QueueRepositoryImpl.formatWaitingColFamName(qName) + "' column family", nameSet
                 .contains(QueueRepositoryImpl.formatWaitingColFamName(qName)));
 
-        QueueDescriptor qDesc = qRepos.getQueueDescriptor(qName);
+        QueueDescriptor qd2 = qRepos.getQueueDescriptor(qName);
 
-        assertEquals(maxPushTimeOfPipe, qDesc.getMaxPushTimePerPipe());
-        assertEquals(maxPushesPerPipe, qDesc.getMaxPushesPerPipe());
+        assertEquals( qd1.getId(), qd2.getId());
+        assertEquals(maxPushTimeOfPipe, qd2.getMaxPushTimePerPipe());
+        assertEquals(maxPushesPerPipe, qd2.getMaxPushesPerPipe());
     }
 
     @Test

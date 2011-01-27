@@ -1,10 +1,11 @@
 package com.real.cassandra.queue;
 
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
+
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
-import com.real.hom.annotations.Column;
-import com.real.hom.annotations.Entity;
-import com.real.hom.annotations.Id;
-import com.real.hom.annotations.Table;
 
 /**
  * Model object for queue statistics.
@@ -12,21 +13,21 @@ import com.real.hom.annotations.Table;
  * @author Todd Burruss
  */
 @Entity
-@Table(QueueRepositoryImpl.QUEUE_STATS_COLFAM)
+@Table(name = QueueRepositoryImpl.QUEUE_STATS_COLFAM)
 public class QueueStats {
     @Id
     private String queueName;
     
-    @Column("totalPushes")
+    @Column(name = "totalPushes")
     private long totalPushes;
     
-    @Column("totalPops")
+    @Column(name = "totalPops")
     private long totalPops;
     
-    @Column("recentPushesPerSec")
+    @Column(name = "recentPushesPerSec")
     private double recentPushesPerSec;
     
-    @Column("recentPopsPerSec")
+    @Column(name = "recentPopsPerSec")
     private double recentPopsPerSec;
 
     public QueueStats() {

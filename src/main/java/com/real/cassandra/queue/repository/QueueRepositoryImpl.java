@@ -35,6 +35,7 @@ import me.prettyprint.hector.api.query.CountQuery;
 import me.prettyprint.hector.api.query.QueryResult;
 import me.prettyprint.hector.api.query.RangeSlicesQuery;
 import me.prettyprint.hector.api.query.SliceQuery;
+import me.prettyprint.hom.EntityManagerImpl;
 
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -55,7 +56,6 @@ import com.real.cassandra.queue.pipes.PipeDescriptorFactory;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
 import com.real.cassandra.queue.utils.UuidGenerator;
-import com.real.hom.EntityManager;
 
 public class QueueRepositoryImpl {
     private static Logger logger = LoggerFactory.getLogger(QueueRepositoryImpl.class);
@@ -110,9 +110,9 @@ public class QueueRepositoryImpl {
     private Cluster cluster;
     private Keyspace keyspace;
     private final int replicationFactor;
-    private EntityManager entityMgr;
+    private EntityManagerImpl entityMgr;
 
-    public QueueRepositoryImpl(Cluster cluster, int replicationFactor, Keyspace keyspace, EntityManager entityMgr) {
+    public QueueRepositoryImpl(Cluster cluster, int replicationFactor, Keyspace keyspace, EntityManagerImpl entityMgr) {
         this.cluster = cluster;
         this.replicationFactor = replicationFactor;
         this.keyspace = keyspace;
@@ -650,6 +650,7 @@ public class QueueRepositoryImpl {
      *            if true will drop the keyspace and recreate it.
      */
     public void initKeyspace(boolean forceRecreate) {
+        try {
         String schemaVer = null;
         if (isKeyspaceExists()) {
             if (!forceRecreate) {
@@ -664,6 +665,10 @@ public class QueueRepositoryImpl {
         KsDef ksDef = createKeyspaceDefinition();
         schemaVer = createKeyspace(ksDef);
         waitForSchemaSync(schemaVer);
+        }
+        catch ( Throwable e ) {
+            logger.error( "exception while checking keyspace or trying to initialize keyspace - startup continuing.  this exception will not cause problems if your keyspace was previously initialized", e);
+        }
     }
 
     private KsDef createKeyspaceDefinition() {

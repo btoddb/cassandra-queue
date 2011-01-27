@@ -1,11 +1,14 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.real</groupId>
 	<artifactId>cassandra-queue</artifactId>
-	<version>0.3.3</version>
+	<version>0.3.6-SNAPSHOT</version>
 	<name>Cassandra Queue</name>
-	<description>Simple FIFO queue using Cassandra Database</description>
+	<description>Mostly FIFO queue using Cassandra Database</description>
+
+    <properties>
+        <username>${env.USER}</username>
+    </properties>
 
     <repositories>
         <repository>
@@ -21,40 +24,50 @@
             <name>MAPS Internal Snapshot Repository</name>
             <url>http://build01.dev.real.com/repository/snapshots/</url>
         </repository>
-
-		<repository>
-			<id>riptano</id>
-			<name>riptano</name>
-			<url>http://mvn.riptano.com/content/repositories/public/</url>
-		</repository>
     </repositories>    
 
-    <distributionManagement>
-        <snapshotRepository>
-            <id>maps-snapshot-repository</id>
-            <name>MAPS Snapshot Repository</name>
-            <url>scp://maven@build01.dev.real.com/data/snapshots</url>
-            <uniqueVersion>false</uniqueVersion>
-        </snapshotRepository>
-        <repository>
-            <id>maps-internal-repo</id>
-            <name>MAPS Internal Repository</name>
-            <url>scp://maven@build01.dev.real.com/home/maven/realrepo</url>
-        </repository>
-<!--        <site>-->
-<!--            <id>website</id>-->
-<!--            <url>scp://maven@platform.real.com/var/www/html/mavencaps/cassandra-queue</url>-->
-<!--        </site>-->
-    </distributionManagement>
+	<distributionManagement>
+		<snapshotRepository>
+			<id>maps-snapshot-repository</id>
+			<name>MAPS Snapshot Repository</name>
+			<url>scp://maven@build01.dev.real.com/data/snapshots</url>
+			<uniqueVersion>false</uniqueVersion>
+		</snapshotRepository>
+		<repository>
+			<id>maps-internal-repo</id>
+			<name>MAPS Internal Repository</name>
+			<url>scp://maven@build01.dev.real.com/home/maven/realrepo</url>
+		</repository>
+		<site>
+			<id>website</id>
+			<url>scp://maven@platform.real.com/var/www/html/mavencaps/cassandra-queue</url>
+		</site>
+	</distributionManagement>
 
-<!--    <scm>-->
-<!--        <connection>scm:cvs:pserver:@cvs.dev.prognet.com:/home/np:shared/maps/cassandra-pelops</connection>-->
-<!--        <developerConnection>scm:cvs:pserver:@cvs.dev.prognet.com:/home/np:shared/maps/cassandra-pelops</developerConnection>-->
-<!--        <url>https://cvs.dev.prognet.com/np/index.cgi/shared/maps/cassandra-pelops</url>-->
-<!--    </scm>-->
+    <scm>
+        <connection>scm:cvs:pserver:anon@cvs.dev.prognet.com:/home/np:shared/maps/cassandra-queue</connection>
+        <developerConnection>scm:cvs:pserver:username@cvs.dev.prognet.com:/home/np:shared/maps/cassandra-queue</developerConnection>
+        <url>https://cvs.dev.prognet.com/np/index.cgi/shared/maps/cassandra-queue</url>
+	</scm>
 
 	<build>
+		<extensions>
+			<extension>
+				<groupId>org.apache.maven.wagon</groupId>
+				<artifactId>wagon-ssh</artifactId>
+				<version>1.0-beta-6</version>
+			</extension>
+        </extensions>
 		<plugins>
+            <!-- make sure install goal gets run -->
+            <plugin>
+                <artifactId>maven-release-plugin</artifactId>
+                <configuration>
+                    <preparationGoals>install</preparationGoals>
+                    <autoVersionSubmodules>true</autoVersionSubmodules>
+                    <arguments>-DskipTests</arguments>
+                </configuration>
+            </plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
@@ -62,7 +75,6 @@
 					<source>1.6</source>
 					<target>1.6</target>
 				</configuration>
-
 			</plugin>
             
             <!-- create source jars just prior to repo install-->
@@ -90,26 +102,6 @@
                         <exclude>**/integration/**</exclude>
                     </excludes>
                 </configuration>
-
-                <executions>
-                    <!-- integration test settings -->
-                    <execution>
-                        <id>integration-tests</id>
-                        <phase>integration-test</phase>
-                        <goals>
-                            <goal>test</goal>
-                        </goals>
-                        <configuration>
-                            <skip>false</skip>
-                            <excludes>
-                                <exclude>none</exclude>
-                            </excludes>
-                            <includes>
-                                <include>**/integration/**/*Test.java</include>
-                            </includes>
-                        </configuration>
-                    </execution>
-                </executions>                
             </plugin>            
 		</plugins>
 	</build>
@@ -139,7 +131,7 @@
         <dependency>
             <groupId>me.prettyprint</groupId>
             <artifactId>hector-core</artifactId>
-            <version>0.7.0-21</version>
+            <version>0.7.0-24</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
@@ -149,23 +141,29 @@
                     <groupId>org.slf4j</groupId>
                     <artifactId>jcl-over-slf4j</artifactId>
                 </exclusion>
-                <exclusion>
-                    <groupId>org.apache.cassandra</groupId>
-                    <artifactId>apache-cassandra</artifactId>
-                </exclusion>
+<!--                <exclusion>-->
+<!--                    <groupId>org.apache.cassandra</groupId>-->
+<!--                    <artifactId>apache-cassandra</artifactId>-->
+<!--                </exclusion>-->
             </exclusions>
         </dependency>
+
+		<dependency>
+			<groupId>org.apache.cassandra</groupId>
+			<artifactId>cassandra-javautils</artifactId>
+            <version>0.7.0</version>
+		</dependency>
 	
         <dependency>
-            <groupId>org.apache.hadoop</groupId>
+            <groupId>org.apache.zookeeper</groupId>
             <artifactId>zookeeper</artifactId>
             <version>3.3.2</version>
         </dependency>
         
         <dependency>
-        	<groupId>com.real.maps</groupId>
-        	<artifactId>hector-object-mapper</artifactId>
-        	<version>0.3.0</version>
+            <groupId>me.prettyprint</groupId>
+            <artifactId>hector-object-mapper</artifactId>
+            <version>1.0-01</version>
         </dependency>
 
         <dependency>

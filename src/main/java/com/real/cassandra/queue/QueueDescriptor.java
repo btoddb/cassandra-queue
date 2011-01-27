@@ -1,39 +1,38 @@
 package com.real.cassandra.queue;
 
-import java.io.Serializable;
+
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
 
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
-import com.real.hom.annotations.Column;
-import com.real.hom.annotations.Entity;
-import com.real.hom.annotations.Id;
-import com.real.hom.annotations.Table;
 
 @Entity
-@Table(QueueRepositoryImpl.QUEUE_DESCRIPTORS_COLFAM)
+@Table(name=QueueRepositoryImpl.QUEUE_DESCRIPTORS_COLFAM)
 public class QueueDescriptor implements Descriptor {
     @Id
-    @Column("name")
     private String name;
     
-    @Column("maxPushTimePerPipe")
+    @Column(name = "maxPushTimePerPipe")
     private long maxPushTimePerPipe;
     
-    @Column("maxPushesPerPipe")
+    @Column(name = "maxPushesPerPipe")
     private int maxPushesPerPipe;
     
-    @Column("transactionTimeout")
+    @Column(name = "transactionTimeout")
     private long transactionTimeout;
-
-    @Override
-    public Serializable getId() {
-        return getName();
-    }
 
     public QueueDescriptor() {
     }
     
     public QueueDescriptor(String name) {
         this.name = name;
+    }
+
+    @Override
+    public String getId() {
+        return getName();
     }
 
     public String getName() {

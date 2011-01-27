@@ -4,29 +4,30 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
 
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
+
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
-import com.real.hom.annotations.Column;
-import com.real.hom.annotations.Entity;
-import com.real.hom.annotations.Id;
-import com.real.hom.annotations.Table;
 
 @Entity
-@Table(QueueRepositoryImpl.MSG_DESCRIPTOR_COLFAM)
+@Table(name = QueueRepositoryImpl.MSG_DESCRIPTOR_COLFAM)
 public class MessageDescriptor {
 
     @Id
     private UUID msgId;
     
-    @Column(QueueRepositoryImpl.MDESC_COLNAME_POP_TIMESTAMP)
+    @Column(name = QueueRepositoryImpl.MDESC_COLNAME_POP_TIMESTAMP)
     private Long popTimestamp;
 
-    @Column("commitTimestamp")
+    @Column(name = "commitTimestamp")
     private Long commitTimestamp;
     
-    @Column("createTimestamp")
+    @Column(name = "createTimestamp")
     private Long createTimestamp;
     
-    @Column("payload")
+    @Column(name = "payload")
     private byte[] payload;
 
     
