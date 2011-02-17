@@ -2,6 +2,7 @@ package org.wyki.zookeeper.cages;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.Code;
@@ -56,6 +57,10 @@ public abstract class ZkSyncPrimitive implements Watcher {
 	 * Mutex for use synchronizing access to private members
 	 */
 	private Integer mutex;
+    /**
+     * Maximum sync wait time
+     */
+    private Integer maximumSyncWaitTime = 0;
 
 	protected ZkSyncPrimitive(ZkSessionManager session) {
     	this.session = session;
@@ -69,6 +74,10 @@ public abstract class ZkSyncPrimitive implements Watcher {
     	mutex = new Integer(-1);
     }
 
+    public void setMaximumSyncWaitTime(Integer maximumSyncWaitTime) {
+        this.maximumSyncWaitTime = maximumSyncWaitTime;
+    }
+
     /**
      * Wait until the primitive has reached a synchronized state. If the operation was successful,
      * this is triggered when a derived class calls <code>onStateChanged()</code> for the first time. If the
@@ -78,7 +87,16 @@ public abstract class ZkSyncPrimitive implements Watcher {
      * @throws InterruptedException
      */
 	public void waitSynchronized() throws ZkCagesException, InterruptedException {
-		isSynchronized.waitOne();
+        if(maximumSyncWaitTime > 0) {
+            boolean success = isSynchronized.waitOne(maximumSyncWaitTime, TimeUnit.MILLISECONDS);
+
+            if(!success) {
+                throw new ZkCagesException(ZkCagesException.Error.LOCK_SYNC_TIMEOUT);
+            }
+        }
+        else {
+		    isSynchronized.waitOne();
+        }
 
 		if (getKillerException() == null)
 			return;

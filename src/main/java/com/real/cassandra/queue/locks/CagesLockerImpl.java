@@ -52,7 +52,7 @@ public class CagesLockerImpl<I extends Descriptor> implements Locker<I> {
 
     @Override
     public ObjectLock<I> lock(I object) {
-        DistributedLock writeLock = new DistributedLock(lockPath, object.getId().toString());
+        DistributedLock writeLock = new DistributedLock(lockPath, object.getId().toString(), 2*sessionTimeout);
         ObjectLock<I> lock = null;
 
         try {

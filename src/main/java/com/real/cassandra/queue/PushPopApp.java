@@ -16,8 +16,8 @@ import com.real.cassandra.queue.app.CassQueueUtils;
 import com.real.cassandra.queue.app.PushPopAbstractBase;
 import com.real.cassandra.queue.app.QueueProperties;
 import com.real.cassandra.queue.app.WorkerThreadWatcher;
-import com.real.cassandra.queue.locks.CagesLockerImpl;
 import com.real.cassandra.queue.locks.Locker;
+import com.real.cassandra.queue.locks.ZooKeeperLockerImpl;
 import com.real.cassandra.queue.repository.HectorUtils;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 
@@ -41,8 +41,8 @@ public class PushPopApp {
         parseAppProperties();
 
         String ZK_CONNECT_STRING = "kv-app07.dev.real.com:2181,kv-app08.dev.real.com:2181,kv-app09.dev.real.com:2181";
-        queueStatsLocker = new CagesLockerImpl<QueueDescriptor>("/queue-stats", ZK_CONNECT_STRING, 6000, 30);
-        pipeCollectionLocker = new CagesLockerImpl<QueueDescriptor>("/pipes", ZK_CONNECT_STRING, 6000, 30);
+        queueStatsLocker = new ZooKeeperLockerImpl<QueueDescriptor>("/queue-stats", ZK_CONNECT_STRING, 6000);
+        pipeCollectionLocker = new ZooKeeperLockerImpl<QueueDescriptor>("/pipes", ZK_CONNECT_STRING, 6000);
         logger.info("setting queuing system");
         setupQueueSystem();
 

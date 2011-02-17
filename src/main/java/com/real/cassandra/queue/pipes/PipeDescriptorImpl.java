@@ -1,13 +1,14 @@
 package com.real.cassandra.queue.pipes;
 
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.real.cassandra.queue.Descriptor;
 
 public class PipeDescriptorImpl implements Descriptor {
     private String qName;
     private UUID pipeId;
-    private int pushCount;
+    private AtomicInteger pushCount = new AtomicInteger(0);
     private int popCount;
     private PipeStatus pushStatus;
     private PipeStatus popStatus;
@@ -24,7 +25,6 @@ public class PipeDescriptorImpl implements Descriptor {
     public PipeDescriptorImpl(String qName, UUID pipeId) {
         this.qName = qName;
         this.pipeId = pipeId;
-        this.pushCount = 0;
         this.popCount = 0;
         this.pushStatus = PipeStatus.ACTIVE;
         this.popStatus = PipeStatus.ACTIVE;
@@ -45,7 +45,7 @@ public class PipeDescriptorImpl implements Descriptor {
     }
 
     public int incPushCount() {
-        return ++pushCount;
+        return pushCount.incrementAndGet();
     }
 
     public int incPopCount() {
@@ -53,7 +53,7 @@ public class PipeDescriptorImpl implements Descriptor {
     }
 
     public int getPushCount() {
-        return pushCount;
+        return pushCount.get();
     }
 
     public long getPushStartTimestamp() {
@@ -91,7 +91,7 @@ public class PipeDescriptorImpl implements Descriptor {
     }
 
     public void setPushCount(int msgCount) {
-        this.pushCount = msgCount;
+        this.pushCount.set(msgCount);
     }
 
     public boolean isPushActive() {

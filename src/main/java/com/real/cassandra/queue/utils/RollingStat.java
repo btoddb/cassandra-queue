@@ -17,7 +17,7 @@ public class RollingStat implements Runnable {
 
     private Object dataMonitor = new Object();
 
-    private boolean stopProcessing = false;
+    private volatile boolean stopProcessing = false;
     private Thread theThread;
 
     public RollingStat(long windowSizeInMillis) {

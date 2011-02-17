@@ -13,6 +13,7 @@ public class ZkCagesException extends Exception {
 		LOCK_ALREADY_ACQUIRED,
 		LOCK_ALREADY_RELEASED,
 		LOCK_RELEASED_WHILE_WAITING,
+        LOCK_SYNC_TIMEOUT,
 		UNKNOWN_ERROR,
 	}
 

@@ -9,13 +9,17 @@ import org.wyki.zookeeper.cages.ZkResourceWriteLock;
  * between async vs. sync zookeeper communication.
  *
  * @author Andrew Ebaugh
- * @version $Id: DistributedLock.java,v 1.2 2010/11/17 23:16:54 aebaugh Exp $
+ * @version $Id: DistributedLock.java,v 1.3 2011/01/27 03:26:57 aebaugh Exp $
  */
 public class DistributedLock extends ZkResourceWriteLock implements Lock {
 
 	public DistributedLock(String lockPath, String resource) {
 		super(lockPath, resource);
 	}
+
+    public DistributedLock(String lockPath, String resourceName, Integer maxSyncTimeout) {
+        super(lockPath, resourceName, maxSyncTimeout);
+    }
 
     /**
      * Attempts to acquire the resource lock (i.e. create resource lock path) and return false if already held.

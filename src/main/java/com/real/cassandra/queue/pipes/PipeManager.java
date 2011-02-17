@@ -255,8 +255,7 @@ public class PipeManager {
                 // if this pipe is finished or expired, mark as pop finished
                 if (!checkPushActive(pipeDesc) && pipeDesc.isPopActive()) {
                     // no race condition here with push status because the
-                    // pusher is
-                    // no longer active
+                    // pusher is no longer active
                     qRepos.updatePipePopStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
                     logger.debug("pipe is not push active and empty, marking pop not active: {}", pipeDesc.toString());
                     currentPipe = null;

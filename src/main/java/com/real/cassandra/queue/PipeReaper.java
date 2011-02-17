@@ -15,7 +15,7 @@ public class PipeReaper implements Runnable {
     private static Logger logger = LoggerFactory.getLogger(PipeReaper.class);
 
     private Thread theThread;
-    private boolean stopProcessing = false;
+    private volatile boolean stopProcessing = false;
     private Locker<QueueDescriptor> queueStatsLocker;
     private int queueStatsLockRetryLimit = 5;
     private long queueStatsLockRetryDelay = 10;

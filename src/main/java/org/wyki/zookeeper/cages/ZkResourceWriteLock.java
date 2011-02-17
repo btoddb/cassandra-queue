@@ -32,6 +32,12 @@ public abstract class ZkResourceWriteLock extends ZkSyncPrimitive implements ISi
         PathUtils.validatePath(lockPath);
         this.resourcePath = lockPath + "/" + resourceName + "-" + getType();
         PathUtils.validatePath(resourcePath);
+
+	}
+
+	public ZkResourceWriteLock(String lockPath, String resourceName, Integer maxSyncTimeout) {
+		this(lockPath, resourceName);
+        setMaximumSyncWaitTime(maxSyncTimeout);
 	}
 
 	/** {@inheritDoc} */
@@ -107,8 +113,29 @@ public abstract class ZkResourceWriteLock extends ZkSyncPrimitive implements ISi
         createLockNode.run();
 	}
 
+    @Override
+    protected boolean shouldResurrectOnSessionExpiry() {
+        return true;
+    }
 
-	@Override
+    @Override
+    protected void resynchronize() {
+        synchronized (mutex) {
+            // if we have to resynchronize() (due to session expiry for example), and we are waiting for a lock acquire,
+            // we should give up; otherwise there's a potential for deadlock.
+            if(lockState == LockState.Waiting) {
+                try {
+                    setLockState(LockState.Abandoned);
+                }
+                catch (ZkCagesException e) {
+                    die(e);
+                }
+            }
+        }
+
+    }
+
+    @Override
 	protected void onDie(ZkCagesException killerException) {
 		// We just set the lock state. The killer exception has already been set by base class
 		safeLockState(LockState.Error);

@@ -1,6 +1,7 @@
 package com.real.cassandra.queue;
 
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.utils.UUIDGen;
 import org.slf4j.Logger;
@@ -30,12 +31,14 @@ public class PusherImpl {
     private PipeDescriptorImpl pipeDesc = null;
     private boolean working = false;
 
-    private int pushCount;
+    private AtomicInteger pushCount = new AtomicInteger(0);
 
     private RollingStat pushStat;
 
+    private Object pipeSwitcherMonitor = new Object();
+
     public PusherImpl(CassQueueImpl cq, QueueRepositoryImpl qRepos, RollingStat pushStat) {
-        this.cq = (CassQueueImpl) cq;
+        this.cq = cq;
         this.qRepos = qRepos;
         this.pushStat = pushStat;
     }
@@ -44,7 +47,7 @@ public class PusherImpl {
         return push(msgData.getBytes());
     }
 
-    public CassQMsg push( byte[] msgData ) {
+    public CassQMsg push(byte[] msgData) {
         // for shutdown sync'ing
         working = true;
         try {
@@ -54,6 +57,7 @@ public class PusherImpl {
             working = false;
         }
     }
+
     private CassQMsg insertInternal(UUID msgId, byte[] msgData) {
         long start = System.currentTimeMillis();
 
@@ -61,15 +65,17 @@ public class PusherImpl {
             throw new IllegalStateException("cannot push messages when shutdown in progress");
         }
 
-        if (markPipeFinishedIfNeeded()) {
-            logger.debug("new pipe needed, switching to new one");
-            switchToNewPipe();
+        // pusher can be used by multiple threads
+        synchronized (pipeSwitcherMonitor ) {
+            if (markPipeFinishedIfNeeded()) {
+                logger.debug("new pipe needed, switching to new one");
+                switchToNewPipe();
+            }
         }
 
         pipeDesc.incPushCount();
-        pushCount++;
+        pushCount.incrementAndGet();
 
-//        CassQMsg qMsg = qMsgFactory.createInstance(pipeDesc, msgId, msgData);
         CassQMsg qMsg = qRepos.insertMsg(pipeDesc, msgId, msgData);
         logger.debug("pushed message : {}", qMsg);
 
@@ -88,8 +94,8 @@ public class PusherImpl {
 
     /**
      * If pipe is full, but not expired then mark it as
-     * {@link PipeStatus#NOT_ACTIVE}. If it has expired, {@link PopperImpl}
-     * will handle this case to prevent race condition.
+     * {@link PipeStatus#NOT_ACTIVE}. If it has expired, {@link PopperImpl} will
+     * handle this case to prevent race condition.
      * 
      * @return
      */
@@ -109,8 +115,6 @@ public class PusherImpl {
             // time if needed
             qRepos.updatePipePushStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
 
-            // TODO BTB:let's not do this wakup and see if performance improves
-            // pipeReaper.wakeUp();
             return true;
         }
         else {
@@ -156,7 +160,7 @@ public class PusherImpl {
     }
 
     public int getPushCount() {
-        return pushCount;
+        return pushCount.get();
     }
 
 }

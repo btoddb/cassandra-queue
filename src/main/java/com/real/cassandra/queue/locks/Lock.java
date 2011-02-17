@@ -7,7 +7,7 @@ package com.real.cassandra.queue.locks;
  * using the instance as a generic type.
  *
  * @author Andrew Ebaugh
- * @version $Id: Lock.java,v 1.1 2010/10/29 20:33:03 aebaugh Exp $
+ * @version $Id: Lock.java,v 1.2 2011/01/27 22:44:17 aebaugh Exp $
  */
 public interface Lock {
 

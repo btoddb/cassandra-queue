@@ -90,7 +90,7 @@ public class CassQueueImpl implements CassQueueMXBean {
     /**
      * A message that has been popped is in a "pending" state. If the message is
      * not committed or rolled back before the
-     * {@link #getTransactionTimeout(long)} is exceeded, the {@link PipeReaper}
+     * {@link #getTransactionTimeout()} is exceeded, the {@link PipeReaper}
      * will rollback the message.
      * 
      * @param qMsg
@@ -206,8 +206,28 @@ public class CassQueueImpl implements CassQueueMXBean {
             popper.shutdownAndWait();
         }
 
-        if (null != pipeReaper) {
+        if(pipeCollectionLocker != null) {
+            pipeCollectionLocker.shutdownAndWait();
+        }
+
+        if(queueStatsLocker != null) {
+            queueStatsLocker.shutdownAndWait();
+        }
+
+        if (pipeReaper != null) {
             pipeReaper.shutdownAndWait();
+        }
+
+        if(popEmptyStat != null) {
+            popEmptyStat.shutdown();
+        }
+
+        if(popNotEmptyStat != null) {
+            popNotEmptyStat.shutdown();
+        }
+
+        if(pushStat != null) {
+            pushStat.shutdown();
         }
     }
 

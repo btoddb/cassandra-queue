@@ -10,7 +10,7 @@ public abstract class PushPopAbstractBase implements Runnable {
     private String delayPropName;
     private int numMsgsToProcess;
     private int msgsProcessed;
-    private boolean stopProcessing = false;
+    private volatile boolean stopProcessing = false;
 
     private Thread theThread;
     long start;
