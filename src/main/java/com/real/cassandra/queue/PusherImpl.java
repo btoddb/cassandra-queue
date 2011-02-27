@@ -15,9 +15,7 @@ import com.real.cassandra.queue.utils.RollingStat;
 
 /**
  * An instance of {@link PusherImpl} that implements a "pipe per pusher thread"
- * model using Cassandra as persistent storage. This object is not thread safe!
- * As the previous statement implies one {@link PusherImpl} instance is required
- * per thread. object is not guarateed thread safe.
+ * model using Cassandra as persistent storage. This object is thread safe.
  * 
  * @author Todd Burruss
  */

@@ -66,7 +66,7 @@ public class PopperImpl {
         working = true;
         try {
             for (;;) {
-                pd = pickAndLockPipe();
+                pd = pipeMgr.pickPipe();
                 if (null == pd) {
                     logger.debug("no pipes available, cannot pop");
                     return null;
@@ -165,10 +165,6 @@ public class PopperImpl {
             }
             return qMsg;
         }
-    }
-
-    private PipeDescriptorImpl pickAndLockPipe() throws Exception {
-        return pipeMgr.pickPipe();
     }
 
     /**

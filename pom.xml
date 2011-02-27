@@ -2,7 +2,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.real</groupId>
 	<artifactId>cassandra-queue</artifactId>
-	<version>0.3.9-SNAPSHOT</version>
+	<version>0.3.10-SNAPSHOT</version>
 	<name>Cassandra Queue</name>
 	<description>Mostly FIFO queue using Cassandra Database</description>
 
@@ -131,7 +131,7 @@
         <dependency>
             <groupId>me.prettyprint</groupId>
             <artifactId>hector-core</artifactId>
-            <version>0.7.0-26</version>
+            <version>0.7.0-28</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>

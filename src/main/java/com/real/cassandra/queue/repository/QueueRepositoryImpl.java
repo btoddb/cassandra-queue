@@ -129,13 +129,20 @@ public class QueueRepositoryImpl {
      * @param qName
      * @param maxPushTimePerPipe
      * @param maxPushesPerPipe
-     * @return
+     * @param transactionTimeout 
+     * @return QueueDescriptor
      */
     public QueueDescriptor createQueueIfDoesntExist(String qName, long maxPushTimePerPipe, int maxPushesPerPipe,
             long transactionTimeout) {
-        CfDef colFamDef =
-                new CfDef(QUEUE_KEYSPACE_NAME, formatWaitingColFamName(qName)).setComparator_type("TimeUUIDType")
-                        .setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(GC_GRACE_SECS);
+        CfDef colFamDef = new CfDef(QUEUE_KEYSPACE_NAME, formatWaitingColFamName(qName))
+                            .setComparator_type("TimeUUIDType")
+                            .setKey_cache_size(0)
+                            .setRow_cache_size(0)
+                            .setGc_grace_seconds(GC_GRACE_SECS)
+                            .setMemtable_flush_after_mins(15)
+                            .setMemtable_operations_in_millions(0.25)
+                            .setMemtable_throughput_in_mb(200)
+                            ;
         String ver = null;
         try {
             ver = createColumnFamily(colFamDef);
@@ -146,9 +153,15 @@ public class QueueRepositoryImpl {
                     + " - possibly already exists and is OK");
         }
 
-        colFamDef =
-                new CfDef(QUEUE_KEYSPACE_NAME, formatPendingColFamName(qName)).setComparator_type("TimeUUIDType")
-                        .setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(GC_GRACE_SECS);
+        colFamDef = new CfDef(QUEUE_KEYSPACE_NAME, formatPendingColFamName(qName))
+                        .setComparator_type("TimeUUIDType")
+                        .setKey_cache_size(0)
+                        .setRow_cache_size(0)
+                        .setGc_grace_seconds(GC_GRACE_SECS)
+                        .setMemtable_flush_after_mins(15)
+                        .setMemtable_operations_in_millions(0.1)
+                        .setMemtable_throughput_in_mb(20)
+                        ;
         try {
             ver = createColumnFamily(colFamDef);
             waitForSchemaSync(ver);
@@ -673,21 +686,56 @@ public class QueueRepositoryImpl {
 
     private KsDef createKeyspaceDefinition() {
         ArrayList<CfDef> cfDefList = new ArrayList<CfDef>(2);
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_DESCRIPTORS_COLFAM).setComparator_type(
-                BytesType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(1000).setGc_grace_seconds(
-                GC_GRACE_SECS));
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_STATS_COLFAM).setComparator_type(
-                BytesType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(
-                GC_GRACE_SECS));
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, PIPE_DESCRIPTOR_COLFAM).setComparator_type(
-                BytesType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(
-                GC_GRACE_SECS));
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_PIPE_CNXN_COLFAM).setComparator_type(
-                TimeUUIDType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(
-                GC_GRACE_SECS));
-        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, MSG_DESCRIPTOR_COLFAM).setComparator_type(
-                BytesType.class.getSimpleName()).setKey_cache_size(0).setRow_cache_size(0).setGc_grace_seconds(
-                GC_GRACE_SECS));
+        cfDefList.add(
+                new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_DESCRIPTORS_COLFAM)
+                .setComparator_type(BytesType.class.getSimpleName())
+                .setKey_cache_size(0)
+                .setRow_cache_size(1000)
+                .setGc_grace_seconds(GC_GRACE_SECS)
+                .setMemtable_flush_after_mins(15)
+                .setMemtable_operations_in_millions(0.1)
+                .setMemtable_throughput_in_mb(20)
+                );
+        cfDefList.add(
+                new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_STATS_COLFAM)
+                .setComparator_type(BytesType.class.getSimpleName())
+                .setKey_cache_size(0)
+                .setRow_cache_size(0)
+                .setGc_grace_seconds(GC_GRACE_SECS)
+                .setMemtable_flush_after_mins(15)
+                .setMemtable_operations_in_millions(0.15)
+                .setMemtable_throughput_in_mb(50)
+                );
+        cfDefList.add(
+                new CfDef(QUEUE_KEYSPACE_NAME, PIPE_DESCRIPTOR_COLFAM)
+                .setComparator_type(BytesType.class.getSimpleName())
+                .setKey_cache_size(0)
+                .setRow_cache_size(0)
+                .setGc_grace_seconds(GC_GRACE_SECS)
+                .setMemtable_flush_after_mins(15)
+                .setMemtable_operations_in_millions(0.15)
+                .setMemtable_throughput_in_mb(50)
+                );
+        cfDefList.add(
+                new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_PIPE_CNXN_COLFAM)
+                .setComparator_type(TimeUUIDType.class.getSimpleName())
+                .setKey_cache_size(0)
+                .setRow_cache_size(0)
+                .setGc_grace_seconds(GC_GRACE_SECS)
+                .setMemtable_flush_after_mins(15)
+                .setMemtable_operations_in_millions(0.1)
+                .setMemtable_throughput_in_mb(20)
+                );
+        cfDefList.add(
+                new CfDef(QUEUE_KEYSPACE_NAME, MSG_DESCRIPTOR_COLFAM)
+                .setComparator_type(BytesType.class.getSimpleName())
+                .setKey_cache_size(0)
+                .setRow_cache_size(0)
+                .setGc_grace_seconds(GC_GRACE_SECS)
+                .setMemtable_flush_after_mins(15)
+                .setMemtable_operations_in_millions(0.25)
+                .setMemtable_throughput_in_mb(200)
+                );
 
         return new KsDef(QUEUE_KEYSPACE_NAME, STRATEGY_CLASS_NAME, getReplicationFactor(), cfDefList);
     }
@@ -698,7 +746,7 @@ public class QueueRepositoryImpl {
             return false;
         }
 
-        return null != schemaMap && schemaMap.containsKey(version) && 1 == schemaMap.size();
+        return schemaMap.containsKey(version) && 1 == schemaMap.size();
     }
 
     public static String formatWaitingColFamName(String qName) {
