@@ -278,6 +278,7 @@ public class PopperImplTest extends CassQueueTestBase {
 
     @Before
     public void setupTest() throws Exception {
+//        cqFactory = new CassQueueFactoryImpl(qRepos, new HazelcastLockerImpl<QueueDescriptor>("junits"), new HazelcastLockerImpl<QueueDescriptor>("junits"));
         cqFactory = new CassQueueFactoryImpl(qRepos, new LocalLockerImpl<QueueDescriptor>(), new LocalLockerImpl<QueueDescriptor>());
     }
 }

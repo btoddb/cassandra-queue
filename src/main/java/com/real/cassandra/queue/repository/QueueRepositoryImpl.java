@@ -39,9 +39,9 @@ import me.prettyprint.hom.EntityManagerImpl;
 
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.thrift.Cassandra.Client;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.KsDef;
-import org.apache.cassandra.thrift.Cassandra.Client;
 import org.apache.cassandra.utils.UUIDGen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -129,20 +129,17 @@ public class QueueRepositoryImpl {
      * @param qName
      * @param maxPushTimePerPipe
      * @param maxPushesPerPipe
-     * @param transactionTimeout 
+     * @param transactionTimeout
      * @return QueueDescriptor
      */
     public QueueDescriptor createQueueIfDoesntExist(String qName, long maxPushTimePerPipe, int maxPushesPerPipe,
             long transactionTimeout) {
-        CfDef colFamDef = new CfDef(QUEUE_KEYSPACE_NAME, formatWaitingColFamName(qName))
-                            .setComparator_type("TimeUUIDType")
-                            .setKey_cache_size(0)
-                            .setRow_cache_size(0)
-                            .setGc_grace_seconds(GC_GRACE_SECS)
-                            .setMemtable_flush_after_mins(15)
-                            .setMemtable_operations_in_millions(0.25)
-                            .setMemtable_throughput_in_mb(200)
-                            ;
+        CfDef colFamDef =
+                new CfDef(QUEUE_KEYSPACE_NAME, formatWaitingColFamName(qName)).setComparator_type("TimeUUIDType")
+                        .setKey_cache_size(0).setKey_cache_save_period_in_seconds(0).setRow_cache_size(0)
+                        .setRow_cache_save_period_in_seconds(0).setGc_grace_seconds(GC_GRACE_SECS)
+                        .setMemtable_flush_after_mins(15).setMemtable_operations_in_millions(0.25)
+                        .setMemtable_throughput_in_mb(200);
         String ver = null;
         try {
             ver = createColumnFamily(colFamDef);
@@ -153,15 +150,12 @@ public class QueueRepositoryImpl {
                     + " - possibly already exists and is OK");
         }
 
-        colFamDef = new CfDef(QUEUE_KEYSPACE_NAME, formatPendingColFamName(qName))
-                        .setComparator_type("TimeUUIDType")
-                        .setKey_cache_size(0)
-                        .setRow_cache_size(0)
-                        .setGc_grace_seconds(GC_GRACE_SECS)
-                        .setMemtable_flush_after_mins(15)
-                        .setMemtable_operations_in_millions(0.1)
-                        .setMemtable_throughput_in_mb(20)
-                        ;
+        colFamDef =
+                new CfDef(QUEUE_KEYSPACE_NAME, formatPendingColFamName(qName)).setComparator_type("TimeUUIDType")
+                        .setKey_cache_size(0).setKey_cache_save_period_in_seconds(0).setRow_cache_size(0)
+                        .setRow_cache_save_period_in_seconds(0).setGc_grace_seconds(GC_GRACE_SECS)
+                        .setMemtable_flush_after_mins(15).setMemtable_operations_in_millions(0.1)
+                        .setMemtable_throughput_in_mb(20);
         try {
             ver = createColumnFamily(colFamDef);
             waitForSchemaSync(ver);
@@ -329,8 +323,11 @@ public class QueueRepositoryImpl {
         Mutator<UUID> m = HFactory.createMutator(keyspace, UUIDSerializer.get());
 
         // update pipe pop count
-        m.addInsertion(pipeDesc.getPipeId(), PIPE_DESCRIPTOR_COLFAM, HFactory.createColumn(PDESC_COLNAME_POP_COUNT,
-                popCount, StringSerializer.get(), IntegerSerializer.get()));
+        m.addInsertion(
+                pipeDesc.getPipeId(),
+                PIPE_DESCRIPTOR_COLFAM,
+                HFactory.createColumn(PDESC_COLNAME_POP_COUNT, popCount, StringSerializer.get(),
+                        IntegerSerializer.get()));
         m.execute();
     }
 
@@ -400,8 +397,8 @@ public class QueueRepositoryImpl {
 
     private List<CassQMsg> getOldestMsgsFromPipe(String colFameName, PipeDescriptorImpl pipeDesc, int maxMsgs) {
         SliceQuery<UUID, UUID, byte[]> q =
-                HFactory.createSliceQuery(keyspace, UUIDSerializer.get(), UUIDSerializer.get(), BytesArraySerializer
-                        .get());
+                HFactory.createSliceQuery(keyspace, UUIDSerializer.get(), UUIDSerializer.get(),
+                        BytesArraySerializer.get());
         q.setColumnFamily(colFameName);
         q.setKey(pipeDesc.getPipeId());
         q.setRange(null, null, false, maxMsgs);
@@ -544,8 +541,8 @@ public class QueueRepositoryImpl {
     public CassQMsg getMsg(String qName, PipeDescriptorImpl pipeDesc, UUID msgId) {
 
         ColumnQuery<UUID, UUID, byte[]> q =
-                HFactory.createColumnQuery(keyspace, UUIDSerializer.get(), UUIDSerializer.get(), BytesArraySerializer
-                        .get());
+                HFactory.createColumnQuery(keyspace, UUIDSerializer.get(), UUIDSerializer.get(),
+                        BytesArraySerializer.get());
         q.setColumnFamily(formatWaitingColFamName(qName));
         q.setKey(pipeDesc.getPipeId());
         q.setName(msgId);
@@ -584,8 +581,8 @@ public class QueueRepositoryImpl {
 
     public PipeDescriptorImpl getPipeDescriptor(UUID pipeId) {
         SliceQuery<UUID, String, byte[]> q =
-                HFactory.createSliceQuery(keyspace, UUIDSerializer.get(), StringSerializer.get(), BytesArraySerializer
-                        .get());
+                HFactory.createSliceQuery(keyspace, UUIDSerializer.get(), StringSerializer.get(),
+                        BytesArraySerializer.get());
         q.setRange(null, null, false, MAX_PIPE_DESCRIPTOR_COLUMNS);
         q.setColumnFamily(PIPE_DESCRIPTOR_COLFAM);
         q.setKey(pipeId);
@@ -664,78 +661,56 @@ public class QueueRepositoryImpl {
      */
     public void initKeyspace(boolean forceRecreate) {
         try {
-        String schemaVer = null;
-        if (isKeyspaceExists()) {
-            if (!forceRecreate) {
-                return;
+            String schemaVer = null;
+            if (isKeyspaceExists()) {
+                if (!forceRecreate) {
+                    return;
+                }
+                else {
+                    schemaVer = dropKeyspace();
+                    waitForSchemaSync(schemaVer);
+                }
             }
-            else {
-                schemaVer = dropKeyspace();
-                waitForSchemaSync(schemaVer);
-            }
-        }
 
-        KsDef ksDef = createKeyspaceDefinition();
-        schemaVer = createKeyspace(ksDef);
-        waitForSchemaSync(schemaVer);
+            KsDef ksDef = createKeyspaceDefinition();
+            schemaVer = createKeyspace(ksDef);
+            waitForSchemaSync(schemaVer);
         }
-        catch ( Throwable e ) {
-            logger.error( "exception while checking keyspace or trying to initialize keyspace - startup continuing.  this exception will not cause problems if your keyspace was previously initialized", e);
+        catch (Throwable e) {
+            logger.error(
+                    "exception while checking keyspace or trying to initialize keyspace - startup continuing.  this exception will not cause problems if your keyspace was previously initialized",
+                    e);
         }
     }
 
     private KsDef createKeyspaceDefinition() {
         ArrayList<CfDef> cfDefList = new ArrayList<CfDef>(2);
-        cfDefList.add(
-                new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_DESCRIPTORS_COLFAM)
-                .setComparator_type(BytesType.class.getSimpleName())
-                .setKey_cache_size(0)
-                .setRow_cache_size(1000)
-                .setGc_grace_seconds(GC_GRACE_SECS)
-                .setMemtable_flush_after_mins(15)
-                .setMemtable_operations_in_millions(0.1)
-                .setMemtable_throughput_in_mb(20)
-                );
-        cfDefList.add(
-                new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_STATS_COLFAM)
-                .setComparator_type(BytesType.class.getSimpleName())
-                .setKey_cache_size(0)
-                .setRow_cache_size(0)
-                .setGc_grace_seconds(GC_GRACE_SECS)
-                .setMemtable_flush_after_mins(15)
-                .setMemtable_operations_in_millions(0.15)
-                .setMemtable_throughput_in_mb(50)
-                );
-        cfDefList.add(
-                new CfDef(QUEUE_KEYSPACE_NAME, PIPE_DESCRIPTOR_COLFAM)
-                .setComparator_type(BytesType.class.getSimpleName())
-                .setKey_cache_size(0)
-                .setRow_cache_size(0)
-                .setGc_grace_seconds(GC_GRACE_SECS)
-                .setMemtable_flush_after_mins(15)
-                .setMemtable_operations_in_millions(0.15)
-                .setMemtable_throughput_in_mb(50)
-                );
-        cfDefList.add(
-                new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_PIPE_CNXN_COLFAM)
-                .setComparator_type(TimeUUIDType.class.getSimpleName())
-                .setKey_cache_size(0)
-                .setRow_cache_size(0)
-                .setGc_grace_seconds(GC_GRACE_SECS)
-                .setMemtable_flush_after_mins(15)
-                .setMemtable_operations_in_millions(0.1)
-                .setMemtable_throughput_in_mb(20)
-                );
-        cfDefList.add(
-                new CfDef(QUEUE_KEYSPACE_NAME, MSG_DESCRIPTOR_COLFAM)
-                .setComparator_type(BytesType.class.getSimpleName())
-                .setKey_cache_size(0)
-                .setRow_cache_size(0)
-                .setGc_grace_seconds(GC_GRACE_SECS)
-                .setMemtable_flush_after_mins(15)
-                .setMemtable_operations_in_millions(0.25)
-                .setMemtable_throughput_in_mb(200)
-                );
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, MSG_DESCRIPTOR_COLFAM)
+                .setComparator_type(BytesType.class.getSimpleName()).setKey_cache_size(0)
+                .setKey_cache_save_period_in_seconds(0).setRow_cache_size(0).setRow_cache_save_period_in_seconds(0)
+                .setGc_grace_seconds(GC_GRACE_SECS).setMemtable_flush_after_mins(15)
+                .setMemtable_operations_in_millions(0.25).setMemtable_throughput_in_mb(200));
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, PIPE_DESCRIPTOR_COLFAM)
+                .setComparator_type(BytesType.class.getSimpleName()).setKey_cache_size(0)
+                .setKey_cache_save_period_in_seconds(0).setRow_cache_size(0).setRow_cache_save_period_in_seconds(0)
+                .setGc_grace_seconds(GC_GRACE_SECS).setMemtable_flush_after_mins(15)
+                .setMemtable_operations_in_millions(0.15).setMemtable_throughput_in_mb(50));
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_DESCRIPTORS_COLFAM)
+                .setComparator_type(BytesType.class.getSimpleName()).setKey_cache_size(0)
+                .setKey_cache_save_period_in_seconds(0).setRow_cache_size(1000)
+                .setRow_cache_save_period_in_seconds(3600).setGc_grace_seconds(GC_GRACE_SECS)
+                .setMemtable_flush_after_mins(15).setMemtable_operations_in_millions(0.1)
+                .setMemtable_throughput_in_mb(20));
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_PIPE_CNXN_COLFAM)
+                .setComparator_type(TimeUUIDType.class.getSimpleName()).setKey_cache_size(0)
+                .setKey_cache_save_period_in_seconds(0).setRow_cache_size(0).setRow_cache_save_period_in_seconds(0)
+                .setGc_grace_seconds(GC_GRACE_SECS).setMemtable_flush_after_mins(15)
+                .setMemtable_operations_in_millions(0.1).setMemtable_throughput_in_mb(20));
+        cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_STATS_COLFAM)
+                .setComparator_type(BytesType.class.getSimpleName()).setKey_cache_size(0)
+                .setKey_cache_save_period_in_seconds(0).setRow_cache_size(0).setRow_cache_save_period_in_seconds(0)
+                .setGc_grace_seconds(GC_GRACE_SECS).setMemtable_flush_after_mins(15)
+                .setMemtable_operations_in_millions(0.15).setMemtable_throughput_in_mb(50));
 
         return new KsDef(QUEUE_KEYSPACE_NAME, STRATEGY_CLASS_NAME, getReplicationFactor(), cfDefList);
     }
@@ -847,10 +822,11 @@ public class QueueRepositoryImpl {
         }
         return qsTmp;
     }
+
     public QueueStats calculateUpToDateQueueStats(String qName) {
         // get rolled up stats first
         final QueueStats qStats = getQueueStats(qName);
-        
+
         // count still in pipe counts
         ColumnIterator rawMsgColIter = new ColumnIterator();
         rawMsgColIter.doIt(cluster, QUEUE_KEYSPACE_NAME, QUEUE_PIPE_CNXN_COLFAM, qName.getBytes(),
@@ -866,11 +842,11 @@ public class QueueRepositoryImpl {
                         return true;
                     }
                 });
-        
+
         return qStats;
     }
 
-    public void updateQueueStats(QueueStats qStats) {        
+    public void updateQueueStats(QueueStats qStats) {
         entityMgr.save(qStats);
     }
 
@@ -885,16 +861,32 @@ public class QueueRepositoryImpl {
         m.execute();
     }
 
+    /**
+     * Save the pipe popper owner for the given pipe, and timestamp. If the
+     * owner is null the owner and timestamp will be removed allowing another
+     * popper to immediately own the pipe.
+     * 
+     * @param pd
+     * @param popOwnerId
+     * @param timestamp
+     */
     public void savePipePopOwner(PipeDescriptorImpl pd, UUID popOwnerId, long timestamp) {
         Mutator<UUID> m = HFactory.createMutator(keyspace, UUIDSerializer.get());
-        HColumn<String, UUID> col1 =
-                HFactory.createColumn(PDESC_COLNAME_POP_OWNER_ID, popOwnerId, StringSerializer.get(), UUIDSerializer
-                        .get());
-        m.addInsertion(pd.getPipeId(), PIPE_DESCRIPTOR_COLFAM, col1);
-        HColumn<String, Long> col2 =
-                HFactory.createColumn(PDESC_COLNAME_POP_OWNER_TIMESTAMP, timestamp, StringSerializer.get(),
-                        LongSerializer.get());
-        m.addInsertion(pd.getPipeId(), PIPE_DESCRIPTOR_COLFAM, col2);
+        if (null != popOwnerId) {
+            HColumn<String, UUID> col1 =
+                    HFactory.createColumn(PDESC_COLNAME_POP_OWNER_ID, popOwnerId, StringSerializer.get(),
+                            UUIDSerializer.get());
+            m.addInsertion(pd.getPipeId(), PIPE_DESCRIPTOR_COLFAM, col1);
+            HColumn<String, Long> col2 =
+                    HFactory.createColumn(PDESC_COLNAME_POP_OWNER_TIMESTAMP, timestamp, StringSerializer.get(),
+                            LongSerializer.get());
+            m.addInsertion(pd.getPipeId(), PIPE_DESCRIPTOR_COLFAM, col2);
+        }
+        else {
+            m.addDeletion(pd.getPipeId(), PIPE_DESCRIPTOR_COLFAM, PDESC_COLNAME_POP_OWNER_ID, StringSerializer.get());
+            m.addDeletion(pd.getPipeId(), PIPE_DESCRIPTOR_COLFAM, PDESC_COLNAME_POP_OWNER_TIMESTAMP,
+                    StringSerializer.get());
+        }
         m.execute();
     }
 

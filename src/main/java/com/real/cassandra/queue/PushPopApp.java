@@ -12,12 +12,13 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.hazelcast.core.Hazelcast;
 import com.real.cassandra.queue.app.CassQueueUtils;
 import com.real.cassandra.queue.app.PushPopAbstractBase;
 import com.real.cassandra.queue.app.QueueProperties;
 import com.real.cassandra.queue.app.WorkerThreadWatcher;
 import com.real.cassandra.queue.locks.Locker;
-import com.real.cassandra.queue.locks.ZooKeeperLockerImpl;
+import com.real.cassandra.queue.locks.hazelcast.HazelcastLockerImpl;
 import com.real.cassandra.queue.repository.HectorUtils;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
 
@@ -40,9 +41,12 @@ public class PushPopApp {
         logger.info("setting up app properties");
         parseAppProperties();
 
-        String ZK_CONNECT_STRING = "kv-app07.dev.real.com:2181,kv-app08.dev.real.com:2181,kv-app09.dev.real.com:2181";
-        queueStatsLocker = new ZooKeeperLockerImpl<QueueDescriptor>("/queue-stats", ZK_CONNECT_STRING, 6000);
-        pipeCollectionLocker = new ZooKeeperLockerImpl<QueueDescriptor>("/pipes", ZK_CONNECT_STRING, 6000);
+//        String ZK_CONNECT_STRING = "kv-app07.dev.real.com:2181,kv-app08.dev.real.com:2181,kv-app09.dev.real.com:2181";
+//        queueStatsLocker = new ZooKeeperLockerImpl<QueueDescriptor>("/queue-stats", ZK_CONNECT_STRING, 6000);
+//        pipeCollectionLocker = new ZooKeeperLockerImpl<QueueDescriptor>("/pipes", ZK_CONNECT_STRING, 6000);
+        queueStatsLocker = new HazelcastLockerImpl<QueueDescriptor>("queue-stats");
+        pipeCollectionLocker = new HazelcastLockerImpl<QueueDescriptor>("pipes");
+
         logger.info("setting queuing system");
         setupQueueSystem();
 
@@ -66,6 +70,28 @@ public class PushPopApp {
         pusherWtw.shutdownAndWait();
         popperWtw.shutdownAndWait();
 
+        queueStatsLocker.shutdownAndWait();
+        pipeCollectionLocker.shutdownAndWait();
+
+//        System.out.println( "queueStatsLocker : lockCountSuccess          = " + ((HazelcastLockerImpl)queueStatsLocker).getLockCountSuccess());
+//        System.out.println( "queueStatsLocker : lockCountFailure          = " + ((HazelcastLockerImpl)queueStatsLocker).getLockCountFailure());
+//        System.out.println( "queueStatsLocker : lockCountFailureWithRetry = " + ((HazelcastLockerImpl)queueStatsLocker).getLockCountFailureWithRetry());
+//        System.out.println( "queueStatsLocker : releaseCount              = " + ((HazelcastLockerImpl)queueStatsLocker).getReleaseCount());
+//        
+//        System.out.println();
+//        
+//        System.out.println( "pipeCollectionLocker : lockCountSuccess          = " + ((HazelcastLockerImpl)pipeCollectionLocker).getLockCountSuccess());
+//        System.out.println( "pipeCollectionLocker : lockCountFailure          = " + ((HazelcastLockerImpl)pipeCollectionLocker).getLockCountFailure());
+//        System.out.println( "pipeCollectionLocker : lockCountFailureWithRetry = " + ((HazelcastLockerImpl)pipeCollectionLocker).getLockCountFailureWithRetry());
+//        System.out.println( "pipeCollectionLocker : releaseCount              = " + ((HazelcastLockerImpl)pipeCollectionLocker).getReleaseCount());
+//
+//        System.out.println();
+        
+        System.out.println( "pickNewPipeSuccess = " + cq.getPopperPickNewPipeSuccess() );
+        System.out.println( "pickNewPipeFailure = " + cq.getPopperPickNewPipeFailure() );
+        System.out.println( "acquireLockFailure = " + cq.getPopperAcquireLockFailure() );
+        System.out.println( "rollback count     = " + cq.getRollbackCount());
+        Hazelcast.shutdownAll();
     }
 
     // -----------------------

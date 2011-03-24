@@ -179,7 +179,7 @@ public class CassQueueUtils {
 
         @Override
         protected void addWorker() throws IOException {
-            CassQueuePusher cqPusher = new CassQueuePusher(pusherId++, cq, numGen, envProps);
+            CassQueuePusher cqPusher = new CassQueuePusher(envProps.getTesterId(), pusherId++, cq, numGen, envProps);
             workerList.add(cqPusher);
             cqPusher.start(envProps.getNumMsgs() / envProps.getNumPushers(), pusherId);
         }

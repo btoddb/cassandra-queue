@@ -1,0 +1,32 @@
+<assembly>
+  <formats>
+    <format>tar.gz</format>
+  </formats>
+
+  <includeBaseDirectory>false</includeBaseDirectory>
+    
+  <dependencySets>
+    <dependencySet>
+      <!-- include dependencies of our dependencies -->
+      <useTransitiveDependencies>true</useTransitiveDependencies>
+
+      <unpack>false</unpack>
+
+      <useProjectArtifact>true</useProjectArtifact>
+
+      <outputDirectory>app/lib</outputDirectory>
+    </dependencySet>
+  </dependencySets>
+ 
+  <fileSets>
+    <fileSet>
+      <directory>src/main/push-pop-app/app</directory>
+      <outputDirectory>app</outputDirectory>
+    </fileSet>
+ 
+    <fileSet>
+      <directory>src/main/push-pop-app/conf</directory>
+      <outputDirectory>conf</outputDirectory>
+    </fileSet>
+  </fileSets>
+</assembly>

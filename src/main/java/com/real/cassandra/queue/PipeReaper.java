@@ -100,7 +100,7 @@ public class PipeReaper implements Runnable {
 
     private void rollUpStatsFromPushFinishedPipes() {
         // pipes in this status are no longer used by pusher client, so no need
-        // for locking
+        // for locking - doesn't interfere with poppers status
         List<PipeDescriptorImpl> pipeList = qRepos.getPushNotActivePipes(cq.getQueueDescriptor().getName(), 10);
         for (PipeDescriptorImpl pipeDesc : pipeList) {
             logger.debug("Rolling up stats for push \"not active\" pipe, {}", pipeDesc.getPipeId());

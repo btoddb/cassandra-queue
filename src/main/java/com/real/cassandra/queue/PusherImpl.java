@@ -64,7 +64,7 @@ public class PusherImpl {
         }
 
         // pusher can be used by multiple threads
-        synchronized (pipeSwitcherMonitor ) {
+        synchronized (pipeSwitcherMonitor) {
             if (markPipeFinishedIfNeeded()) {
                 logger.debug("new pipe needed, switching to new one");
                 switchToNewPipe();
@@ -95,7 +95,7 @@ public class PusherImpl {
      * {@link PipeStatus#NOT_ACTIVE}. If it has expired, {@link PopperImpl} will
      * handle this case to prevent race condition.
      * 
-     * @return
+     * @return true if new pipe needed
      */
     private boolean markPipeFinishedIfNeeded() {
         if (null == pipeDesc) {
@@ -137,7 +137,10 @@ public class PusherImpl {
         }
 
         if (null != pipeDesc) {
-            qRepos.updatePipePushStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
+            synchronized (pipeSwitcherMonitor) {
+                qRepos.updatePipePushStatus(pipeDesc, PipeStatus.NOT_ACTIVE);
+                pipeDesc = null;
+            }
         }
     }
 

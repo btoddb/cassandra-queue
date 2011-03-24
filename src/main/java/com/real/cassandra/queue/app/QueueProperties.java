@@ -49,6 +49,8 @@ public class QueueProperties implements EnvPropertiesMXBean {
     public static final String ENV_truncateQueue = "truncateQueue";
     
     public static final String ENV_TRANSACTION_TIMEOUT = "transactionTimeout";
+    
+    public static final String ENV_TESTER_ID = "testerId";
 
     private Properties rawProps;
     private String hostArr;
@@ -239,6 +241,9 @@ public class QueueProperties implements EnvPropertiesMXBean {
                 CassandraHost.DEFAULT_TIME_BETWEEN_EVICTION_RUNS_MILLIS);
     }
 
+    public String getTesterId() {
+        return rawProps.getProperty(ENV_TESTER_ID);
+    }
     public boolean getUseThriftFramedTransport() {
         return getPropertyAsBoolean(ENV_useThriftFramedTransport, true);
     }

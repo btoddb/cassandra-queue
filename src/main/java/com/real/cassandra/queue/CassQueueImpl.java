@@ -3,6 +3,7 @@ package com.real.cassandra.queue;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.management.InstanceAlreadyExistsException;
 
@@ -52,6 +53,8 @@ public class CassQueueImpl implements CassQueueMXBean {
     private RollingStat pushStat = new RollingStat(60000);
 
     private PipeReaper pipeReaper;
+    
+    private AtomicLong rollbackCount = new AtomicLong();
 
     public CassQueueImpl(QueueRepositoryImpl qRepos, QueueDescriptor qDesc, boolean startReaper,
             Locker<QueueDescriptor> queueStatsLocker, Locker<QueueDescriptor> pipeCollectionLocker) {
@@ -109,6 +112,7 @@ public class CassQueueImpl implements CassQueueMXBean {
         logger.debug("rollback {}", qMsg);
         CassQMsg qNewMsg = rollbackPusher.push(qMsg.getMsgDesc().getPayload());
         qRepos.removeMsgFromPendingPipe(qMsg);
+        rollbackCount.incrementAndGet();
         return qNewMsg;
     }
 
@@ -319,5 +323,33 @@ public class CassQueueImpl implements CassQueueMXBean {
 
     public void setMaxPopOwnerIdleTime(long maxPopOwnerIdleTime) {
         this.maxPopOwnerIdleTime = maxPopOwnerIdleTime;
+    }
+
+    public long getPopperPickNewPipeSuccess() {
+        long count = 0;
+        for ( PopperImpl popper : popperSet ) {
+            count += popper.getPipeMgr().getPickNewPipeSuccess();
+        }
+        return count;
+    }
+
+    public long getPopperPickNewPipeFailure() {
+        long count = 0;
+        for ( PopperImpl popper : popperSet ) {
+            count += popper.getPipeMgr().getPickNewPipeFailure();
+        }
+        return count;
+    }
+
+    public long getPopperAcquireLockFailure() {
+        long count = 0;
+        for ( PopperImpl popper : popperSet ) {
+            count += popper.getPipeMgr().getAcquireLockFailure();
+        }
+        return count;
+    }
+
+    public AtomicLong getRollbackCount() {
+        return rollbackCount;
     }
 }

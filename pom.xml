@@ -2,7 +2,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.real</groupId>
 	<artifactId>cassandra-queue</artifactId>
-	<version>0.3.10-SNAPSHOT</version>
+	<version>0.3.11-SNAPSHOT</version>
 	<name>Cassandra Queue</name>
 	<description>Mostly FIFO queue using Cassandra Database</description>
 
@@ -102,7 +102,31 @@
                         <exclude>**/integration/**</exclude>
                     </excludes>
                 </configuration>
-            </plugin>            
+            </plugin>
+            
+	    	<plugin>
+			    <artifactId>maven-assembly-plugin</artifactId>
+			
+			    <configuration>
+			        <archive>
+			            <addMavenDescriptor>false</addMavenDescriptor>
+			        </archive>
+			        <descriptors>
+			            <descriptor>src/main/assembly/app-assembly.xml</descriptor>
+			        </descriptors>
+			    </configuration>
+			
+			    <!-- create the client jar -->
+			    <executions>
+			        <execution>
+			            <id>create-pushpopapp-tar</id>
+			            <phase>package</phase>
+			            <goals>
+			                <goal>single</goal>
+			            </goals>
+			        </execution>
+			    </executions>
+			</plugin>
 		</plugins>
 	</build>
 
@@ -203,6 +227,11 @@
         	<version>1.2</version>
         	<type>jar</type>
         	<scope>compile</scope>
+        </dependency>
+        <dependency>
+        	<groupId>com.hazelcast</groupId>
+        	<artifactId>hazelcast</artifactId>
+        	<version>1.9.2</version>
         </dependency>
 	</dependencies>
 

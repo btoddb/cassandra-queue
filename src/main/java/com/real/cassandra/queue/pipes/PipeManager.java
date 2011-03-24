@@ -2,6 +2,7 @@ package com.real.cassandra.queue.pipes;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,10 @@ public class PipeManager {
     private int maxPipesToRetrieve = MAX_PIPES_TO_RETRIEVE;
 
     private QueueDescriptor queueDescriptor;
+    
+    private AtomicLong pickNewPipeSuccess = new AtomicLong();
+    private AtomicLong pickNewPipeFailure = new AtomicLong();
+    private AtomicLong acquireLockFailure = new AtomicLong();
 
     public PipeManager(QueueRepositoryImpl qRepos, CassQueueImpl cq, UUID popperId,
             Locker<QueueDescriptor> pipeCollectionLocker) {
@@ -90,27 +95,38 @@ public class PipeManager {
 
             // iterate over available pipe descriptors looking for ownable pipes
             try {
-                // if no pipes available, return now
-                List<PipeDescriptorImpl> pipeDescList = retrievePipeList();
-                if (null == pipeDescList || pipeDescList.isEmpty()) {
-                    logger.debug("no non-empty non-finished pipe descriptors found");
-                    return null;
+                PipeDescriptorImpl pd = choosePipe();
+                if ( null != pd ) {
+                    pickNewPipeSuccess.incrementAndGet();
+                    return pd;
                 }
-
-                for (PipeDescriptorImpl pd : pipeDescList) {
-                    if (checkPipeOwnable(pd)) {
-                        ownPipe(pd);
-                        logger.debug("{} : picked pipe {}", popperId, pd.getPipeId());
-                        return pd;
-                    }
+                else {
+                    pickNewPipeFailure.incrementAndGet();
+                    return null;
                 }
             }
             finally {
                 releasePipeCollectionLock();
             }
-
+        }
+    }
+    
+    private PipeDescriptorImpl choosePipe() {
+        // if no pipes available, return now
+        List<PipeDescriptorImpl> pipeDescList = retrievePipeList();
+        if (null == pipeDescList || pipeDescList.isEmpty()) {
+            logger.debug("no non-empty non-finished pipe descriptors found");
             return null;
         }
+
+        for (PipeDescriptorImpl pd : pipeDescList) {
+            if (checkPipeOwnable(pd)) {
+                ownPipe(pd);
+                logger.debug("{} : picked pipe {}", popperId, pd.getPipeId());
+                return pd;
+            }
+        }
+        return null;
     }
 
     /**
@@ -119,6 +135,7 @@ public class PipeManager {
      */
     public void clearSelection() {
         synchronized (currentPipeMonitor) {
+//            qRepos.savePipePopOwner(currentPipe, null, null);
             currentPipe = null;
         }
     }
@@ -197,6 +214,7 @@ public class PipeManager {
             logger.debug("{} : got pipeCollectionLock", popperId);
         }
         else {
+            acquireLockFailure.incrementAndGet();
             throw new CassQueueException("Cannot acquire lock for picking a new pipe descriptor.  Tried "
                     + MAX_LOCK_ACQUIRE_TRIES + " times before giving up");
         }
@@ -281,6 +299,18 @@ public class PipeManager {
 
     public void setMaxPipesToRetrieve(int maxPipesToRetrieve) {
         this.maxPipesToRetrieve = maxPipesToRetrieve;
+    }
+
+    public long getPickNewPipeSuccess() {
+        return pickNewPipeSuccess.get();
+    }
+
+    public long getPickNewPipeFailure() {
+        return pickNewPipeFailure.get();
+    }
+
+    public long getAcquireLockFailure() {
+        return acquireLockFailure.get();
     }
 
 }

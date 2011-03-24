@@ -160,6 +160,7 @@ public class PopperImpl {
 
             if(qMsg != null) {
                 logger.debug("found message, moving it to 'waiting' pipe : {}", qMsg.toString());
+                // TODO:BTB could combine these two if need to save wire time
                 qRepos.moveMsgFromWaitingToPendingPipe(qMsg);
                 qRepos.updatePipePopCount(pipeDesc, pipeDesc.incPopCount(), qMsg.getMsgDesc());
             }
@@ -227,5 +228,9 @@ public class PopperImpl {
      */
     public UUID getPopperId() {
         return popperId;
+    }
+
+    public PipeManager getPipeMgr() {
+        return pipeMgr;
     }
 }
