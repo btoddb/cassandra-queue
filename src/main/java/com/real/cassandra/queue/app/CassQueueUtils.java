@@ -1,17 +1,13 @@
 package com.real.cassandra.queue.app;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.cassandra.contrib.utils.service.CassandraServiceDataCleaner;
-import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.thrift.transport.TTransportException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,8 +16,6 @@ import com.real.cassandra.queue.CassQueueImpl;
 
 public class CassQueueUtils {
     private static Logger logger = LoggerFactory.getLogger(CassQueueUtils.class);
-
-    private static boolean cassandraStarted = false;
 
     public static final String QUEUE_POOL_NAME = "myTestPool";
     public static final String SYSTEM_POOL_NAME = "mySystemPool";
@@ -115,34 +109,6 @@ public class CassQueueUtils {
             totalPopped += popper.getMsgsProcessed();
         }
         return totalPopped;
-    }
-
-    public static void startCassandraInstance() throws TTransportException, IOException, InterruptedException,
-            SecurityException, IllegalArgumentException, NoSuchMethodException, IllegalAccessException,
-            InvocationTargetException {
-        if (cassandraStarted) {
-            return;
-        }
-
-        CassandraServiceDataCleaner cleaner = new CassandraServiceDataCleaner();
-        cleaner.prepare();
-        EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
-        try {
-            cassandra.init();
-        }
-        catch (TTransportException e) {
-            logger.error("exception while initializing cassandra server", e);
-            throw e;
-        }
-
-        cassandraStarted = true;
-
-        Thread t = new Thread(cassandra);
-        t.setName(cassandra.getClass().getSimpleName());
-        t.setDaemon(true);
-        t.start();
-        logger.info("setup: started embedded cassandra thread");
-        Thread.sleep(1000);
     }
 
     public static QueueProperties createEnvPropertiesWithDefaults() {

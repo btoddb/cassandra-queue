@@ -6,12 +6,10 @@ import java.util.Properties;
 import javax.management.InstanceAlreadyExistsException;
 
 import me.prettyprint.cassandra.service.CassandraHost;
-import me.prettyprint.cassandra.service.ExhaustedPolicy;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.utils.JmxMBeanManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class QueueProperties implements EnvPropertiesMXBean {
     private static Logger logger = LoggerFactory.getLogger(QueueProperties.class);
@@ -203,26 +201,21 @@ public class QueueProperties implements EnvPropertiesMXBean {
         return getPropertyAsBoolean(ENV_lifo, CassandraHost.DEFAULT_LIFO);
     }
 
-    public ExhaustedPolicy getExhaustedPolicy() {
-        String value = rawProps.getProperty(ENV_exhaustedPolicy, "WHEN_EXHAUSTED_FAIL");
-        return ExhaustedPolicy.valueOf(value);
-    }
-
     public int getMaxActive() {
         return getPropertyAsInt(ENV_maxActive, CassandraHost.DEFAULT_MAX_ACTIVE);
     }
 
-    public int getMaxIdle() {
-        return getPropertyAsInt(ENV_maxIdle, CassandraHost.DEFAULT_MAX_IDLE);
-    }
+//    public int getMaxIdle() {
+//        return getPropertyAsInt(ENV_maxIdle, CassandraHost.DEFAULT_MAX_IDLE);
+//    }
 
     public long getMaxWaitTimeWhenExhausted() {
         return getPropertyAsLong(ENV_maxWaitTimeWhenExhausted, CassandraHost.DEFAULT_MAX_WAITTIME_WHEN_EXHAUSTED);
     }
 
-    public long getMinEvictableIdleTimeMillis() {
-        return getPropertyAsLong(ENV_minEvictableIdleTimeMillis, CassandraHost.DEFAULT_MIN_EVICTABLE_IDLE_TIME_MILLIS);
-    }
+//    public long getMinEvictableIdleTimeMillis() {
+//        return getPropertyAsLong(ENV_minEvictableIdleTimeMillis, CassandraHost.DEFAULT_MIN_EVICTABLE_IDLE_TIME_MILLIS);
+//    }
 
     public boolean getRetryDownedHosts() {
         return getPropertyAsBoolean(ENV_retryDownedHosts, false);
@@ -236,10 +229,10 @@ public class QueueProperties implements EnvPropertiesMXBean {
         return getPropertyAsInt(ENV_retryDownedHostsQueueSize, 10);
     }
 
-    public long getTimeBetweenEvictionRunsMillis() {
-        return getPropertyAsLong(ENV_timeBetweenEvictionRunsMillis,
-                CassandraHost.DEFAULT_TIME_BETWEEN_EVICTION_RUNS_MILLIS);
-    }
+//    public long getTimeBetweenEvictionRunsMillis() {
+//        return getPropertyAsLong(ENV_timeBetweenEvictionRunsMillis,
+//                CassandraHost.DEFAULT_TIME_BETWEEN_EVICTION_RUNS_MILLIS);
+//    }
 
     public String getTesterId() {
         return rawProps.getProperty(ENV_TESTER_ID);

@@ -9,14 +9,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import org.apache.cassandra.utils.UUIDGen;
+import com.real.cassandra.queue.utils.UuidGenerator;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.real.cassandra.queue.locks.LocalLockerImpl;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
-import com.real.cassandra.queue.utils.MyIp;
 
 public class PopperImplTest extends CassQueueTestBase {
     private CassQueueFactoryImpl cqFactory;
@@ -260,8 +259,8 @@ public class PopperImplTest extends CassQueueTestBase {
     @Test
     public void testPipeDescriptorExpires() throws Exception {
         CassQueueImpl cq = cqFactory.createInstance("test_" + System.currentTimeMillis(), 20000, 10, 30000, false);
-        UUID pipeId1 = UUIDGen.makeType1UUIDFromHost(MyIp.get());
-        UUID pipeId2 = UUIDGen.makeType1UUIDFromHost(MyIp.get());
+        UUID pipeId1 = UuidGenerator.generateTimeUuid();
+        UUID pipeId2 = UuidGenerator.generateTimeUuid();
         qRepos.createPipeDescriptor(cq.getName(), pipeId1, 1);
         qRepos.createPipeDescriptor(cq.getName(), pipeId2, System.currentTimeMillis());
         PopperImpl popper = cq.createPopper();

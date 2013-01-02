@@ -8,9 +8,9 @@ import me.prettyprint.cassandra.service.CassandraHostConfigurator;
 import me.prettyprint.hector.api.Cluster;
 import me.prettyprint.hector.api.Keyspace;
 import me.prettyprint.hector.api.factory.HFactory;
-import me.prettyprint.hom.EntityManagerImpl;
 
 import com.real.cassandra.queue.app.QueueProperties;
+import me.prettyprint.hom.EntityManagerImpl;
 
 public class HectorUtils {
 
@@ -28,17 +28,13 @@ public class HectorUtils {
     public static QueueRepositoryImpl createQueueRepository(QueueProperties envProps) {
         CassandraHostConfigurator hc = new CassandraHostConfigurator(envProps.getHostArr());
         hc.setCassandraThriftSocketTimeout(envProps.getCassandraThriftSocketTimeout());
-        hc.setExhaustedPolicy(envProps.getExhaustedPolicy());
         hc.setLifo(envProps.getLifo());
         hc.setMaxActive(envProps.getMaxActive());
-        hc.setMaxIdle(envProps.getMaxIdle());
         hc.setMaxWaitTimeWhenExhausted(envProps.getMaxWaitTimeWhenExhausted());
-        hc.setMinEvictableIdleTimeMillis(envProps.getMinEvictableIdleTimeMillis());
         hc.setPort(envProps.getRpcPort());
         hc.setRetryDownedHosts(envProps.getRetryDownedHosts());
         hc.setRetryDownedHostsDelayInSeconds(envProps.getRetryDownedHostsDelayInSeconds());
         hc.setRetryDownedHostsQueueSize(envProps.getRetryDownedHostsQueueSize());
-        hc.setTimeBetweenEvictionRunsMillis(envProps.getTimeBetweenEvictionRunsMillis());
         hc.setUseThriftFramedTransport(envProps.getUseThriftFramedTransport());
 
         Cluster c = HFactory.getOrCreateCluster(QueueRepositoryImpl.QUEUE_POOL_NAME, hc);

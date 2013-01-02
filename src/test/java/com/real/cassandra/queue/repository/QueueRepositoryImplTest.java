@@ -14,17 +14,14 @@ import java.util.UUID;
 import me.prettyprint.hector.api.ddl.ColumnFamilyDefinition;
 import me.prettyprint.hector.api.ddl.KeyspaceDefinition;
 
-import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Test;
 
 import com.real.cassandra.queue.CassQMsg;
 import com.real.cassandra.queue.CassQueueTestBase;
 import com.real.cassandra.queue.QueueDescriptor;
 import com.real.cassandra.queue.QueueStats;
-import com.real.cassandra.queue.model.MessageDescriptor;
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
-import com.real.cassandra.queue.utils.MyIp;
 import com.real.cassandra.queue.utils.UuidGenerator;
 
 public class QueueRepositoryImplTest extends CassQueueTestBase {
@@ -106,7 +103,7 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         int maxPushesPerPipe = 23;
 
         qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
-        PipeDescriptorImpl pipeDesc = qRepos.createPipeDescriptor(qName, UUIDGen.makeType1UUIDFromHost(MyIp.get()));
+        PipeDescriptorImpl pipeDesc = qRepos.createPipeDescriptor(qName, UuidGenerator.generateTimeUuid());
 
         UUID msgId = UuidGenerator.generateTimeUuid();
         String msgData = "get the msg";
@@ -276,7 +273,7 @@ public class QueueRepositoryImplTest extends CassQueueTestBase {
         int maxPushesPerPipe = 23;
 
         qRepos.createQueueIfDoesntExist(qName, maxPushTimeOfPipe, maxPushesPerPipe, 30000);
-        PipeDescriptorImpl pd = qRepos.createPipeDescriptor(qName, UUIDGen.makeType1UUIDFromHost(MyIp.get()));
+        PipeDescriptorImpl pd = qRepos.createPipeDescriptor(qName, UuidGenerator.generateTimeUuid());
 
         assertNull("pop owner should be null at start of pipe", pd.getPopOwner());
         assertNull("pop owner timestamp should be null at start of pipe", pd.getPopOwnTimestamp());

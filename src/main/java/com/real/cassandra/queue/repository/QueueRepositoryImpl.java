@@ -136,10 +136,7 @@ public class QueueRepositoryImpl {
             long transactionTimeout) {
         CfDef colFamDef =
                 new CfDef(QUEUE_KEYSPACE_NAME, formatWaitingColFamName(qName)).setComparator_type("TimeUUIDType")
-                        .setKey_cache_size(0).setKey_cache_save_period_in_seconds(0).setRow_cache_size(0)
-                        .setRow_cache_save_period_in_seconds(0).setGc_grace_seconds(GC_GRACE_SECS)
-                        .setMemtable_flush_after_mins(15).setMemtable_operations_in_millions(0.25)
-                        .setMemtable_throughput_in_mb(200);
+                        .setGc_grace_seconds(GC_GRACE_SECS);
         String ver = null;
         try {
             ver = createColumnFamily(colFamDef);
@@ -152,10 +149,7 @@ public class QueueRepositoryImpl {
 
         colFamDef =
                 new CfDef(QUEUE_KEYSPACE_NAME, formatPendingColFamName(qName)).setComparator_type("TimeUUIDType")
-                        .setKey_cache_size(0).setKey_cache_save_period_in_seconds(0).setRow_cache_size(0)
-                        .setRow_cache_save_period_in_seconds(0).setGc_grace_seconds(GC_GRACE_SECS)
-                        .setMemtable_flush_after_mins(15).setMemtable_operations_in_millions(0.1)
-                        .setMemtable_throughput_in_mb(20);
+                        .setGc_grace_seconds(GC_GRACE_SECS);
         try {
             ver = createColumnFamily(colFamDef);
             waitForSchemaSync(ver);
@@ -283,7 +277,7 @@ public class QueueRepositoryImpl {
         msgDesc.setMsgId(msgId);
         msgDesc.setPayload(msgData);
         msgDesc.setCreateTimestamp(System.currentTimeMillis());
-        entityMgr.save(msgDesc);
+        entityMgr.persist(msgDesc);
 
         Mutator<UUID> m = HFactory.createMutator(keyspace, UUIDSerializer.get());
 
@@ -686,33 +680,20 @@ public class QueueRepositoryImpl {
     private KsDef createKeyspaceDefinition() {
         ArrayList<CfDef> cfDefList = new ArrayList<CfDef>(2);
         cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, MSG_DESCRIPTOR_COLFAM)
-                .setComparator_type(BytesType.class.getSimpleName()).setKey_cache_size(0)
-                .setKey_cache_save_period_in_seconds(0).setRow_cache_size(0).setRow_cache_save_period_in_seconds(0)
-                .setGc_grace_seconds(GC_GRACE_SECS).setMemtable_flush_after_mins(15)
-                .setMemtable_operations_in_millions(0.25).setMemtable_throughput_in_mb(200));
+                .setComparator_type(BytesType.class.getSimpleName())
+                .setGc_grace_seconds(GC_GRACE_SECS));
         cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, PIPE_DESCRIPTOR_COLFAM)
-                .setComparator_type(BytesType.class.getSimpleName()).setKey_cache_size(0)
-                .setKey_cache_save_period_in_seconds(0).setRow_cache_size(0).setRow_cache_save_period_in_seconds(0)
-                .setGc_grace_seconds(GC_GRACE_SECS).setMemtable_flush_after_mins(15)
-                .setMemtable_operations_in_millions(0.15).setMemtable_throughput_in_mb(50));
+                .setComparator_type(BytesType.class.getSimpleName()).setGc_grace_seconds(GC_GRACE_SECS));
         cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_DESCRIPTORS_COLFAM)
-                .setComparator_type(BytesType.class.getSimpleName()).setKey_cache_size(0)
-                .setKey_cache_save_period_in_seconds(0).setRow_cache_size(1000)
-                .setRow_cache_save_period_in_seconds(3600).setGc_grace_seconds(GC_GRACE_SECS)
-                .setMemtable_flush_after_mins(15).setMemtable_operations_in_millions(0.1)
-                .setMemtable_throughput_in_mb(20));
+                .setComparator_type(BytesType.class.getSimpleName()).setGc_grace_seconds(GC_GRACE_SECS));
         cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_PIPE_CNXN_COLFAM)
-                .setComparator_type(TimeUUIDType.class.getSimpleName()).setKey_cache_size(0)
-                .setKey_cache_save_period_in_seconds(0).setRow_cache_size(0).setRow_cache_save_period_in_seconds(0)
-                .setGc_grace_seconds(GC_GRACE_SECS).setMemtable_flush_after_mins(15)
-                .setMemtable_operations_in_millions(0.1).setMemtable_throughput_in_mb(20));
+                .setComparator_type(TimeUUIDType.class.getSimpleName()).setGc_grace_seconds(GC_GRACE_SECS));
         cfDefList.add(new CfDef(QUEUE_KEYSPACE_NAME, QUEUE_STATS_COLFAM)
-                .setComparator_type(BytesType.class.getSimpleName()).setKey_cache_size(0)
-                .setKey_cache_save_period_in_seconds(0).setRow_cache_size(0).setRow_cache_save_period_in_seconds(0)
-                .setGc_grace_seconds(GC_GRACE_SECS).setMemtable_flush_after_mins(15)
-                .setMemtable_operations_in_millions(0.15).setMemtable_throughput_in_mb(50));
+                .setComparator_type(BytesType.class.getSimpleName()).setGc_grace_seconds(GC_GRACE_SECS));
 
-        return new KsDef(QUEUE_KEYSPACE_NAME, STRATEGY_CLASS_NAME, getReplicationFactor(), cfDefList);
+        KsDef ksDef = new KsDef(QUEUE_KEYSPACE_NAME, STRATEGY_CLASS_NAME, cfDefList);
+        ksDef.setReplication_factor(getReplicationFactor());
+        return ksDef;
     }
 
     public boolean isSchemaInSync(String version) {
@@ -847,7 +828,7 @@ public class QueueRepositoryImpl {
     }
 
     public void updateQueueStats(QueueStats qStats) {
-        entityMgr.save(qStats);
+        entityMgr.persist(qStats);
     }
 
     public void removePipeDescriptor(PipeDescriptorImpl pipeDesc) {

@@ -1,11 +1,20 @@
 package com.real.cassandra.queue;
 
+import me.prettyprint.cassandra.connection.HConnectionManager;
+import me.prettyprint.cassandra.service.CassandraHostConfigurator;
+import me.prettyprint.hector.testutils.EmbeddedServerHelper;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.thrift.transport.TTransportException;
 import org.junit.BeforeClass;
 
 import com.real.cassandra.queue.app.CassQueueUtils;
 import com.real.cassandra.queue.app.QueueProperties;
 import com.real.cassandra.queue.repository.HectorUtils;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
 
 public class CassQueueTestBase {
 
@@ -13,15 +22,27 @@ public class CassQueueTestBase {
     protected static QueueRepositoryImpl qRepos;
     protected static CassQMsgFactory qMsgFactory = new CassQMsgFactory();
 
+    private static Logger log = LoggerFactory.getLogger(CassQueueTestBase.class);
+    private static EmbeddedServerHelper embedded;
+
+    protected HConnectionManager connectionManager;
+    protected CassandraHostConfigurator cassandraHostConfigurator;
+    protected String clusterName = "TestCluster";
+
+
     public CassQueueTestBase() {
         super();
     }
 
     @BeforeClass
-    public static void setupTestClass() throws Exception {
+    public static void setupTestClass() throws TTransportException, IOException, InterruptedException, ConfigurationException {
+        if ( null == embedded) {
+            embedded = new EmbeddedServerHelper();
+            embedded.setup();
+        }
+
         if (null == qRepos) {
             baseEnvProps = CassQueueUtils.createEnvPropertiesWithDefaults();
-            CassQueueUtils.startCassandraInstance();
             qRepos = HectorUtils.createQueueRepository(baseEnvProps);
         }
     }
@@ -32,5 +53,23 @@ public class CassQueueTestBase {
 //            qRepos.shutdown();
 //        }
 //    }
+
+//    @AfterClass
+//    public static void teardownCassandra() throws IOException {
+//        EmbeddedServerHelper.teardown();
+//        embedded = null;
+//    }
+
+
+    protected void setupClient() {
+        cassandraHostConfigurator = new CassandraHostConfigurator("127.0.0.1:9170");
+        connectionManager = new HConnectionManager(clusterName,cassandraHostConfigurator);
+    }
+
+    protected CassandraHostConfigurator getCHCForTest() {
+        CassandraHostConfigurator chc = new CassandraHostConfigurator("127.0.0.1:9170");
+        chc.setMaxActive(2);
+        return chc;
+    }
 
 }

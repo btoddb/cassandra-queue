@@ -7,7 +7,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.UUID;
 
-import org.apache.cassandra.utils.UUIDGen;
+import com.real.cassandra.queue.utils.UuidGenerator;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -16,7 +16,6 @@ import com.real.cassandra.queue.CassQueueImpl;
 import com.real.cassandra.queue.CassQueueTestBase;
 import com.real.cassandra.queue.QueueDescriptor;
 import com.real.cassandra.queue.locks.LocalLockerImpl;
-import com.real.cassandra.queue.utils.MyIp;
 
 public class PipeManagerTest extends CassQueueTestBase {
     CassQueueImpl cq;
@@ -24,9 +23,9 @@ public class PipeManagerTest extends CassQueueTestBase {
 
     @Test
     public void testPickPipe() {
-        PipeDescriptorImpl pd1 = qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
-        PipeDescriptorImpl pd2 = qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
-        PipeDescriptorImpl pd3 = qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
+        PipeDescriptorImpl pd1 = qRepos.createPipeDescriptor(cq.getName(), UuidGenerator.generateTimeUuid());
+        PipeDescriptorImpl pd2 = qRepos.createPipeDescriptor(cq.getName(), UuidGenerator.generateTimeUuid());
+        PipeDescriptorImpl pd3 = qRepos.createPipeDescriptor(cq.getName(), UuidGenerator.generateTimeUuid());
 
         System.out.println("pd1 = " + pd1.getId());
         System.out.println("pd2 = " + pd2.getId());
@@ -42,9 +41,9 @@ public class PipeManagerTest extends CassQueueTestBase {
 
     @Test
     public void testNoneAvailable() {
-        PipeDescriptorImpl pd1 = qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
-        PipeDescriptorImpl pd2 = qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
-        PipeDescriptorImpl pd3 = qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
+        PipeDescriptorImpl pd1 = qRepos.createPipeDescriptor(cq.getName(), UuidGenerator.generateTimeUuid());
+        PipeDescriptorImpl pd2 = qRepos.createPipeDescriptor(cq.getName(), UuidGenerator.generateTimeUuid());
+        PipeDescriptorImpl pd3 = qRepos.createPipeDescriptor(cq.getName(), UuidGenerator.generateTimeUuid());
 
         PipeManager pipeMgr1 = new PipeManager(qRepos, cq, UUID.randomUUID(), pipeCollectionLocker);
         assertEquals(pd1, pipeMgr1.pickPipe());
@@ -60,9 +59,9 @@ public class PipeManagerTest extends CassQueueTestBase {
 
     @Test
     public void testPickPipeSameOwner() {
-        PipeDescriptorImpl pd1 = qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
-        PipeDescriptorImpl pd2 = qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
-        qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
+        PipeDescriptorImpl pd1 = qRepos.createPipeDescriptor(cq.getName(), UuidGenerator.generateTimeUuid());
+        PipeDescriptorImpl pd2 = qRepos.createPipeDescriptor(cq.getName(), UuidGenerator.generateTimeUuid());
+        qRepos.createPipeDescriptor(cq.getName(), UuidGenerator.generateTimeUuid());
 
         PipeManager pipeMgr1 = new PipeManager(qRepos, cq, UUID.randomUUID(), pipeCollectionLocker);
         assertEquals(pd1, pipeMgr1.pickPipe());
@@ -73,7 +72,7 @@ public class PipeManagerTest extends CassQueueTestBase {
 
     @Test
     public void testPickPipeExpired() throws Exception {
-        PipeDescriptorImpl pd1 = qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
+        PipeDescriptorImpl pd1 = qRepos.createPipeDescriptor(cq.getName(), UuidGenerator.generateTimeUuid());
 
         PipeManager pipeMgr1 = new PipeManager(qRepos, cq, UUID.randomUUID(), pipeCollectionLocker);
         assertEquals(pd1, pipeMgr1.pickPipe());
@@ -93,7 +92,7 @@ public class PipeManagerTest extends CassQueueTestBase {
 
     @Test
     public void testMarkPushFinished() throws Exception {
-        PipeDescriptorImpl pd1 = qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
+        PipeDescriptorImpl pd1 = qRepos.createPipeDescriptor(cq.getName(), UuidGenerator.generateTimeUuid());
 
         cq.setMaxPushTimePerPipe(1);
         PipeManager pipeMgr1 = new PipeManager(qRepos, cq, UUID.randomUUID(), pipeCollectionLocker);

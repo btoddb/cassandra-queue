@@ -1,12 +1,12 @@
 package com.real.cassandra.queue;
 
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
-
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
+import me.prettyprint.hom.annotations.Column;
+import me.prettyprint.hom.annotations.Id;
+
+import javax.persistence.Entity;
+import javax.persistence.Table;
 
 @Entity
 @Table(name=QueueRepositoryImpl.QUEUE_DESCRIPTORS_COLFAM)

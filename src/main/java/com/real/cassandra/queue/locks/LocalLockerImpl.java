@@ -93,7 +93,7 @@ public class LocalLockerImpl<I extends Descriptor> implements Locker<I> {
         return lockObjMap;
     }
 
-    public int getLockCount() {
+    public int getLockCountSuccess() {
         return lockCount.get();
     }
 

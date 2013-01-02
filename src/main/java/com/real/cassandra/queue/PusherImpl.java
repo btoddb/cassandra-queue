@@ -3,14 +3,13 @@ package com.real.cassandra.queue;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.utils.UUIDGen;
+import com.real.cassandra.queue.utils.UuidGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.real.cassandra.queue.pipes.PipeDescriptorImpl;
 import com.real.cassandra.queue.pipes.PipeStatus;
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
-import com.real.cassandra.queue.utils.MyIp;
 import com.real.cassandra.queue.utils.RollingStat;
 
 /**
@@ -87,7 +86,7 @@ public class PusherImpl {
     }
 
     private PipeDescriptorImpl createNewPipe() {
-        return qRepos.createPipeDescriptor(cq.getName(), UUIDGen.makeType1UUIDFromHost(MyIp.get()));
+        return qRepos.createPipeDescriptor(cq.getName(), UuidGenerator.generateTimeUuid());
     }
 
     /**

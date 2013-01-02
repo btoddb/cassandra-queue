@@ -234,15 +234,15 @@ public class CassQueueTest extends CassQueueTestBase {
 
     private void assertLockerCountsAreCorrect() {
 
-        System.out.println("Queue stats lock acquire count: " + queueStatsLocker.getLockCount() + ""
+        System.out.println("Queue stats lock acquire count: " + queueStatsLocker.getLockCountSuccess() + ""
                 + ", release count: " + queueStatsLocker.getReleaseCount());
 
         assertTrue("queueStatsLocker acquire count should equals release; " + "acquire: "
-                + queueStatsLocker.getLockCount() + ", release: " + queueStatsLocker.getReleaseCount(),
-                queueStatsLocker.getLockCount() == queueStatsLocker.getReleaseCount());
+                + queueStatsLocker.getLockCountSuccess() + ", release: " + queueStatsLocker.getReleaseCount(),
+                queueStatsLocker.getLockCountSuccess() == queueStatsLocker.getReleaseCount());
 
         assertTrue("queueStatsLocker should be empty after shutdown, but has " + queueStatsLocker.getMap().size()
-                + " locks still active(" + queueStatsLocker.getLockCount() + ", " + queueStatsLocker.getReleaseCount()
+                + " locks still active(" + queueStatsLocker.getLockCountSuccess() + ", " + queueStatsLocker.getReleaseCount()
                 + ")", queueStatsLocker.getMap().isEmpty());
     }
 

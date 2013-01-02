@@ -7,8 +7,6 @@ public interface EnvPropertiesMXBean {
 
     int getMaxActive();
 
-    int getMaxIdle();
-
     int getRpcPort();
 
     int getReplicationFactor();

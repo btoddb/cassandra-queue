@@ -58,13 +58,7 @@
     <category name="com">
         <priority value="error"/>
     </category>
-    <category name="com.real">
-        <priority value="error"/>
-    </category>
-    <category name="com.real.cassandra.queue">
-        <priority value="info"/>
-    </category>
-    <category name="org.scale7.cassandra.pelops">
+    <category name="com.btoddb.cassandra.queue">
         <priority value="info"/>
     </category>
 

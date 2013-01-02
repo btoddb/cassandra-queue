@@ -12,6 +12,8 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import com.real.cassandra.queue.locks.Locker;
+import com.real.cassandra.queue.locks.hazelcast.HazelcastLockerImpl;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -27,7 +29,6 @@ import com.real.cassandra.queue.app.CassQueueUtils;
 import com.real.cassandra.queue.app.PushPopAbstractBase;
 import com.real.cassandra.queue.app.QueueProperties;
 import com.real.cassandra.queue.app.WorkerThreadWatcher;
-import com.real.cassandra.queue.locks.CagesLockerImpl;
 
 /**
  * Tests for {@link CassQueueImpl}.
@@ -38,11 +39,8 @@ import com.real.cassandra.queue.locks.CagesLockerImpl;
 public class DistCassQueueTest extends CassQueueTestBase {
 
     private static CassQueueFactoryImpl cqFactory;
-    private static CagesLockerImpl<QueueDescriptor> queueStatsLocker;
-    private static CagesLockerImpl<QueueDescriptor> pipeCollectionLocker;
-
-    private final static String ZK_CONNECT_STRING =
-            "kv-app07.dev.real.com:2181,kv-app08.dev.real.com:2181,kv-app09.dev.real.com:2181";
+    private static Locker<QueueDescriptor> queueStatsLocker;
+    private static Locker<QueueDescriptor> pipeCollectionLocker;
 
     @Test
     public void testTruncate() throws Exception {
@@ -197,22 +195,23 @@ public class DistCassQueueTest extends CassQueueTestBase {
     }
 
     private void assertLockerCountsAreCorrect() {
-        System.out.println("Queue stats lock acquire count: " + queueStatsLocker.getLockCount() + ""
+        System.out.println("Queue stats lock acquire count: " + queueStatsLocker.getLockCountSuccess() + ""
                 + ", release count: " + queueStatsLocker.getReleaseCount());
 
         assertTrue("queueStatsLocker acquire count should equals release; " + "acquire: "
-                + queueStatsLocker.getLockCount() + ", release: " + queueStatsLocker.getReleaseCount(),
-                queueStatsLocker.getLockCount() == queueStatsLocker.getReleaseCount());
+                + queueStatsLocker.getLockCountSuccess() + ", release: " + queueStatsLocker.getReleaseCount(),
+                queueStatsLocker.getLockCountSuccess() == queueStatsLocker.getReleaseCount());
 
     }
 
     @Before
     public void setupTest() throws Exception {
-        // popLocker = new CagesLockerImpl<PipeDescriptorImpl>("/pipes",
-        // ZK_CONNECT_STRING, 6000, 30);
-        queueStatsLocker = new CagesLockerImpl<QueueDescriptor>("/queue-stats", ZK_CONNECT_STRING, 6000, 30);
-        pipeCollectionLocker = new CagesLockerImpl<QueueDescriptor>("/pipes", ZK_CONNECT_STRING, 6000, 30);
-        
+//        queueStatsLocker = new CagesLockerImpl<QueueDescriptor>("/queue-stats", ZK_CONNECT_STRING, 6000, 30);
+//        pipeCollectionLocker = new CagesLockerImpl<QueueDescriptor>("/pipes", ZK_CONNECT_STRING, 6000, 30);
+
+        queueStatsLocker = new HazelcastLockerImpl<QueueDescriptor>("queue-stats");
+        pipeCollectionLocker = new HazelcastLockerImpl<QueueDescriptor>("pipes");
+
         cqFactory = new CassQueueFactoryImpl(qRepos, queueStatsLocker, pipeCollectionLocker);
     }
 

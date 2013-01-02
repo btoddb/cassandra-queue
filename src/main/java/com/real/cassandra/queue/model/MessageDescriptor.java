@@ -4,12 +4,12 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
 
-import javax.persistence.Column;
 import javax.persistence.Entity;
-import javax.persistence.Id;
 import javax.persistence.Table;
 
 import com.real.cassandra.queue.repository.QueueRepositoryImpl;
+import me.prettyprint.hom.annotations.Column;
+import me.prettyprint.hom.annotations.Id;
 
 @Entity
 @Table(name = QueueRepositoryImpl.MSG_DESCRIPTOR_COLFAM)

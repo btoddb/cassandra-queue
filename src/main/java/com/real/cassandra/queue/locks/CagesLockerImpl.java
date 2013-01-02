@@ -123,7 +123,7 @@ public class CagesLockerImpl<I extends Descriptor> implements Locker<I> {
     }
 
 
-    public int getLockCount() {
+    public int getLockCountSuccess() {
         return lockCount.get();
     }
 

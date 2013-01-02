@@ -58,10 +58,7 @@
     <category name="com">
         <priority value="error"/>
     </category>
-    <category name="com.real">
-        <priority value="info"/>
-    </category>
-    <category name="com.real.cassandra.queue">
+    <category name="com.btoddb.cassandra.queue">
         <priority value="debug"/>
     </category>
     <category name="me.prettyprint">

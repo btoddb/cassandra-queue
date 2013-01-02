@@ -96,16 +96,18 @@ public class HazelcastLockerImpl<I extends Descriptor> implements Locker<I> {
     public void shutdownAndWait() {
     }
 
-    public AtomicInteger getLockCountSuccess() {
-        return lockCountSuccess;
+    @Override
+    public int getLockCountSuccess() {
+        return lockCountSuccess.get();
     }
 
-    public AtomicInteger getReleaseCount() {
-        return releaseCount;
+    @Override
+    public int getReleaseCount() {
+        return releaseCount.get();
     }
 
-    public AtomicInteger getLockCountFailure() {
-        return lockCountFailure;
+    public int getLockCountFailure() {
+        return lockCountFailure.get();
     }
 
     public AtomicInteger getLockCountFailureWithRetry() {

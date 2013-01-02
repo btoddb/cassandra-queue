@@ -12,7 +12,6 @@ package com.real.cassandra.queue.locks;
  */
 public interface Locker<I> {
 
-
     ObjectLock<I> lock(I object);
 
     ObjectLock<I> lock(I object, int lockRetryLimit, long lockRetryDelay);
@@ -21,4 +20,7 @@ public interface Locker<I> {
 
     void shutdownAndWait();
 
+    int getLockCountSuccess();
+
+    int getReleaseCount();
 }

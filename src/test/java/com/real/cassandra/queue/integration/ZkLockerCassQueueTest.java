@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.real.cassandra.queue.CassQMsg;
@@ -36,6 +37,7 @@ import static org.junit.Assert.assertTrue;
  * @author Todd Burruss
  * @author Andrew Ebaugh
  */
+@Ignore
 public class ZkLockerCassQueueTest extends CassQueueTestBase {
 
     private static CassQueueFactoryImpl cqFactory;
@@ -198,12 +200,12 @@ public class ZkLockerCassQueueTest extends CassQueueTestBase {
     }
 
     private void assertLockerCountsAreCorrect() {
-        System.out.println("Queue stats lock acquire count: " + queueStatsLocker.getLockCount() + ""
+        System.out.println("Queue stats lock acquire count: " + queueStatsLocker.getLockCountSuccess() + ""
                 + ", release count: " + queueStatsLocker.getReleaseCount());
 
         assertTrue("queueStatsLocker acquire count should equals release; " + "acquire: "
-                + queueStatsLocker.getLockCount() + ", release: " + queueStatsLocker.getReleaseCount(),
-                queueStatsLocker.getLockCount() == queueStatsLocker.getReleaseCount());
+                + queueStatsLocker.getLockCountSuccess() + ", release: " + queueStatsLocker.getReleaseCount(),
+                queueStatsLocker.getLockCountSuccess() == queueStatsLocker.getReleaseCount());
 
     }
 

@@ -188,7 +188,7 @@ public class ZooKeeperLockerImpl<I extends Descriptor> implements Locker<I> {
         zookeeperManager.shutdown();
     }
 
-    public int getLockCount() {
+    public int getLockCountSuccess() {
         return lockCount.get();
     }
 
