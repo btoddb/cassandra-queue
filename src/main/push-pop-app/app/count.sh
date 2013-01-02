@@ -46,7 +46,7 @@ OPTS="-Xms1G \
 APP_OPTS="--count"
 #APP_OPTS="--dump-pipe 3ab8cad1-bb49-11df-8d33-95186c4f1831"
 
-java ${OPTS} -cp ${classpath} com.real.cassandra.queue.app.CassQueueApp ${APP_OPTS}
+java ${OPTS} -cp ${classpath} com.btoddb.cassandra.queue.app.CassQueueApp ${APP_OPTS}
 echo $! > ${pidFile}
 
 popd

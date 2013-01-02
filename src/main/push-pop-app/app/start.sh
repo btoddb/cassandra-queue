@@ -46,7 +46,7 @@ OPTS="-Xms1G \
 "
 APP_OPTS=""
 
-java ${OPTS} -cp ${classpath} com.real.cassandra.queue.PushPopApp ${APP_OPTS} > ${logDir}/console.log 2>&1 &
+java ${OPTS} -cp ${classpath} com.btoddb.cassandra.queue.PushPopApp ${APP_OPTS} > ${logDir}/console.log 2>&1 &
 echo $! > ${pidFile}
 
 popd

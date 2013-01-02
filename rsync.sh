@@ -13,7 +13,7 @@ remoteAppPath="${remoteBasePath}/app"
 remoteConfPath="${remoteBasePath}/conf"
 localBaseDir=`dirname $0`
 tarFile=cassandra-queue-${version}.tar.gz
-hostName="kv-app01.dev.real.com"
+hostName="host.btoddb.com"
 explodeDir=target/explode.tmp
 
 #
